@@ -2590,6 +2590,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 - (void) setCmdDebug: (NSString*)mode withDescription: (NSString*)desc
 {
   [cmdDebugKnown setObject: desc forKey: mode];
+  if (YES == [cmdDefs boolForKey: [@"Debug-" stringByAppendingString: mode]])
+    {
+      [cmdDebugModes addObject: mode];
+    }
+  else
+    {
+      [cmdDebugModes removeObject: mode];
+    }
 }
 
 - (void) setCmdTimeout: (SEL)sel
