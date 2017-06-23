@@ -2425,8 +2425,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   NSRunLoop             *loop;
   NSDate                *future;
 
-  [self cmdAudit: @"Starting `%@'", [self cmdName]];
-
   /* Called to permit subclasses to initialise before entering run loop.
    */
   [self ecAwaken];
@@ -4325,6 +4323,12 @@ With two parameters ('maximum' and a number),\n\
           [self setCmdInterval: [cmdDefs floatForKey: @"CmdInterval"]];
 	}
 
+      /* Log that we are starting up, after the config required for logging
+       * is in place, but before we have updated config from the Command
+       * server (since updating config may generater log files).
+       */
+      [self cmdAudit: @"Starting `%@'", [self cmdName]];
+
       if (YES == [self cmdIsClient] && nil == [self cmdNewServer])
 	{
 	  NSLog(@"Giving up - unable to contact '%@' server on '%@'",
@@ -4335,29 +4339,32 @@ With two parameters ('maximum' and a number),\n\
     }
   [ecLock unlock];
 
-  /* Put self in background.
-   */
-  if ([cmdDefs boolForKey: @"Daemon"] == YES)
+  if (self != nil)
     {
-      int	pid = fork();
+      /* Put self in background.
+       */
+      if ([cmdDefs boolForKey: @"Daemon"] == YES)
+        {
+          int	pid = fork();
 
-      if (pid == 0)
-	{
-	  cmdFlagDaemon = YES;
-	  setpgid(0, getpid());
-	}
-      else
-	{
-	  if (pid < 0)
-	    {
-	      printf("Failed fork to run as daemon.\r\n");
-	    }
-	  else
-	    {
-	      printf("Process backgrounded (running as daemon)\r\n");
-	    }
-	  exit(0);
-	}
+          if (pid == 0)
+            {
+              cmdFlagDaemon = YES;
+              setpgid(0, getpid());
+            }
+          else
+            {
+              if (pid < 0)
+                {
+                  printf("Failed fork to run as daemon.\r\n");
+                }
+              else
+                {
+                  printf("Process backgrounded (running as daemon)\r\n");
+                }
+              exit(0);
+            }
+        }
     }
 
   return self;
