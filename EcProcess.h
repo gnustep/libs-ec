@@ -779,11 +779,8 @@ extern NSString*	cmdVersion(NSString *ver);
  * method will find the configuration unchanged since the previous
  * time that it was called.<br />
  * The return value of this method is used to control automatic generation
- * of alarms for fatal configuration errors.  If the return value is nil
- * (the default), then any configuration error alarm is cleared.<br />
- * Otherwise, a configuration error alarm will be raised (using the
- * returned string as the 'additional text' of the alarm), and the process
- * will be terminated by a call to -cmdQuit: with an argument of 1.<br />
+ * of alarms for fatal configuration errors by passing it to the
+ * -ecConfigurationError: method.<br />
  * When you implement this method, you must ensure that your implementation
  * calls the superclass implementation, and if that returns a non-nil
  * result, you should pass that on as the return value from your own
@@ -1003,9 +1000,21 @@ extern NSString*	cmdVersion(NSString *ver);
  * If you are not using -ecRun you should call this method explicitly in your
  * own code.<br />
  * The default implementation does nothing but record the fact that it has
- * been called (for -ecDidAwaken).
+ * been called (for -ecDidAwaken).<br />
  */
 - (void) ecAwaken;
+
+/** Called to handle fatal configuration problems (or with a nil argument,
+ * to clear any outstanding alarm about a configuration problem).<br />
+ * If err is not nil, a configuration error alarm will be raised (using the
+ * err string as the 'additional text' of the alarm), and the process
+ * will be terminated by a call to -cmdQuit: with an argument of 1.<br />
+ * If you override this method, you should ensure that your implementation
+ * calls the superclass implementation.<br />
+ * This method is called automatically with the result of -cmdUpdated when
+ * process configuration changes.
+ */
+- (void) ecConfigurationError: (NSString*)err;
 
 /** Returns YES if the base implementation of -ecAwaken has been called,
  * NO otherwise.  You may use this in conjunction with -ecDoLock and

@@ -1653,6 +1653,45 @@ static BOOL     ecDidAwaken = NO;
   ecDidAwaken = YES;
 }
 
+- (void) ecConfigurationError: (NSString*)err
+{
+  if ([err length] > 0)
+    {
+      EcAlarm       *a;
+
+      /* Truncate additional text to fit if necessary.
+       */
+      err = [err stringByTrimmingSpaces];
+      if ([err length] > 255)
+        {
+          err = [err substringToIndex: 255];
+          while (255 < strlen([err UTF8String]))
+            {
+              err = [err substringToIndex: [err length] - 1];
+            }
+        }
+      a = [EcAlarm alarmForManagedObject: nil
+        at: nil
+        withEventType: EcAlarmEventTypeProcessingError
+        probableCause: EcAlarmConfigurationOrCustomizationError
+        specificProblem: @"Fatal configuration error"
+        perceivedSeverity: EcAlarmSeverityMajor
+        proposedRepairAction:
+        _(@"Correct config (check additional text and/or log for details).")
+        additionalText: err];
+      [self alarm: a];
+      [alarmDestination shutdown];
+      cmdIsQuitting = YES;
+      [self cmdQuit: 1];
+    }
+  else
+    {
+      [self clearConfigurationFor: nil
+                  specificProblem: @"Fatal configuration error"
+                   additionalText: @"Configuration updated"];
+    }
+}
+
 - (BOOL) ecDidAwaken
 {
   return ecDidAwaken;
@@ -5125,41 +5164,7 @@ With two parameters ('maximum' and a number),\n\
             err = @"the -cmdUpdated method raised an exception";
           NS_ENDHANDLER
         }
-      if ([err length] > 0)
-        {
-          EcAlarm       *a;
-
-          /* Truncate additional text to fit if necessary.
-           */
-          err = [err stringByTrimmingSpaces];
-          if ([err length] > 255)
-            {
-              err = [err substringToIndex: 255];
-              while (255 < strlen([err UTF8String]))
-                {
-                  err = [err substringToIndex: [err length] - 1];
-                }
-            }
-          a = [EcAlarm alarmForManagedObject: nil
-            at: nil
-            withEventType: EcAlarmEventTypeProcessingError
-            probableCause: EcAlarmConfigurationOrCustomizationError
-            specificProblem: @"Fatal configuration error"
-            perceivedSeverity: EcAlarmSeverityMajor
-            proposedRepairAction:
-            _(@"Correct config (check additional text and/or log for details).")
-            additionalText: err];
-          [self alarm: a];
-          [alarmDestination shutdown];
-          cmdIsQuitting = YES;
-          [self cmdQuit: 1];
-        }
-      else
-        {
-          [self clearConfigurationFor: nil
-                      specificProblem: @"Fatal configuration error"
-                       additionalText: @"Configuration updated"];
-        }
+      [self ecConfigurationError: err];
     }
 }
 

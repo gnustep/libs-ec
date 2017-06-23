@@ -9,7 +9,9 @@
 	date.  Fixes the bug where files were archived to a folder with the
 	wrong date on startup, and simplifies archiving code generally.
 	Move startup of timeouts to -ecRun so that they won't occur until
-	after all initialisation.
+	after all initialisation. Add -ecAwaken, -ecDidAwaken, and
+	-ecConfigurationError: to make it easy to initialise stuff at the
+	start of -ecRun and to ignore config updates before that happens.
 
 2017-03-06  Richard Frith-Macdonald <rfm@gnu.org>
 
