@@ -1002,9 +1002,18 @@ extern NSString*	cmdVersion(NSString *ver);
  * override this method to perform your initialisation.<br />
  * If you are not using -ecRun you should call this method explicitly in your
  * own code.<br />
- * The default implementation does nothing.
+ * The default implementation does nothing but record the fact that it has
+ * been called (for -ecDidAwaken).
  */
 - (void) ecAwaken;
+
+/** Returns YES if the base implementation of -ecAwaken has been called,
+ * NO otherwise.  You may use this in conjunction with -ecDoLock and
+ * -ecUnLock to ensure that you have thread-safe initialisation of your
+ * program (though the locking is normally unnecessary if -ecAwaken is
+ * only called from -ecRun).
+ */
+- (BOOL) ecDidAwaken;
 
 /** Records the timestamp of the latest significant input for this process.
  * If when is nil the current timestmp is used.
