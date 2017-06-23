@@ -752,16 +752,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       else if (comp(wd, @"archive") >= 0)
 	{
-	  NSCalendarDate	*when = [NSCalendarDate date];
-	  NSString		*sub;
-	  int			yy, mm, dd;
-
-	  yy = [when yearOfCommonEra];
-	  mm = [when monthOfYear];
-	  dd = [when dayOfMonth];
-	  
-	  sub = [NSString stringWithFormat: @"%04d-%02d-%02d", yy, mm, dd];
-	  m = [NSString stringWithFormat: @"\n%@\n\n", [self cmdArchive: sub]];
+	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
 	}
       else if (comp(wd, @"help") >= 0)
 	{

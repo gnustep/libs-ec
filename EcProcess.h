@@ -570,12 +570,12 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
-/** Archives debug log files into the specified subdirectory of the debug
- * logging directory.  If subdir is nil then a subdirectory name corresponding
- * to the current date is generated and that subdirectory is created if
- * necessary.
+/** Archives debug log files into the appropriate subdirectory for the
+ * supplied date (or the files last modification date if when is nil).<br />
+ * Returns a text description of any archiving actually done.<br />
+ * The subdirectory is created if necessary.
  */
-- (NSString*) cmdArchive: (NSString*)subdir;
+- (NSString*) ecArchive: (NSDate*)when;
 
 /** Send a log message to the server.
  */
@@ -662,10 +662,12 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) cmdIsTesting;
 
-/** Closes a file handle previously obtained using the -cmdLogFile: method.
+/** Closes a file previously obtained using the -cmdLogFile: method.<br />
+ * Returns a description of any file archiving done, or nil if the file
+ * dis not exist.<br />
  * You should not close a logging handle directly, use this method.
  */
-- (void) cmdLogEnd: (NSString*)name;
+- (NSString*) cmdLogEnd: (NSString*)name;
 
 /** Obtain a file handle for logging purposes.  The file will have the
  * specified name and will be created (if necessary) in the processes
@@ -920,8 +922,10 @@ extern NSString*	cmdVersion(NSString *ver);
  * It's therefore recommended that you use 'lazy' initialisation of subclass
  * instance variables as/when they are needed, rather than initialising
  * them in the -initWithDefaults: method.<br />
- * An alternative strategy is to perform subclass initialisaton before
- * calling the superclass implementation.
+ * For a normal process, the recommended place to perform initialisation is
+ * immediately after initialisation (when configuration information has been
+ * retrieved from the Command server), typically by overriding the
+ * -ecRun method.
  */
 - (id) initWithDefaults: (NSDictionary*)defs;
 
@@ -1031,7 +1035,11 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Establishes the receiver as a DO server and runs the runloop.<br />
  * Returns zero when the run loop completes.<br />
  * Returns one (immediately) if the receiver is transent.<br />
- * Returns two if unable to register as a DO server.
+ * Returns two if unable to register as a DO server.<br />
+ * This is the recommended location to perform any initialisation of your
+ * subclass which needs configuration information from the Command server;
+ * override this method, perform your initialisation, and then call the
+ * superclass implementation of the method to enter the run loop.
  */
 - (int) ecRun;
 

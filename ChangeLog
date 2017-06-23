@@ -1,3 +1,14 @@
+2017-06-23  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcControl.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Replace cmdArchive: with ecArchive: changing trhe log file archiving
+	model to archive files primarily based on their last modification
+	date.  Fixes the bug where files were archived to a folder with the
+	wrong datre on startup, and simplifies archiving code generally.
+
 2017-03-06  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcAlarmDestination.h:

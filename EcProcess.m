@@ -1038,7 +1038,7 @@ findMode(NSDictionary* d, NSString* s)
 - (void) cmdMesgrelease: (NSArray*)msg;
 - (void) cmdMesgtesting: (NSArray*)msg;
 - (void) _memCheck;
-- (NSString*) _moveLog: (NSString*)name to: (NSString*)sub;
+- (NSString*) _moveLog: (NSString*)name to: (NSDate*)when;
 - (void) _timedOut: (NSTimer*)timer;
 - (void) _update: (NSMutableDictionary*)info;
 @end
@@ -1496,67 +1496,48 @@ static NSString	*noFiles = @"No log files to archive";
   return [dateClass dateWithTimeIntervalSinceReferenceDate: lastOP];
 }
 
-- (void) cmdLogEnd: (NSString*)name
+- (NSString*) cmdLogEnd: (NSString*)name
 {
-  NSFileHandle	*hdl;
+  NSString      *status = nil;
 
   if ([name length] == 0)
     {
       NSLog(@"Attempt to end log with empty filename");
-      return;
     }
-  name = [name lastPathComponent];
-
-  [self ecDoLock];
-  hdl = [cmdLogMap objectForKey: name];
-  if (hdl != nil)
+  else
     {
-      NSString		*path;
-      NSDictionary	*attr;
-      NSFileManager	*mgr;
+      NSFileHandle	*hdl;
 
-      /* Ensure that all data is written to file, then close it unless it's
-       * stderr (which we must keep open for logging at all times).
-       */
-      fflush(stderr);
-      if ([hdl fileDescriptor] != 2)
+      name = [name lastPathComponent];
+
+      [self ecDoLock];
+      hdl = [cmdLogMap objectForKey: name];
+      if (hdl != nil)
         {
-          NS_DURING
-            [hdl closeFile];
-          NS_HANDLER
-          NS_ENDHANDLER
+          /* If the file is empty, remove it, otherwise archive it.
+           */
+          status = [self _moveLog: name to: nil];
+
+          /* Ensure that all data is written to file, then close it unless it's
+           * stderr (which we must keep open for logging at all times).
+           */
+          fflush(stderr);
+          if ([hdl fileDescriptor] != 2)
+            {
+              NS_DURING
+                [hdl closeFile];
+              NS_HANDLER
+              NS_ENDHANDLER
+            }
+
+          /*
+           * Unregister filename.
+           */
+          [cmdLogMap removeObjectForKey: name];
         }
-
-      /*
-       * If the file is empty, remove it, otherwise move to archive directory.
-       */
-      path = [cmdLogsDir(nil) stringByAppendingPathComponent: name]; 
-      mgr = [NSFileManager defaultManager];
-      attr = [mgr fileAttributesAtPath: path traverseLink: NO];
-      if ([[attr objectForKey: NSFileSize] intValue] == 0)
-	{
-	  [mgr removeFileAtPath: path handler: nil];
-	}
-      else
-	{
-	  NSDate	*when;
-	  NSString	*where;
-
-	  when = [NSDate date];
-	  where = [when descriptionWithCalendarFormat: @"%Y-%m-%d"
-			timeZone: nil locale: nil];
-	  if (where != nil)
-	    {
-	      [self _moveLog: name to: where];
-	    }
-	}
-
-      /*
-       * Unregister filename.
-       */
-      [cmdLogMap removeObjectForKey: name];
+      [self ecUnLock];
     }
-  [self ecUnLock];
+  return status;
 }
 
 - (NSFileHandle*) cmdLogFile: (NSString*)name
@@ -1572,28 +1553,16 @@ static NSString	*noFiles = @"No log files to archive";
   name = [name lastPathComponent];
   [self ecDoLock];
   hdl = [cmdLogMap objectForKey: name];
-  if (hdl == nil)
+  if (nil == hdl)
     {
       NSFileManager	*mgr = [NSFileManager defaultManager];
       NSString		*path;
 
       path = [cmdLogsDir(nil) stringByAppendingPathComponent: name];
 
-      if ([mgr fileExistsAtPath: path] == YES)
-	{
-	  NSDictionary	*attr;
-	  NSDate	*when;
-	  NSString	*where;
-
-	  attr = [mgr fileAttributesAtPath: path traverseLink: NO];
-	  when = [attr objectForKey: NSFileModificationDate];
-	  where = [when descriptionWithCalendarFormat: @"%Y-%m-%d"
-			timeZone: nil locale: nil];
-	  if (where != nil)
-	    {
-	      status = [self _moveLog: name to: where];
-	    }
-	}
+      /* Archive any old left-over file.
+       */
+      [self _moveLog: name to: nil];
 
       /*
        * Create the file if necessary, and open it for updating.
@@ -1941,7 +1910,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   va_end (ap);
 }
 
-- (NSString*) cmdArchive: (NSString*)subdir
+- (NSString*) ecArchive: (NSDate*)when
 {
   NSString	*status = @"";
 
@@ -1957,27 +1926,18 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       [self ecDoLock];
       enumerator = [[cmdLogMap allKeys] objectEnumerator];
       [self ecUnLock];
-      if (subdir == nil)
-	{
-	  NSCalendarDate	*when = [NSCalendarDate date];
-	  int			y, m, d;
-
-	  y = [when yearOfCommonEra];
-	  m = [when monthOfYear];
-	  d = [when dayOfMonth];
-	  
-	  subdir = [stringClass stringWithFormat: @"%04d-%02d-%02d", y, m, d];
-	}
 
       while ((name = [enumerator nextObject]) != nil)
 	{
 	  NSString	*s;
 
-	  s = [self _moveLog: name to: subdir];
-	  if ([status length] > 0)
-	    status = [status stringByAppendingString: @"\n"];
-	  status = [status stringByAppendingString: s];
-	  [self cmdLogEnd: name];
+	  s = [self cmdLogEnd: name];
+          if (nil != s)
+            {
+              if ([status length] > 0)
+                status = [status stringByAppendingString: @"\n"];
+              status = [status stringByAppendingString: s];
+            }
 	  if (cmdIsQuitting == NO)
 	    {
 	      [self cmdLogFile: name];
@@ -2320,32 +2280,34 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 - (void) ecNewDay: (NSCalendarDate*)when
 {
   static NSDictionary   *defs = nil;
-  NSString	        *sub;
-  NSDictionary          *d;
-  NSEnumerator          *e;
-  NSString              *k;
+  NSDictionary          *d = [cmdDefs volatileDomainForName: @"EcCommand"];
 
-  /* New day ... archive debug/log files into a subdirectory based on
-   * the current date.  This is yesterday's debug, so we use yesterday.
-   */
-  sub = [[when dateByAddingYears: 0 months: 0 days: -1 hours: 0 minutes: 0
-    seconds: 0] descriptionWithCalendarFormat: @"%Y-%m-%d"];
-  NSLog(@"%@", [self cmdArchive: sub]);
-
-  /* Check information left in the EcCommand domain.
-   */
-  d = [cmdDefs volatileDomainForName: @"EcCommand"];
-  e = [[d allKeys] objectEnumerator];
-  while (nil != (k = [e nextObject]))
+  if (nil != defs)
     {
-      id        v = [d objectForKey: k];
+      NSEnumerator      *e;
+      NSString          *k;
 
-      if ([v isEqual: [defs objectForKey: k]])
+      /* Archive previous day's logs.  Force logs to be archived for the
+       * specified date even if they have been modified today (on the basis
+       * that only the very latest info in them should be from today).
+       */
+      NSLog(@"%@", [self ecArchive: when]);
+
+      /* Check information left in the EcCommand domain.
+       */
+      e = [[d allKeys] objectEnumerator];
+      while (nil != (k = [e nextObject]))
         {
-	  [self cmdError: @"The Console defaults override for '%@'"
-            @" has been left at '%@' for more than a day."
-            @" Please reset it ('tell %@ defaults delete %@') after updating"
-            @" Control.plist as required.", k, v, [self cmdName], k];
+          id        v = [d objectForKey: k];
+
+          if ([v isEqual: [defs objectForKey: k]])
+            {
+              [self cmdError: @"The Console defaults override for '%@'"
+                @" has been left at '%@' for more than a day."
+                @" Please reset it ('tell %@ defaults delete %@') after"
+                @" updating Control.plist as required.",
+                k, v, [self cmdName], k];
+            }
         }
     }
   ASSIGNCOPY(defs, d);
@@ -2855,7 +2817,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else
 	{
-	  [self cmdPrintf: @"\n%@\n", [self cmdArchive: nil]];
+	  [self cmdPrintf: @"\n%@\n", [self ecArchive: nil]];
 	}
     }
 }
@@ -4309,7 +4271,7 @@ With two parameters ('maximum' and a number),\n\
 	  /*
 	   * Force archiving of old logfile.
 	   */
-	  [self cmdArchive: nil];
+	  [self ecArchive: nil];
 
 	  ASSIGNCOPY(cmdDebugName, str);
 	  hdl = [self cmdLogFile: cmdDebugName];
@@ -4592,7 +4554,7 @@ With two parameters ('maximum' and a number),\n\
     }
 }
 
-- (void)_ensureMemLogger
+- (void) _ensureMemLogger
 {
   NSString *bundle = [cmdDefs stringForKey: @"MemoryLoggerBundle"];
   Class cls = Nil;
@@ -4843,65 +4805,89 @@ With two parameters ('maximum' and a number),\n\
     }
 }
 
-- (NSString*) _moveLog: (NSString*)name to: (NSString*)sub
+- (NSString*) _moveLog: (NSString*)name to: (NSDate*)when
 {
-  NSString	*status;
-  NSString	*where;
+  NSString	*status = nil;
 
   NS_DURING
     {
-      where = cmdLogsDir(sub);
-      if (where != nil)
-	{
-	  NSFileManager	*mgr = [NSFileManager defaultManager];
-	  NSString	*from;
-	  NSString	*path;
-	  NSString	*base;
-	  NSString	*gzpath;
-	  unsigned	count = 0;
+      NSFileManager	*mgr = [NSFileManager defaultManager];
+      NSString          *from;
+      NSDictionary      *attr;
 
-	  path = [where stringByAppendingPathComponent: name];
-	  from = [cmdLogsDir(nil) stringByAppendingPathComponent: name];
+      from = [cmdLogsDir(nil) stringByAppendingPathComponent: name];
+      attr = [mgr fileAttributesAtPath: from traverseLink: NO];
+      if (nil != attr)
+        {
+          if ([[attr objectForKey: NSFileSize] intValue] == 0)
+            {
+              [mgr removeFileAtPath: from handler: nil];
+              status = [NSString stringWithFormat:
+                @"Removed empty log %@", from];
+            }
+          else
+            {
+              NSString      *where;
+              NSString      *sub;
 
-	  /*
-	   * Check for pre-existing file - if found, try another.
-	   */
-	  base = path;
-	  path = [base stringByAppendingPathExtension: @"0"];
-	  gzpath = [path stringByAppendingPathExtension: @"gz"];
-	  while ([mgr fileExistsAtPath: path] == YES
-	    || [mgr fileExistsAtPath: gzpath] == YES)
-	    {
-	      NSString	*ext;
+              if (nil == when)
+                {
+                  when = [attr fileModificationDate];
+                }
+              sub = [when descriptionWithCalendarFormat: @"%Y-%m-%d"
+                                               timeZone: nil
+                                                 locale: nil];
+              where = cmdLogsDir(sub);
+              if (where != nil)
+                {
+                  NSString	*path;
+                  NSString	*base;
+                  NSString	*gzpath;
+                  unsigned	count = 0;
 
-	      ext = [stringClass stringWithFormat: @"%u", ++count];
-	      path = [base stringByAppendingPathExtension: ext];
-	      gzpath = [path stringByAppendingPathExtension: @"gz"];
-	    }
+                  path = [where stringByAppendingPathComponent: name];
 
-	  if ([mgr movePath: from
-		     toPath: path
-		    handler: nil] == NO)
-	    {
-	      status = [NSString stringWithFormat:
-		@"Unable to move %@ to %@", from, path];
-	    }
-	  else
-	    {
-	      status = [NSString stringWithFormat:
-		@"Moved %@ to %@", from, path];
-	    }
-	}
-      else
-	{
-	  status = [NSString stringWithFormat:
-	    @"Unable to archive log %@ into %@", name, sub];
-	}
+                  /*
+                   * Check for pre-existing file - if found, try another.
+                   */
+                  base = path;
+                  path = [base stringByAppendingPathExtension: @"0"];
+                  gzpath = [path stringByAppendingPathExtension: @"gz"];
+                  while ([mgr fileExistsAtPath: path] == YES
+                    || [mgr fileExistsAtPath: gzpath] == YES)
+                    {
+                      NSString	*ext;
+
+                      ext = [stringClass stringWithFormat: @"%u", ++count];
+                      path = [base stringByAppendingPathExtension: ext];
+                      gzpath = [path stringByAppendingPathExtension: @"gz"];
+                    }
+
+                  if ([mgr movePath: from
+                             toPath: path
+                            handler: nil] == NO)
+                    {
+                      status = [NSString stringWithFormat:
+                        @"Unable to move %@ to %@", from, path];
+                    }
+                  else
+                    {
+                      status = [NSString stringWithFormat:
+                        @"Moved %@ to %@", from, path];
+                    }
+                }
+              else
+                {
+                  status = [NSString stringWithFormat:
+                    @"Unable to archive log %@ into %@", name, sub];
+                }
+            }
+        }
     }
   NS_HANDLER
     {
       status = [NSString stringWithFormat: @"Problem in %@ with %@ to %@ - %@",
-	NSStringFromSelector(_cmd), name, sub, localException];
+	NSStringFromSelector(_cmd), name, when, localException];
     }
   NS_ENDHANDLER
   return status;
