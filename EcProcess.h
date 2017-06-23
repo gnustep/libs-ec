@@ -1045,7 +1045,7 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSUInteger) ecNotLeaked;
 
-/** This method calls -ecAwken, establishes the receiver as a DO server,
+/** This method calls -ecAwaken, establishes the receiver as a DO server,
  * calls -triggerCmdTimeout, and then repeatedly runs the runloop.<br />
  * Returns zero when the run loop completes.<br />
  * Returns one (immediately) if the receiver is transient.<br />
