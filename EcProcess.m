@@ -1646,6 +1646,11 @@ static NSString	*noFiles = @"No log files to archive";
   return cmdSignalled;
 }
 
+- (void) ecAwaken
+{
+  return;
+}
+
 - (void) ecLoggersChanged: (NSNotification*)n
 {
   DESTROY(alertLogger);
@@ -2412,6 +2417,10 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   NSConnection          *c;
   NSRunLoop             *loop;
   NSDate                *future;
+
+  /* Called to permit subclasses to initialise before entering run loop.
+   */
+  [self ecAwaken];
 
   arp = [NSAutoreleasePool new];
   if (YES == cmdIsTransient)

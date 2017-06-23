@@ -831,7 +831,7 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Schedule a timeout to go off as soon as possible ... subsequent timeouts
  * go off at the normal interval after that one.<br />
- * This method is called automatically at the start of -ecRun.
+ * This method is called automatically near the start of -ecRun.
  */
 - (void) triggerCmdTimeout;
 
@@ -925,7 +925,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * For a normal process, the recommended place to perform initialisation is
  * immediately after initialisation (when configuration information has been
  * retrieved from the Command server), typically by overriding the
- * -ecRun method.
+ * -ecAwaken method.
  */
 - (id) initWithDefaults: (NSDictionary*)defs;
 
@@ -993,6 +993,19 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) isServerMultiple: (NSString *)serverName;
 
+/** This method is called at the start of -ecRun in order to allow a subclass
+ * to perform initialisation after configuration information has been received
+ * from the Command server, but before the process has become a registered DO
+ * server and has entered the run loop with a regular timer set up.<br />
+ * This is the recommended location to perform any initialisation of your
+ * subclass which needs configuration information from the Command server;
+ * override this method to perform your initialisation.<br />
+ * If you are not using -ecRun you should call this method explicitly in your
+ * own code.<br />
+ * The default implementation does nothing.
+ */
+- (void) ecAwaken;
+
 /** Records the timestamp of the latest significant input for this process.
  * If when is nil the current timestmp is used.
  */
@@ -1032,14 +1045,11 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSUInteger) ecNotLeaked;
 
-/** Establishes the receiver as a DO server and runs the runloop.<br />
+/** This method calls -ecAwken, establishes the receiver as a DO server,
+ * calls -triggerCmdTimeout, and then repeatedly runs the runloop.<br />
  * Returns zero when the run loop completes.<br />
- * Returns one (immediately) if the receiver is transent.<br />
+ * Returns one (immediately) if the receiver is transient.<br />
  * Returns two if unable to register as a DO server.<br />
- * This is the recommended location to perform any initialisation of your
- * subclass which needs configuration information from the Command server;
- * override this method, perform your initialisation, and then call the
- * superclass implementation of the method to enter the run loop.
  */
 - (int) ecRun;
 
