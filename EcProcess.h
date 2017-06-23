@@ -817,7 +817,7 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) setCmdDebug: (NSString*)mode withDescription: (NSString*)desc;
 
-/* Sets the interval between timeouts.<br />
+/** Sets the interval between timeouts while the runloop is running.<br />
  * Any value below 0.001 is ignored and 10 is used.<br />
  * Any value above 300 is ignored and 60 is used.<br />
  * The default value is 60 seconds.
@@ -829,9 +829,9 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) setCmdTimeout: (SEL)sel;
 
-/*
- * Trigger a timeout to go off as soon as possible ... subsequent timeouts
- * go off at the normal interval after that one.
+/** Schedule a timeout to go off as soon as possible ... subsequent timeouts
+ * go off at the normal interval after that one.<br />
+ * This method is called automatically at the start of -ecRun.
  */
 - (void) triggerCmdTimeout;
 

@@ -7,7 +7,9 @@
 	Replace cmdArchive: with ecArchive: changing trhe log file archiving
 	model to archive files primarily based on their last modification
 	date.  Fixes the bug where files were archived to a folder with the
-	wrong datre on startup, and simplifies archiving code generally.
+	wrong date on startup, and simplifies archiving code generally.
+	Move startup of timeouts to -ecRun so that they won't occur until
+	after all initialisation.
 
 2017-03-06  Richard Frith-Macdonald <rfm@gnu.org>
 

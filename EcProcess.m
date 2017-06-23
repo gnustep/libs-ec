@@ -2480,6 +2480,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [self cmdFlushLogs];
   cmdIsRunning = YES;
   
+  [self triggerCmdTimeout];     /* make sure that regular timers run.  */
+
   loop = [NSRunLoop currentRunLoop];
   future = [NSDate distantFuture];
   while (YES == [EcProcConnection isValid])
@@ -4339,10 +4341,6 @@ With two parameters ('maximum' and a number),\n\
 	  exit(0);
 	}
     }
-
-  /* And make sure that regular timers run.
-   */
-  [self triggerCmdTimeout];
 
   return self;
 }
