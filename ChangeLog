@@ -12,6 +12,7 @@
 	after all initialisation. Add -ecAwaken, -ecDidAwaken, and
 	-ecConfigurationError: to make it easy to initialise stuff at the
 	start of -ecRun and to ignore config updates before that happens.
+	Improve diagnostic logging for registration failure.
 
 2017-03-06  Richard Frith-Macdonald <rfm@gnu.org>
 

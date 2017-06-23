@@ -2845,16 +2845,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			}
 		      else
 			{
-			  [[self cmdLogFile: logname]
-			    printf: @"registration attempt rejected - %@\n",
-			      [conf objectForKey: @"rejected"]];
+			  NSLog(@"Registering %@ with Control server: %@",
+                            host, [conf objectForKey: @"rejected"]);
 			  DESTROY(control);
 			}
 		    }
 		}
 	      NS_HANDLER
 		{
-		  NSLog(@"Registering with control server: %@", localException);
+		  NSLog(@"Registering %@ with Control server: %@",
+                    host, localException);
 		  DESTROY(control);
 		}
 	      NS_ENDHANDLER
