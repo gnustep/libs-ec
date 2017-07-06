@@ -4990,10 +4990,10 @@ With two parameters ('maximum' and a number),\n\
           NS_DURING
             {
               NSCalendarDate	*now = [NSCalendarDate date];
-              static int	lastDay = 0;
-              static int	lastHour = 0;
-              static int	lastMinute = 0;
-              static int	lastTenSecond = 0;
+              static int	lastDay = -1;
+              static int	lastHour = -1;
+              static int	lastMinute = -1;
+              static int	lastTenSecond = -1;
               BOOL		newDay = NO;
               BOOL		newHour = NO;
               BOOL		newMinute = NO;
