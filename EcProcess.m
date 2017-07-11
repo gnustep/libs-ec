@@ -3213,7 +3213,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   SEL		sel;
 
   [ecLock lock];
-  e = [cmdActions objectEnumerator];
+  e = [[[cmdActions allObjects] sortedArrayUsingSelector: @selector(compare:)]
+    objectEnumerator];
   [ecLock unlock];
   if ([msg count] == 0)
     {
