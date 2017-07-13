@@ -2531,7 +2531,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   
   [self _connectionRegistered];
 
-  [self cmdAudit: @"Started `%@'", [self cmdName]];
+  [self cmdAudit: @"Started '%@'", [self cmdName]];
   [self cmdFlushLogs];
   cmdIsRunning = YES;
   
@@ -3794,6 +3794,17 @@ With two parameters ('maximum' and a number),\n\
 	}
     }
 
+  if (0 == status)
+    {
+      [self cmdAudit: @"Shutdown '%@'", [self cmdName]];
+    }
+  else
+    {
+      [self cmdAudit: @"Aborted '%@' (status %"PRIdPTR")",
+        [self cmdName], status];
+    }
+  [auditLogger flush];
+
   exit(status);
 }
 
@@ -4367,7 +4378,7 @@ With two parameters ('maximum' and a number),\n\
        * is in place, but before we have updated config from the Command
        * server (since updating config may generater log files).
        */
-      [self cmdAudit: @"Starting `%@'", [self cmdName]];
+      [self cmdAudit: @"Starting '%@'", [self cmdName]];
 
       if (YES == [self cmdIsClient] && nil == [self cmdNewServer])
 	{
