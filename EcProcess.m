@@ -1496,7 +1496,7 @@ static NSString	*noFiles = @"No log files to archive";
   return [dateClass dateWithTimeIntervalSinceReferenceDate: lastOP];
 }
 
-- (NSString*) cmdLogEnd: (NSString*)name
+- (NSString*) ecLogEnd: (NSString*)name to: (NSDate*)when
 {
   NSString      *status = nil;
 
@@ -1516,7 +1516,7 @@ static NSString	*noFiles = @"No log files to archive";
         {
           /* If the file is empty, remove it, otherwise archive it.
            */
-          status = [self _moveLog: name to: nil];
+          status = [self _moveLog: name to: when];
 
           /* Ensure that all data is written to file, then close it unless it's
            * stderr (which we must keep open for logging at all times).
@@ -1538,6 +1538,11 @@ static NSString	*noFiles = @"No log files to archive";
       [self ecUnLock];
     }
   return status;
+}
+
+- (NSString*) cmdLogEnd: (NSString*)name
+{
+  return [self ecLogEnd: name to: nil];
 }
 
 - (NSFileHandle*) cmdLogFile: (NSString*)name
@@ -3750,6 +3755,8 @@ With two parameters ('maximum' and a number),\n\
 
 - (oneway void) cmdQuit: (NSInteger)status
 {
+  NSDate        *now = [NSDate date];
+
   if (reservedPipe[1] > 0)
     {
       close(reservedPipe[0]); reservedPipe[0] = 0;
@@ -3771,29 +3778,10 @@ With two parameters ('maximum' and a number),\n\
     }
   [alarmDestination shutdown];
 
+  /* Almost done ... flush any logs then write the final audit log and
+   * flush again (so that audit log should be the last in the file).
+   */
   [self cmdFlushLogs];
-
-  [self cmdUnregister];
-
-  [alarmDestination shutdown];
-  DESTROY(alarmDestination);
-
-  [EcProcConnection invalidate];
-
-    {
-      NSArray	*keys;
-      unsigned	index;
-
-      /*
-       * Close down all log files.
-       */
-      keys = [cmdLogMap allKeys];
-      for (index = 0; index < [keys count]; index++)
-	{
-	  [self cmdLogEnd: [keys objectAtIndex: index]];
-	}
-    }
-
   if (0 == status)
     {
       [self cmdAudit: @"Shutdown '%@'", [self cmdName]];
@@ -3804,6 +3792,39 @@ With two parameters ('maximum' and a number),\n\
         [self cmdName], status];
     }
   [auditLogger flush];
+
+  /* Now that the audit log has been flushed to the Command/Control
+   * servers, we can unregister from Command.
+   */
+  [self cmdUnregister];
+
+  /* Re-do the alarm destination shut down, just in case an alarm
+   * occurred while we were flushing logs and/or unregistering.
+   */
+  [alarmDestination shutdown];
+  DESTROY(alarmDestination);
+
+  /* Ensure our DO connection is invalidated so there will be no more
+   * remote communications.
+   */
+  [EcProcConnection invalidate];
+
+  /* The very last thing we do is to close down the log filed so they
+   * are archived to the correct directory for the current date.
+   */
+    {
+      NSArray	*keys;
+      unsigned	index;
+
+      /*
+       * Close down all log files.
+       */
+      keys = [cmdLogMap allKeys];
+      for (index = 0; index < [keys count]; index++)
+	{
+	  [self ecLogEnd: [keys objectAtIndex: index] to: now];
+	}
+    }
 
   exit(status);
 }
