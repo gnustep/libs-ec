@@ -422,6 +422,10 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 + (NSMutableDictionary*) ecInitialDefaults;
 
+/** Returns the lock used by the -ecDoLock and -ecUnLock methods.
+ */
++ (NSRecursiveLock*) ecLock;
+
 /** Registers an NSUserDefaults key that the receiver understands.<br />
  * This is primarily intended for user defaults which can reasonably
  * be supplied at the command line when a process is started (and for

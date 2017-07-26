@@ -1828,6 +1828,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [ecLock unlock];
 }
 
++ (NSRecursiveLock*) ecLock
+{
+  return ecLock;
+}
+
 + (void) initialize
 {
   if (nil == ecLock)
