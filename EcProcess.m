@@ -2469,7 +2469,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
 - (int) ecRun
 {
-  NSAutoreleasePool     *arp;
+  CREATE_AUTORELEASE_POOL(arp);
   NSConnection          *c;
   NSRunLoop             *loop;
   NSDate                *future;
@@ -2477,7 +2477,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   /* Called to permit subclasses to initialise before entering run loop.
    */
   [self ecAwaken];
-
+  RELEASE(arp);
   arp = [NSAutoreleasePool new];
   if (YES == cmdIsTransient)
     {
