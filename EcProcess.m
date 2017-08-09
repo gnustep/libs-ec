@@ -2343,16 +2343,16 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   static NSDictionary   *defs = nil;
   NSDictionary          *d = [cmdDefs volatileDomainForName: @"EcCommand"];
 
+  /* Archive previous day's logs.  Force logs to be archived for the
+   * specified date even if they have been modified today (on the basis
+   * that only the very latest info in them should be from today).
+   */
+  NSLog(@"%@", [self ecArchive: when]);
+
   if (nil != defs)
     {
       NSEnumerator      *e;
       NSString          *k;
-
-      /* Archive previous day's logs.  Force logs to be archived for the
-       * specified date even if they have been modified today (on the basis
-       * that only the very latest info in them should be from today).
-       */
-      NSLog(@"%@", [self ecArchive: when]);
 
       /* Check information left in the EcCommand domain.
        */

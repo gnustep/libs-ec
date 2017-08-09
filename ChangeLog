@@ -1,10 +1,16 @@
+2017-08-09  Wolfgang Lux  <wolfgang.lux@gmail.com>
+
+	* EcProcess.m(ecNewDay:):
+	Fix bug where archiving was no longer run every day unless some
+	defaults had been changed locally.
+
 2017-06-23  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:
 	* EcControl.m:
 	* EcProcess.h:
 	* EcProcess.m:
-	Replace cmdArchive: with ecArchive: changing trhe log file archiving
+	Replace cmdArchive: with ecArchive: changing the log file archiving
 	model to archive files primarily based on their last modification
 	date.  Fixes the bug where files were archived to a folder with the
 	wrong date on startup, and simplifies archiving code generally.
