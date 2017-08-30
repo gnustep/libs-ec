@@ -1616,6 +1616,12 @@ replaceFields(NSDictionary *fields, NSString *template)
     }
 }
 
+- (void) shutdown
+{
+  [self flushSms];
+  [self flushEmail];
+}
+
 - (void) sms: (NSMutableDictionary*)m
   identifier: (NSString*)identifier
      isClear: (BOOL)isClear

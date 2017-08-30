@@ -463,6 +463,10 @@
  */
 - (BOOL) setRules: (NSArray*)ra;
 
+/** Called to stop the alerter and shut it down.
+ */
+- (void) shutdown;
+
 /** Called by
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
  * to pass a message to an array of destinations.

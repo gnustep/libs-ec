@@ -1190,8 +1190,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
 	    {
-	      [alerter flushSms];
-	      [alerter flushEmail];
+              [alerter shutdown];
 	      DESTROY(alerter);
 	      exit(0);
 	    }
@@ -1527,6 +1526,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) dealloc
 {
+  [alerter shutdown];
   DESTROY(alerter);
   [self cmdLogEnd: logname];
   if (timer != nil)
@@ -2943,6 +2943,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         }
       else if ([alerter class] != alerterClass)
         {
+          [alerter shutdown];
           DESTROY(alerter);
         }
       if (nil == alerter)
