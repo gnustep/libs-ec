@@ -229,6 +229,7 @@ replaceFields(NSDictionary *fields, NSString *template)
     {
       smtp = [GSMimeSMTPClient new];
     }
+  [lock lock];
   if (nil == eFrom)
     {
       [self _setEFrom: nil];
@@ -241,6 +242,7 @@ replaceFields(NSDictionary *fields, NSString *template)
     {
       [smtp setPort: ePort];
     }
+  [lock unlock];
   [smtp setDelegate: self];
   return smtp;
 }
@@ -262,9 +264,11 @@ replaceFields(NSDictionary *fields, NSString *template)
   debug = [[c objectForKey: @"Debug"] boolValue];
   quiet = [[c objectForKey: @"Quiet"] boolValue];
   supersede = [[c objectForKey: @"Supersede"] boolValue];
+  [lock lock];
   [self _setEFrom: [c objectForKey: @"EmailFrom"]];
   ASSIGNCOPY(eHost, [c objectForKey: @"EmailHost"]);
   ASSIGNCOPY(ePort, [c objectForKey: @"EmailPort"]);
+  [lock unlock];
   return [self setRules: [c objectForKey: @"Rules"]];
 }
 
@@ -561,10 +565,12 @@ replaceFields(NSDictionary *fields, NSString *template)
           return NO;
         }
     }
+  [lock lock];
   ASSIGN(rules, r);
+  [lock unlock];
   if (YES == debug)
     {
-      NSLog(@"Installed Rules: %@", rules);
+      NSLog(@"Installed Rules: %@", r);
     }
   return YES;
 }
@@ -580,17 +586,28 @@ replaceFields(NSDictionary *fields, NSString *template)
   RELEASE(email);
   RELEASE(sms);
   RELEASE(rules);
+  RELEASE(eBase);
+  RELEASE(eDflt);
+  RELEASE(eFrom);
+  RELEASE(eHost);
+  RELEASE(ePort);
+  RELEASE(lock);
   [super dealloc];
 }
 
 - (NSString*) description
 {
-  return [NSString stringWithFormat: @"%@ -\nConfigured with %u rules\n"
+  NSString      *s;
+
+  [lock lock];
+  s = [NSString stringWithFormat: @"%@ -\nConfigured with %u rules\n"
     @"With SMTP %@:%@ as %@\n"
     @"Email sent: %"PRIuPTR", fail: %"PRIuPTR", pending:%@\n"
     @"SMS pending:%@",
     [super description], (unsigned)[rules count], eHost, ePort,
     eFrom, sentEmail, failEmail, email, sms];
+  [lock unlock];
+  return s;
 }
 
 - (void) flushEmailForAddress: (NSString*)address
@@ -604,8 +621,10 @@ replaceFields(NSDictionary *fields, NSString *template)
       doc = AUTORELEASE([GSMimeDocument new]);
       [doc setHeader: @"Subject" value: subject parameters: nil];
       [doc setHeader: @"To" value: address parameters: nil];
-      [doc setHeader: @"From" value: eFrom parameters: nil];
       [doc setContent: text type: @"text/plain" name: nil];
+      [lock lock];
+      [doc setHeader: @"From" value: eFrom parameters: nil];
+      [lock unlock];
       [[self _smtp] send: doc];
     }
   NS_HANDLER
@@ -1151,6 +1170,7 @@ replaceFields(NSDictionary *fields, NSString *template)
     {
       NSMutableDictionary	*m;
       NSString                  *str;
+      NSArray                   *array;
       EcAlerterEvent            *event;
       
       event = AUTORELEASE([EcAlerterEvent new]);
@@ -1233,7 +1253,10 @@ replaceFields(NSDictionary *fields, NSString *template)
         {
           NSLog(@"Handling %@ ... %@", [event alarmText], alarm);
         }
-      [self applyRules: rules toEvent: event];
+      [lock lock];
+      array = RETAIN(rules);
+      [lock unlock];
+      [self applyRules: AUTORELEASE(rules) toEvent: event];
     }
   NS_HANDLER
     {
@@ -1336,6 +1359,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 {
   if (nil != (self = [super init]))
     {
+      lock = [NSLock new];
       timer = [NSTimer scheduledTimerWithTimeInterval: 240.0
 					       target: self
 					     selector: @selector(timeout:)
@@ -1411,12 +1435,17 @@ replaceFields(NSDictionary *fields, NSString *template)
   if (nil != identifier)
     {
       GSMimeDocument    *doc;
+      NSString          *base;        
 
       [self _smtp];
       doc = AUTORELEASE([GSMimeDocument new]);
       [doc setHeader: @"Subject" value: subject parameters: nil];
       [doc setContent: text type: @"text/plain" name: nil];
+      [lock lock];
       [doc setHeader: @"From" value: eFrom parameters: nil];
+      base = RETAIN(eBase);
+      [lock unlock];
+      AUTORELEASE(base);
 
       if ([identifier length] > 0)
         {
@@ -1430,7 +1459,7 @@ replaceFields(NSDictionary *fields, NSString *template)
               NSMutableString   *ref;
 
               rep = [NSString stringWithFormat: @"<alrm%@@%@>",
-                identifier, eBase];
+                identifier, base];
               [doc setHeader: @"In-Reply-To" value: rep parameters: nil];
               ref = [rep mutableCopy];
 #if 0
@@ -1441,18 +1470,18 @@ replaceFields(NSDictionary *fields, NSString *template)
                   for (index = 1; index < threadID; index++)
                     {
                       [ref appendFormat: @"<alrm%@_%d@%@>",
-                        identifier, index, eBase];
+                        identifier, index, base];
                     }
                 }
 #endif
               [doc setHeader: @"References" value: ref parameters: nil];
               mID = [NSString stringWithFormat: @"<alrm%@_%d@%@>",
-                identifier, threadID, eBase];
+                identifier, threadID, base];
             }
           else
             {
               mID = [NSString stringWithFormat: @"<alrm%@@%@>",
-                identifier, eBase];
+                identifier, base];
             }
 
           if (YES == isClear && threadID <= 0)

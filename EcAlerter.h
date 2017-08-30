@@ -32,6 +32,7 @@
 @class	EcAlarm;
 @class	GSMimeSMTPClient;
 @class	NSArray;
+@class	NSLock;
 @class	NSMutableArray;
 @class	NSMutableDictionary;
 @class	NSString;
@@ -365,6 +366,7 @@
   BOOL                  supersede;  /** If a clear should replace original */
   BOOL                  eThreaded;  /** alarm reminder emails threaded */
   BOOL                  quiet;  /** Quiet enabled in config */
+  NSLock                *lock;  /** Protect rule update */
 }
 
 /** Called when user defaults are updated, this fetches the dictionary
