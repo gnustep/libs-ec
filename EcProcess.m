@@ -2340,14 +2340,25 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
 - (void) ecNewDay: (NSCalendarDate*)when
 {
+  static BOOL           beenHere = NO;
   static NSDictionary   *defs = nil;
   NSDictionary          *d = [cmdDefs volatileDomainForName: @"EcCommand"];
 
-  /* Archive previous day's logs.  Force logs to be archived for the
-   * specified date even if they have been modified today (on the basis
-   * that only the very latest info in them should be from today).
-   */
-  NSLog(@"%@", [self ecArchive: when]);
+  if (YES == beenHere)
+    {
+      /* Archive previous day's logs.  Force logs to be archived for the
+       * specified date even if they have been modified today (on the basis
+       * that only the very latest info in them should be from today).
+       */
+      NSLog(@"Daily: %@", [self ecArchive: when]);
+    }
+  else
+    {
+      /* First time round we must not archive since that will have
+       * been done on startup anyway.
+       */
+      beenHere = NO;
+    }
 
   if (nil != defs)
     {
@@ -4366,7 +4377,7 @@ With two parameters ('maximum' and a number),\n\
 	  /*
 	   * Force archiving of old logfile.
 	   */
-	  [self ecArchive: nil];
+          NSLog(@"Startup: %@", [self ecArchive: nil]);
 
 	  ASSIGNCOPY(cmdDebugName, str);
 	  hdl = [self cmdLogFile: cmdDebugName];

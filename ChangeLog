@@ -1,3 +1,7 @@
+2017-09-18  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.m: Fix for repeated log archiving on startup.
+
 2017-08-09  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	* EcProcess.m(ecNewDay:):
