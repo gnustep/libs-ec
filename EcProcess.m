@@ -4373,11 +4373,15 @@ With two parameters ('maximum' and a number),\n\
       if (cmdDebugName == nil || [cmdDebugName isEqual: str] == NO)
 	{
 	  NSFileHandle	*hdl;
+          NSString      *result;
 
-	  /*
-	   * Force archiving of old logfile.
+	  /* Force archiving of old logfile.
 	   */
-          NSLog(@"Startup: %@", [self ecArchive: nil]);
+          result = [self ecArchive: nil];
+          if (result != noFiles)
+            {
+              NSLog(@"Startup: %@", result);
+            }
 
 	  ASSIGNCOPY(cmdDebugName, str);
 	  hdl = [self cmdLogFile: cmdDebugName];
