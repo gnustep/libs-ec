@@ -2351,36 +2351,36 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
        * that only the very latest info in them should be from today).
        */
       NSLog(@"Daily: %@", [self ecArchive: when]);
+
+      if (nil != defs)
+        {
+          NSEnumerator      *e;
+          NSString          *k;
+
+          /* Check information left in the EcCommand domain.
+           */
+          e = [[d allKeys] objectEnumerator];
+          while (nil != (k = [e nextObject]))
+            {
+              id        v = [d objectForKey: k];
+
+              if ([v isEqual: [defs objectForKey: k]])
+                {
+                  [self cmdError: @"The Console defaults override for '%@'"
+                    @" has been left at '%@' for more than a day."
+                    @" Please reset it ('tell %@ defaults delete %@') after"
+                    @" updating Control.plist as required.",
+                    k, v, [self cmdName], k];
+                }
+            }
+        }
     }
   else
     {
       /* First time round we must not archive since that will have
        * been done on startup anyway.
        */
-      beenHere = NO;
-    }
-
-  if (nil != defs)
-    {
-      NSEnumerator      *e;
-      NSString          *k;
-
-      /* Check information left in the EcCommand domain.
-       */
-      e = [[d allKeys] objectEnumerator];
-      while (nil != (k = [e nextObject]))
-        {
-          id        v = [d objectForKey: k];
-
-          if ([v isEqual: [defs objectForKey: k]])
-            {
-              [self cmdError: @"The Console defaults override for '%@'"
-                @" has been left at '%@' for more than a day."
-                @" Please reset it ('tell %@ defaults delete %@') after"
-                @" updating Control.plist as required.",
-                k, v, [self cmdName], k];
-            }
-        }
+      beenHere = YES;
     }
   ASSIGNCOPY(defs, d);
 }
