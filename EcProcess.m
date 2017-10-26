@@ -166,6 +166,8 @@ static Class	dateClass = 0;
 static Class	stringClass = 0;
 static int	cmdSignalled = 0;
 
+static NSTimeInterval   initAt = 0.0;
+
 static RETSIGTYPE
 ihandler(int sig)
 {
@@ -2552,7 +2554,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   
   [self _connectionRegistered];
 
-  [self cmdAudit: @"Started '%@'", [self cmdName]];
+  [self cmdAudit: @"Started '%@' in %g seconds",
+    [self cmdName], [NSDate timeIntervalSinceReferenceDate] - initAt];
   [self cmdFlushLogs];
   cmdIsRunning = YES;
   
@@ -3903,6 +3906,7 @@ With two parameters ('maximum' and a number),\n\
 - (id) initWithDefaults: (NSDictionary*) defs
 {
   [ecLock lock];
+  initAt = [NSDate timeIntervalSinceReferenceDate];
   if (nil != EcProc)
     {
       [self release];
