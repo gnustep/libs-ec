@@ -1767,6 +1767,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   int	result;
 
+  /* Ensure config files have been read.
+   */
+  [self update];
+
   /* Start the SNMP alarm sink before entering run loop.
    */
   NSDictionary *alertConf = [[self cmdDefaults] dictionaryForKey: @"Alerter"];
