@@ -699,7 +699,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
     {
       [self release];
       [NSException raise: NSInvalidArgumentException
-		  format: @"bad severity (%d)", probableCause];
+		  format: @"bad probable cause (%d)", probableCause];
     }
   /* Anything other than an unknown probable cause must correspond to a
    * known event type, but an unknown probable cause may match any event.
