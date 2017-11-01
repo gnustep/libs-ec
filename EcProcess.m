@@ -2348,10 +2348,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
   if (YES == beenHere)
     {
-      /* Archive previous day's logs.  Force logs to be archived for the
-       * specified date even if they have been modified today (on the basis
+      /* Archive previous day's logs.  Force logs to be archived for
+       * yesterday even if they have been modified today (on the basis
        * that only the very latest info in them should be from today).
        */
+      when = [when dateByAddingTimeInterval: -3600.0];
       NSLog(@"Daily: %@", [self ecArchive: when]);
 
       if (nil != defs)
@@ -2436,7 +2437,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               close(reservedPipe[0]); reservedPipe[0] = 0;
               close(reservedPipe[1]); reservedPipe[1] = 0;
             }
-          [self cmdError: @"%@", shutdown];
+          NSLog(@"%@", shutdown);
           cmdIsQuitting = YES;
           [self cmdQuit: -1];
           return;
@@ -2581,6 +2582,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	    {
               int       sig = cmdSignalled;
 
+              NSLog(@"Signal %d", sig);
               cmdSignalled = 0;
               cmdIsQuitting = YES;
 	      [self cmdQuit: sig];
@@ -4818,6 +4820,7 @@ With two parameters ('maximum' and a number),\n\
       if (NO == cmdIsQuitting)
         {
           cmdIsQuitting = YES;
+          NSLog(@"Memory usage limit reached");
           [self cmdQuit: -1];
         }
       return;
