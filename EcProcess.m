@@ -1762,6 +1762,11 @@ static BOOL     ecDidAwaken = NO;
   return ecDidAwaken;
 }
 
+- (BOOL) ecIsQuitting
+{
+  return ecIsQuitting();
+}
+
 - (void) ecLoggersChanged: (NSNotification*)n
 {
   DESTROY(alertLogger);
@@ -1774,6 +1779,11 @@ static BOOL     ecDidAwaken = NO;
 - (NSDate*) ecStarted
 {
   return started;
+}
+
+- (void) ecWillQuit: (NSString*)reason
+{
+  ecWillQuit(reason);
 }
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event

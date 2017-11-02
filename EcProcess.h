@@ -505,6 +505,14 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) ecDoLock;
 
+/** Returns YES if the process is attempting a graceful shutdown,
+ * NO otherwise.  This also checks to see if the process has been
+ * attempting to shut down for too long, and if it has been going
+ * on for over three minutes, aborts the process.<br />
+ * Subclasses must not override this method.
+ */
+- (BOOL) ecIsQuitting;
+
 /** Return the timestamp at which this process started up (when the
  * receiver was initialised).
  */
@@ -514,6 +522,19 @@ extern NSString*	cmdVersion(NSString *ver);
  * process-wide variables.
  */
 - (void) ecUnLock;
+
+/** Sets the start time used by the -ecIsQuitting method and, if reason is
+ * not nil/empty, generates a log of why quitting was started. <br />
+ * It is an error to call this method twice, doing so will cause the
+ * program to abort immediately after logging the fact.<br />
+ * The -cmdQuit: method will call this method, but only if it has not
+ * already been called.  You can therefore call -ecWillQuit: before any
+ * call to -cmdQuit: in order to log the reason the process will be
+ * quitting and to start the period in which the shutdown process should
+ * complete.<br />
+ * Subclasses should not override this method.
+ */
+- (void) ecWillQuit: (NSString*)reason;
 
 /* Call these methods during initialisation of your instance
  * to set up automatic management of connections to servers. 
