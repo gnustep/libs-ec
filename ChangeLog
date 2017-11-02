@@ -1,3 +1,10 @@
+2017-11-02  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h: 
+	* EcProcess.m: New methods for handling clean quitting with abort
+	if it takes too long.  Fix the directory in which nightly archived
+	logs are placed.
+	
 2017-09-18  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m: Fix for repeated log archiving on startup.

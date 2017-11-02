@@ -505,6 +505,16 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) ecDoLock;
 
+/** Called once other stages of a graceful shutdown has completed in
+ * order to perform final cleanup and have the process exit with the
+ * specified status.<br />
+ * If -ecWillQuit: has not been called, this method performs the same
+ * operations of setting the start time for the period after which the
+ * process should abort.<br />
+ * Subclasses should override -ecQuitFor:with: rather than this method.
+ */
+- (oneway void) ecDidQuit: (NSInteger)status;
+
 /** Returns YES if the process is attempting a graceful shutdown,
  * NO otherwise.  This also checks to see if the process has been
  * attempting to shut down for too long, and if it has been going
@@ -512,6 +522,16 @@ extern NSString*	cmdVersion(NSString *ver);
  * Subclasses must not override this method.
  */
 - (BOOL) ecIsQuitting;
+
+/** This method is designed for handling an orderly shutdown.<br />
+ * The base implementation immediately aborts the process if it is
+ * already quitting, but otherwise calls -ecWillQuit: with the supplied
+ * reason, and then calls -ecDidQuit: passing the supplied status.<br />
+ * Subclasses overriding this method should call -ecWillQuit: at the
+ * start of their implementation and the superclass implementation of
+ * -ecQuitFor:with: at the end of their implementation.
+ */
+- (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
 /** Return the timestamp at which this process started up (when the
  * receiver was initialised).
@@ -523,18 +543,17 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) ecUnLock;
 
-/** Sets the start time used by the -ecIsQuitting method and, if reason is
- * not nil/empty, generates a log of why quitting was started. <br />
- * It is an error to call this method twice, doing so will cause the
- * program to abort immediately after logging the fact.<br />
- * The -cmdQuit: method will call this method, but only if it has not
- * already been called.  You can therefore call -ecWillQuit: before any
- * call to -cmdQuit: in order to log the reason the process will be
- * quitting and to start the period in which the shutdown process should
- * complete.<br />
- * Subclasses should not override this method.
+/** Returns NO (and does nothing) if the process is already quitting,
+ * otherwise returns YES after setting the start time used by the
+ * -ecIsQuitting method and (if reason is not nil/empty) generating a
+ * log of why quitting was started.<br />
+ * Subclasses overriding this method must call the superclass implementation
+ * as the first thing they do and should themselves return without doing
+ * anything if the base method returns NO.<br />
+ * It generally makes sense for subclasses to override -ecQuitFor:with:
+ * rather than this method.
  */
-- (void) ecWillQuit: (NSString*)reason;
+- (BOOL) ecWillQuit: (NSString*)reason;
 
 /* Call these methods during initialisation of your instance
  * to set up automatic management of connections to servers. 
@@ -646,7 +665,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * database has not actually changed, in this case the notification
  * argument is nil).<br />
  * This method deals with the updates for any defaults registered using
- * the +ecRegisterDefault:withTypeText:andHelpText:action: method, so
+ * the +ecRegisterDefault:withTypeText:andHelpText:action:value: method, so
  * if you override this to handle configuration changes, don't forget
  * to call the superclass implementation.<br />
  * If you wish to manage updates from the central database in a specific
@@ -740,9 +759,8 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSMutableDictionary*)cmdOperator: (NSString*)name password: (NSString*)pass;
 
-/** Used to tell your application to quit.<br />
- * Subclasses should override this method to perform any pre-shutdown cleanup
- * before they call the superclass implementation.
+/** This method simply calls -ecQuitFor:with: using a nil value for the
+ * reason for quitting and the supplied status for the process exit status.
  */
 - (oneway void) cmdQuit: (NSInteger)status;
 
@@ -776,7 +794,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * </item>
  * <item>The base implementation of the -cmdDefaultsChanged: method is
  *   entered, and any messages registered using the
- *   +ecRegisterDefault:withTypeText:andHelpText:action: method are
+ *   +ecRegisterDefault:withTypeText:andHelpText:action:value: method are
  *   sent if the corresponding default value has changed.
  * </item>
  * <item>The base implementation of the -cmdDefaultsChanged: method ends.

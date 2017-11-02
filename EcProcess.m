@@ -94,6 +94,11 @@
 #include <stdio.h>
 
 
+#ifndef __MINGW__
+static int              reservedPipe[2] = { 0, 0 };
+static NSInteger        descriptorsMaximum = 0;
+#endif
+
 
 #if	!defined(EC_DEFAULTS_PREFIX)
 #define	EC_DEFAULTS_PREFIX nil
@@ -145,7 +150,6 @@ static BOOL		cmdFlagDaemon = NO;
 static BOOL		cmdFlagTesting = NO;
 static BOOL		cmdIsRunning = NO;
 static BOOL		cmdKeepStderr = NO;
-static NSInteger        cmdQuitStatus = 0;
 static NSString		*cmdBase = nil;
 static NSString		*cmdInst = nil;
 static NSString		*cmdName = nil;
@@ -192,38 +196,30 @@ ecIsQuitting()
   return YES;
 } 
 
-/* Function to start quitting (graceful shutdown).  If this function
- * is called when a graceful shutdown attempt is already in progress,
- * the process will abort immediately.
+/* Function to start quitting (graceful shutdown).
  */
-static void
+static BOOL
 ecWillQuit(NSString *reason)
 {
-  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-
   if (0.0 == beganQuitting)
     {
+      NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
+
+#ifndef __MINGW__
+      if (reservedPipe[1] > 0)
+        {
+          close(reservedPipe[0]); reservedPipe[0] = 0;
+          close(reservedPipe[1]); reservedPipe[1] = 0;
+        }
+#endif
       if ([reason length] > 0)
         {
           NSLog(@"will quit: %@", reason);
         }
       beganQuitting = now;
+      return YES;
     }
-  else
-    {
-      if ([reason length] > 0)
-        {
-          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
-            reason, (now - beganQuitting));
-        }
-      else
-        {
-          NSLog(@"abort: quit requested while quitting after %g sec.\n",
-            (now - beganQuitting));
-        }
-      signal(SIGABRT, SIG_DFL);
-      abort();
-    }
+  return NO;
 }
 
 static RETSIGTYPE
@@ -621,11 +617,6 @@ static uint64_t	excRoll[10];    // last N values
 static uint64_t	memRoll[10];    // last N values
 #define	MEMCOUNT (sizeof(memRoll)/sizeof(*memRoll))
 static NSDate   *memTime = nil; // Time of last alert
-
-#ifndef __MINGW__
-static int              reservedPipe[2] = { 0, 0 };
-static NSInteger        descriptorsMaximum = 0;
-#endif
 
 
 static NSString*
@@ -1746,8 +1737,7 @@ static BOOL     ecDidAwaken = NO;
         additionalText: err];
       [self alarm: a];
       [alarmDestination shutdown];
-      ecWillQuit(@"configuration error");
-      [self cmdQuit: 1];
+      [self ecQuitFor: @"configuration error" with: 1];
     }
   else
     {
@@ -1762,9 +1752,100 @@ static BOOL     ecDidAwaken = NO;
   return ecDidAwaken;
 }
 
+- (oneway void) ecDidQuit: (NSInteger)status
+{
+  NSArray	*keys;
+  NSUInteger	index;
+  NSDate        *now = [NSDate date];
+
+  if (NO == ecIsQuitting())
+    {
+      ecWillQuit(nil);
+    }
+
+  if (cmdPTimer != nil)
+    {
+      [cmdPTimer invalidate];
+      cmdPTimer = nil;
+    }
+
+  if (0 == status)
+    {  
+      /* Normal shutdown ... unmanage this process first.
+       */
+      [alarmDestination unmanage: nil];
+    }
+  [alarmDestination shutdown];
+
+  /* Almost done ... flush any logs then write the final audit log and
+   * flush again (so that audit log should be the last in the file).
+   */
+  [self cmdFlushLogs];
+  if (0 == status)
+    {
+      [self cmdAudit: @"Shutdown '%@'", [self cmdName]];
+    }
+  else
+    {
+      [self cmdAudit: @"Aborted '%@' (status %"PRIdPTR")",
+        [self cmdName], status];
+    }
+  [auditLogger flush];
+
+  /* Now that the audit log has been flushed to the Command/Control
+   * servers, we can unregister from Command.
+   */
+  [self cmdUnregister];
+
+  /* Re-do the alarm destination shut down, just in case an alarm
+   * occurred while we were flushing logs and/or unregistering.
+   */
+  [alarmDestination shutdown];
+  DESTROY(alarmDestination);
+
+  /* Ensure our DO connection is invalidated so there will be no more
+   * remote communications.
+   */
+  [EcProcConnection invalidate];
+
+  /* The very last thing we do is to close down the log filed so they
+   * are archived to the correct directory for the current date.
+   */
+  keys = [cmdLogMap allKeys];
+  for (index = 0; index < [keys count]; index++)
+    {
+      [self ecLogEnd: [keys objectAtIndex: index] to: now];
+    }
+
+  exit(status);
+}
+
 - (BOOL) ecIsQuitting
 {
   return ecIsQuitting();
+}
+
+- (oneway void) ecQuitFor: (NSString*) reason with: (NSInteger)status
+{
+  if (ecIsQuitting())
+    {
+      NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
+
+      if ([reason length] > 0)
+        {
+          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
+            reason, (now - beganQuitting));
+        }
+      else
+        {
+          NSLog(@"abort: quit requested while quitting after %g sec.\n",
+            (now - beganQuitting));
+        }
+      signal(SIGABRT, SIG_DFL);
+      abort();
+    }
+  [self ecWillQuit: reason];
+  [self ecDidQuit: status];
 }
 
 - (void) ecLoggersChanged: (NSNotification*)n
@@ -1781,9 +1862,9 @@ static BOOL     ecDidAwaken = NO;
   return started;
 }
 
-- (void) ecWillQuit: (NSString*)reason
+- (BOOL) ecWillQuit: (NSString*)reason
 {
-  ecWillQuit(reason);
+  return ecWillQuit(reason);
 }
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event
@@ -2329,8 +2410,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                       shutdown = [NSString stringWithFormat:
                         @" rejected by Command - %@",
 			[r objectForKey: @"rejected"]];
-                      ecWillQuit(shutdown);
-		      [self cmdQuit: 0];	/* Rejected by server.	*/
+		      /* Rejected by server.	*/
+                      [self ecQuitFor: shutdown with: 0];
 		    }
 		  else if (nil == r || nil == [r objectForKey: @"back-off"])
 		    {
@@ -2508,8 +2589,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               close(reservedPipe[0]); reservedPipe[0] = 0;
               close(reservedPipe[1]); reservedPipe[1] = 0;
             }
-          ecWillQuit(shutdown);
-          [self cmdQuit: -1];
+          [self ecQuitFor: shutdown with: -1];
           return;
         }
     }
@@ -2595,7 +2675,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
         additionalText: _(@"Process probably already running (possibly hung/delayed) or problem in name registration with distributed objects system (gdomap)")];
       [self alarm: a];
       [alarmDestination shutdown];
-      ecWillQuit(@"unable to register with name server");
+      [self ecWillQuit: @"unable to register with name server"];
       [self cmdFlushLogs];
       [arp release];
       return 2;
@@ -2656,8 +2736,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               shutdown
                 = [NSString stringWithFormat: @"signal %d received", sig];
               cmdSignalled = 0;
-              ecWillQuit(shutdown);
-	      [self cmdQuit: sig];
+              [self ecQuitFor: shutdown with: sig];
 	    }
 	}
       NS_HANDLER
@@ -2672,8 +2751,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [arp release];
 
   /* finish server */
-  ecWillQuit(nil);
-  [self cmdQuit: 0];
+  [self ecQuitFor: nil with: 0];
   cmdIsRunning = NO;
   DESTROY(EcProcConnection);
   return 0;
@@ -3852,81 +3930,7 @@ With two parameters ('maximum' and a number),\n\
 
 - (oneway void) cmdQuit: (NSInteger)status
 {
-  NSDate        *now = [NSDate date];
-
-  if (reservedPipe[1] > 0)
-    {
-      close(reservedPipe[0]); reservedPipe[0] = 0;
-      close(reservedPipe[1]); reservedPipe[1] = 0;
-    }
-  if (NO == ecIsQuitting())
-    {
-      ecWillQuit(nil);
-    }
-  cmdQuitStatus = status;
-  if (cmdPTimer != nil)
-    {
-      [cmdPTimer invalidate];
-      cmdPTimer = nil;
-    }
-
-  if (0 == status)
-    {  
-      /* Normal shutdown ... unmanage this process first.
-       */
-      [alarmDestination unmanage: nil];
-    }
-  [alarmDestination shutdown];
-
-  /* Almost done ... flush any logs then write the final audit log and
-   * flush again (so that audit log should be the last in the file).
-   */
-  [self cmdFlushLogs];
-  if (0 == status)
-    {
-      [self cmdAudit: @"Shutdown '%@'", [self cmdName]];
-    }
-  else
-    {
-      [self cmdAudit: @"Aborted '%@' (status %"PRIdPTR")",
-        [self cmdName], status];
-    }
-  [auditLogger flush];
-
-  /* Now that the audit log has been flushed to the Command/Control
-   * servers, we can unregister from Command.
-   */
-  [self cmdUnregister];
-
-  /* Re-do the alarm destination shut down, just in case an alarm
-   * occurred while we were flushing logs and/or unregistering.
-   */
-  [alarmDestination shutdown];
-  DESTROY(alarmDestination);
-
-  /* Ensure our DO connection is invalidated so there will be no more
-   * remote communications.
-   */
-  [EcProcConnection invalidate];
-
-  /* The very last thing we do is to close down the log filed so they
-   * are archived to the correct directory for the current date.
-   */
-    {
-      NSArray	*keys;
-      unsigned	index;
-
-      /*
-       * Close down all log files.
-       */
-      keys = [cmdLogMap allKeys];
-      for (index = 0; index < [keys count]; index++)
-	{
-	  [self ecLogEnd: [keys objectAtIndex: index] to: now];
-	}
-    }
-
-  exit(status);
+  [self ecQuitFor: nil with: status];
 }
 
 - (void) cmdUpdate: (NSMutableDictionary*)info
@@ -4898,8 +4902,7 @@ With two parameters ('maximum' and a number),\n\
     {
       if (NO == ecIsQuitting())
         {
-          ecWillQuit(@"memory usage limit reached");
-          [self cmdQuit: -1];
+          [self ecQuitFor: @"memory usage limit reached" with: -1];
         }
       return;
     }
@@ -5104,8 +5107,7 @@ With two parameters ('maximum' and a number),\n\
       NSString  *shutdown;
 
       shutdown = [NSString stringWithFormat: @"signal %d received", sig];
-      ecWillQuit(shutdown);
-      [self cmdQuit: sig];
+      [self ecQuitFor: shutdown with: sig];
     }
   if (YES == ecIsQuitting())
     {
