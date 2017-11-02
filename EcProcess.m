@@ -143,7 +143,6 @@ static NSRecursiveLock	*ecLock = nil;
 
 static BOOL		cmdFlagDaemon = NO;
 static BOOL		cmdFlagTesting = NO;
-static BOOL		cmdIsQuitting = NO;
 static BOOL		cmdIsRunning = NO;
 static BOOL		cmdKeepStderr = NO;
 static NSInteger        cmdQuitStatus = 0;
@@ -167,6 +166,65 @@ static Class	stringClass = 0;
 static int	cmdSignalled = 0;
 
 static NSTimeInterval   initAt = 0.0;
+
+/* Internal value for use only by ecIsQuitting() and ecWillQuit()
+ */
+static NSTimeInterval   beganQuitting = 0.0;
+
+/* Test to see if the process is tryiung to quit gracefully.
+ * If quitting has taken over three minutes, abort immediately.
+ */
+static BOOL
+ecIsQuitting()
+{
+  if (0.0 == beganQuitting)
+    {
+      return NO;
+    }
+  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+  if (now - beganQuitting >= 180.0)
+    {
+      NSLog(@"abort: quitting took too long (after %g sec)\n",
+        (now - beganQuitting));
+      signal(SIGABRT, SIG_DFL);
+      abort();
+    }
+  return YES;
+} 
+
+/* Function to start quitting (graceful shutdown).  If this function
+ * is called when a graceful shutdown attempt is already in progress,
+ * the process will abort immediately.
+ */
+static void
+ecWillQuit(NSString *reason)
+{
+  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+
+  if (0.0 == beganQuitting)
+    {
+      if ([reason length] > 0)
+        {
+          NSLog(@"will quit: %@", reason);
+        }
+      beganQuitting = now;
+    }
+  else
+    {
+      if ([reason length] > 0)
+        {
+          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
+            reason, (now - beganQuitting));
+        }
+      else
+        {
+          NSLog(@"abort: quit requested while quitting after %g sec.\n",
+            (now - beganQuitting));
+        }
+      signal(SIGABRT, SIG_DFL);
+      abort();
+    }
+}
 
 static RETSIGTYPE
 ihandler(int sig)
@@ -1688,7 +1746,7 @@ static BOOL     ecDidAwaken = NO;
         additionalText: err];
       [self alarm: a];
       [alarmDestination shutdown];
-      cmdIsQuitting = YES;
+      ecWillQuit(@"configuration error");
       [self cmdQuit: 1];
     }
   else
@@ -1994,14 +2052,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	{
 	  NSString	*s;
 
-	  s = [self cmdLogEnd: name];
+	  s = [self ecLogEnd: name to: when];
           if (nil != s)
             {
               if ([status length] > 0)
                 status = [status stringByAppendingString: @"\n"];
               status = [status stringByAppendingString: s];
             }
-	  if (cmdIsQuitting == NO)
+	  if (NO == ecIsQuitting())
 	    {
 	      [self cmdLogFile: name];
 	    }
@@ -2256,9 +2314,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		   */
 		  if (r != nil && [r objectForKey: @"rejected"] != nil)
 		    {
-		      NSLog(@"Rejected by Command - %@",
-			[r objectForKey: @"rejected"]);
-                      cmdIsQuitting = YES;
+		      NSString  *shutdown;
+
+                      shutdown = [NSString stringWithFormat:
+                        @" rejected by Command - %@",
+			[r objectForKey: @"rejected"]];
+                      ecWillQuit(shutdown);
 		      [self cmdQuit: 0];	/* Rejected by server.	*/
 		    }
 		  else if (nil == r || nil == [r objectForKey: @"back-off"])
@@ -2396,7 +2457,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 - (void) ecNewMinute: (NSCalendarDate*)when
 {
 #ifndef __MINGW__
-  if (NO == cmdIsQuitting)
+  if (NO == ecIsQuitting())
     {
       NSString          *shutdown = nil;
       int	        p[2];
@@ -2437,8 +2498,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               close(reservedPipe[0]); reservedPipe[0] = 0;
               close(reservedPipe[1]); reservedPipe[1] = 0;
             }
-          NSLog(@"%@", shutdown);
-          cmdIsQuitting = YES;
+          ecWillQuit(shutdown);
           [self cmdQuit: -1];
           return;
         }
@@ -2525,7 +2585,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
         additionalText: _(@"Process probably already running (possibly hung/delayed) or problem in name registration with distributed objects system (gdomap)")];
       [self alarm: a];
       [alarmDestination shutdown];
-      cmdIsQuitting = YES;
+      ecWillQuit(@"unable to register with name server");
       [self cmdFlushLogs];
       [arp release];
       return 2;
@@ -2581,10 +2641,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	  if (0 != cmdSignalled)
 	    {
               int       sig = cmdSignalled;
+              NSString  *shutdown;
 
-              NSLog(@"Signal %d", sig);
+              shutdown
+                = [NSString stringWithFormat: @"signal %d received", sig];
               cmdSignalled = 0;
-              cmdIsQuitting = YES;
+              ecWillQuit(shutdown);
 	      [self cmdQuit: sig];
 	    }
 	}
@@ -2600,7 +2662,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [arp release];
 
   /* finish server */
-  cmdIsQuitting = YES;
+  ecWillQuit(nil);
   [self cmdQuit: 0];
   cmdIsRunning = NO;
   DESTROY(EcProcConnection);
@@ -3783,7 +3845,10 @@ With two parameters ('maximum' and a number),\n\
       close(reservedPipe[0]); reservedPipe[0] = 0;
       close(reservedPipe[1]); reservedPipe[1] = 0;
     }
-  cmdIsQuitting = YES;
+  if (NO == ecIsQuitting())
+    {
+      ecWillQuit(nil);
+    }
   cmdQuitStatus = status;
   if (cmdPTimer != nil)
     {
@@ -4817,10 +4882,9 @@ With two parameters ('maximum' and a number),\n\
    */
   if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
     {
-      if (NO == cmdIsQuitting)
+      if (NO == ecIsQuitting())
         {
-          cmdIsQuitting = YES;
-          NSLog(@"Memory usage limit reached");
+          ecWillQuit(@"memory usage limit reached");
           [self cmdQuit: -1];
         }
       return;
@@ -5023,10 +5087,13 @@ With two parameters ('maximum' and a number),\n\
   cmdPTimer = nil;
   if (sig > 0)
     {
-      cmdIsQuitting = YES;
+      NSString  *shutdown;
+
+      shutdown = [NSString stringWithFormat: @"signal %d received", sig];
+      ecWillQuit(shutdown);
       [self cmdQuit: sig];
     }
-  if (YES == cmdIsQuitting)
+  if (YES == ecIsQuitting())
     {
       NSLog(@"_timedOut: ignored because process is quitting");
     }
