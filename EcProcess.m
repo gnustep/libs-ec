@@ -3823,6 +3823,10 @@ With two parameters ('maximum' and a number),\n\
 	       sequence: (unsigned)num
 		  extra: (in bycopy NSData*)data
 {
+  /* When responding to a ping from a remote process, we also check
+   * and abort if we have spent too long trying to quit.
+   */
+  ecIsQuitting();
   [self cmdDbg: cmdConnectDbg msg: @"cmdPing: %lx sequence: %u extra: %lx",
     (unsigned long)from, num, (unsigned long)data];
   [from cmdGnip: self sequence: num extra: nil];
