@@ -198,13 +198,14 @@ ecIsQuitting()
 
 /* Function to start quitting (graceful shutdown).
  */
-static BOOL
+static void
 ecWillQuit(NSString *reason)
 {
+  NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
+
   if (0.0 == beganQuitting)
     {
-      NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
-
+      beganQuitting = now;
 #ifndef __MINGW__
       if (reservedPipe[1] > 0)
         {
@@ -216,10 +217,22 @@ ecWillQuit(NSString *reason)
         {
           NSLog(@"will quit: %@", reason);
         }
-      beganQuitting = now;
-      return YES;
     }
-  return NO;
+  else
+    {
+      if ([reason length] > 0)
+        {
+          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
+            reason, (now - beganQuitting));
+        }
+      else
+        {
+          NSLog(@"abort: quit requested while quitting after %g sec.\n",
+            (now - beganQuitting));
+        }
+      signal(SIGABRT, SIG_DFL);
+      abort();
+    }
 }
 
 static RETSIGTYPE
@@ -1820,6 +1833,11 @@ static BOOL     ecDidAwaken = NO;
   exit(status);
 }
 
+- (void) ecHandleQuit
+{
+  return;
+}
+
 - (BOOL) ecIsQuitting
 {
   return ecIsQuitting();
@@ -1827,24 +1845,8 @@ static BOOL     ecDidAwaken = NO;
 
 - (oneway void) ecQuitFor: (NSString*) reason with: (NSInteger)status
 {
-  if (ecIsQuitting())
-    {
-      NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
-
-      if ([reason length] > 0)
-        {
-          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
-            reason, (now - beganQuitting));
-        }
-      else
-        {
-          NSLog(@"abort: quit requested while quitting after %g sec.\n",
-            (now - beganQuitting));
-        }
-      signal(SIGABRT, SIG_DFL);
-      abort();
-    }
   [self ecWillQuit: reason];
+  [self ecHandleQuit];
   [self ecDidQuit: status];
 }
 
@@ -1862,9 +1864,9 @@ static BOOL     ecDidAwaken = NO;
   return started;
 }
 
-- (BOOL) ecWillQuit: (NSString*)reason
+- (void) ecWillQuit: (NSString*)reason
 {
-  return ecWillQuit(reason);
+  ecWillQuit(reason);
 }
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event
@@ -2675,7 +2677,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
         additionalText: _(@"Process probably already running (possibly hung/delayed) or problem in name registration with distributed objects system (gdomap)")];
       [self alarm: a];
       [alarmDestination shutdown];
-      [self ecWillQuit: @"unable to register with name server"];
+      [self ecQuitFor: @"unable to register with name server" with: 2];
       [self cmdFlushLogs];
       [arp release];
       return 2;

@@ -511,9 +511,16 @@ extern NSString*	cmdVersion(NSString *ver);
  * If -ecWillQuit: has not been called, this method performs the same
  * operations of setting the start time for the period after which the
  * process should abort.<br />
- * Subclasses should override -ecQuitFor:with: rather than this method.
+ * Subclasses should usually override -ecHandleQuit rather than this method.
  */
 - (oneway void) ecDidQuit: (NSInteger)status;
+
+/** Called by -ecQuitFor:with: after -ecWillQuit: and before -edDidQuit:
+ * as a method for subclasses to use to implement their own behaviors.<br />
+ * Subclass implementations should call the superclass implementation
+ * as the last thing they do.
+ */
+- (void) ecHandleQuit;
 
 /** Returns YES if the process is attempting a graceful shutdown,
  * NO otherwise.  This also checks to see if the process has been
@@ -523,13 +530,11 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) ecIsQuitting;
 
-/** This method is designed for handling an orderly shutdown.<br />
- * The base implementation immediately aborts the process if it is
- * already quitting, but otherwise calls -ecWillQuit: with the supplied
- * reason, and then calls -ecDidQuit: passing the supplied status.<br />
- * Subclasses overriding this method should call -ecWillQuit: at the
- * start of their implementation and the superclass implementation of
- * -ecQuitFor:with: at the end of their implementation.
+/** This method is designed for handling an orderly shutdown by calling
+ * -ecWillQuit: with the supplied reason, then -ecHandleQuit, and finally
+ * calling -ecDidQuit: passing the supplied status.<br />
+ * Subclasses should not normally override this method. Instead override
+ * the -ecHandleQuit method.
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
@@ -543,17 +548,12 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) ecUnLock;
 
-/** Returns NO (and does nothing) if the process is already quitting,
- * otherwise returns YES after setting the start time used by the
+/** This aborts immediately if the process is already quitting,
+ * otherwise it returns after setting the start time used by the
  * -ecIsQuitting method and (if reason is not nil/empty) generating a
- * log of why quitting was started.<br />
- * Subclasses overriding this method must call the superclass implementation
- * as the first thing they do and should themselves return without doing
- * anything if the base method returns NO.<br />
- * It generally makes sense for subclasses to override -ecQuitFor:with:
- * rather than this method.
+ * log of why quitting was started.
  */
-- (BOOL) ecWillQuit: (NSString*)reason;
+- (void) ecWillQuit: (NSString*)reason;
 
 /* Call these methods during initialisation of your instance
  * to set up automatic management of connections to servers. 
