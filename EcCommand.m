@@ -91,12 +91,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
  *
  * CompressLogsAfter
  *   A positive integer number of days after which logs should be compressed
- *   defaults to 14.
+ *   defaults to 7.
  *
  * DeleteLogsAfter
  *   A positive integer number of days after which logs should be deleted.
  *   Constrained to be at least as large as CompressLogsAfter.
- *   Defaults to 1000, but logs may still be deleted as if this were set
+ *   Defaults to 180, but logs may still be deleted as if this were set
  *   to CompressLogsAfter if NodesFree or SpaceFree is reached.
  *
  * Environment
@@ -2460,7 +2460,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   deleteAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
   if (deleteAfter < 1)
     {
-      deleteAfter = 14;
+      deleteAfter = 7;
     }
 
   mgr = [NSFileManager defaultManager];
@@ -2513,12 +2513,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   compressAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
   if (compressAfter < 1)
     {
-      compressAfter = 14;
+      compressAfter = 7;
     }
   deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteLogsAfter"];
   if (deleteAfter < 1)
     {
-      deleteAfter = 1000;
+      deleteAfter = 180;
     }
   if (deleteAfter < compressAfter)
     {
@@ -2706,7 +2706,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   if (nil == terminating)
     {
-      [self information: @"Handling shutdown."
+      [self information: @"Handling shutdown.\n"
 		   from: nil
 		     to: nil
 		   type: LT_AUDIT];
@@ -2740,6 +2740,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) terminate
 {
+  [self information: @"Terminate einitiated.\n"
+               from: nil
+                 to: nil
+               type: LT_AUDIT];
   [self terminate: nil];
 }
 
