@@ -336,12 +336,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   EcAlerter		*alerter;
 }
 - (NSFileHandle*) openLog: (NSString*)lname;
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
 - (oneway void) cmdQuit: (NSInteger)status;
 - (void) command: (NSData*)dat
 	    from: (NSString*)f;
@@ -462,9 +462,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return lf;
 }
 
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   EcClientI	*r;
 
@@ -487,9 +487,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return NO;	// Control is not a client of Command
 }
 
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   [from cmdGnip: self sequence: num extra: nil];
 }

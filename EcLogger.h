@@ -82,17 +82,17 @@
 
 /** Supports the CmdPing protocol.
  */
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
 
 - (void) cmdMadeConnectionToServer: (NSString*)name;
 
 /** Supports the CmdPing protocol.
  */
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
 
 /** Called to flush accumulated data from the message instance variable.<br />
  * On return from this method the variable should be empty.

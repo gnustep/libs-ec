@@ -144,12 +144,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   BOOL                  sweeping;
 }
 - (NSFileHandle*) openLog: (NSString*)lname;
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data;
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data;
 - (oneway void) cmdQuit: (NSInteger)sig;
 - (void) command: (NSData*)dat
 	      to: (NSString*)t
@@ -621,9 +621,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
 }
 
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   if (from == control)
     {
@@ -698,9 +698,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return NO;	// Not a client of the Command server.
 }
 
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   /* Send back a response to let the other party know we are alive.
    */

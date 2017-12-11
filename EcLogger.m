@@ -130,9 +130,9 @@ static NSArray          *modes;
 
 /* Should only be called on main thread, but doesn't matter.
  */
-- (void) cmdGnip: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdGnip: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   return;
 }
@@ -152,9 +152,9 @@ static NSArray          *modes;
 
 /* Should only be called on main thread, but doesn't matter.
  */
-- (void) cmdPing: (id <CmdPing>)from
-	sequence: (unsigned)num
-	   extra: (NSData*)data
+- (oneway void) cmdPing: (id <CmdPing>)from
+               sequence: (unsigned)num
+                  extra: (NSData*)data
 {
   [from cmdGnip: self sequence: num extra: nil];
 }
