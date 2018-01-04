@@ -4,7 +4,7 @@
 	Rewrite config update code to catch exceptions, ensure that methods
 	are called in the correct order so that -cmdUpdated is always last,
 	and ensure that -cmdUpdated is called when a local defaults update
-	occurs.
+	occurs. Also, ignore config updates while process is quitting.
 
 2017-12-04  Richard Frith-Macdonald <rfm@gnu.org>
 

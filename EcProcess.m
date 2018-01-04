@@ -1423,6 +1423,11 @@ static NSString	*noFiles = @"No log files to archive";
     {
       return;   // Ignore defaults updates during configuration update.
     }
+  if (YES == ecIsQuitting())
+    {
+      NSLog(@"NSUserDefaults change during process shutdown ... ignored.");
+      return;   // Ignore defaults changes during shutdown.
+    }
   if (nil == configError)
     {
       NS_DURING
@@ -5285,6 +5290,11 @@ With two parameters ('maximum' and a number),\n\
   NSEnumerator		*enumerator;
   NSString		*key;
 
+  if (YES == ecIsQuitting())
+    {
+      NSLog(@"Configuration change during process shutdown ... ignored.");
+      return;   // Ignore config updates while quitting
+    }
   newConfig = [NSMutableDictionary dictionaryWithCapacity: 32];
   /*
    *	Put all values for this application in the cmdConf dictionary.
