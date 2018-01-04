@@ -1864,11 +1864,11 @@ static BOOL     ecDidAwaken = NO;
   [self cmdFlushLogs];
   if (0 == status)
     {
-      [self cmdAudit: @"Shutdown '%@'", [self cmdName]];
+      [self cmdAudit: @"Shutdown '%@' (normal)", [self cmdName]];
     }
   else
     {
-      [self cmdAudit: @"Aborted '%@' (status %"PRIdPTR")",
+      [self cmdAudit: @"Shutdown '%@' (status %"PRIdPTR")",
         [self cmdName], status];
     }
   [auditLogger flush];
