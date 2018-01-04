@@ -175,7 +175,8 @@ static NSTimeInterval   initAt = 0.0;
 
 /* Internal value for use only by ecIsQuitting() and ecWillQuit()
  */
-static NSTimeInterval   beganQuitting = 0.0;
+static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
+static BOOL             ecWillAbort = NO;       // Abort on next quit
 
 /* Test to see if the process is tryiung to quit gracefully.
  * If quitting has taken over three minutes, abort immediately.
@@ -220,7 +221,7 @@ ecWillQuit(NSString *reason)
           NSLog(@"will quit: %@", reason);
         }
     }
-  else
+  else if (YES == ecWillAbort)
     {
       if ([reason length] > 0)
         {
@@ -235,6 +236,7 @@ ecWillQuit(NSString *reason)
       signal(SIGABRT, SIG_DFL);
       abort();
     }
+  ecWillAbort = YES;
 }
 
 static RETSIGTYPE
@@ -1917,8 +1919,21 @@ static BOOL     ecDidAwaken = NO;
 - (oneway void) ecQuitFor: (NSString*) reason with: (NSInteger)status
 {
   [self ecWillQuit: reason];
-  [self ecHandleQuit];
-  [self ecDidQuit: status];
+  if (class_getMethodImplementation([EcProcess class], @selector(cmdQuit:))
+    != class_getMethodImplementation([self class], @selector(cmdQuit:)))
+    {
+      /* The -cmdQuit: method was overridden by a subclass, so we must call
+       * it but first set the flag so that will not cause an abort when it
+       * causes -ecWillQuit: to be called again.
+       */
+      ecWillAbort = NO;
+      [self cmdQuit: status];
+    }
+  else
+    {
+      [self ecHandleQuit];
+      [self ecDidQuit: status];
+    }
 }
 
 - (void) ecLoggersChanged: (NSNotification*)n
@@ -3969,7 +3984,6 @@ With two parameters ('maximum' and a number),\n\
     }
 }
 
-
 - (oneway void) cmdPing: (id <CmdPing>)from
 	       sequence: (unsigned)num
 		  extra: (in bycopy NSData*)data
@@ -4003,7 +4017,9 @@ With two parameters ('maximum' and a number),\n\
 
 - (oneway void) cmdQuit: (NSInteger)status
 {
-  [self ecQuitFor: nil with: status];
+  [self ecWillQuit: nil];
+  [self ecHandleQuit];
+  [self ecDidQuit: status];
 }
 
 - (void) cmdUpdate: (NSMutableDictionary*)info
@@ -4016,7 +4032,6 @@ With two parameters ('maximum' and a number),\n\
 {
   return nil;
 }
-
 
 - (void) dealloc
 {

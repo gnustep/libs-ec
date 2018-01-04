@@ -534,7 +534,9 @@ extern NSString*	cmdVersion(NSString *ver);
  * -ecWillQuit: with the supplied reason, then -ecHandleQuit, and finally
  * calling -ecDidQuit: passing the supplied status.<br />
  * Subclasses should not normally override this method. Instead override
- * the -ecHandleQuit method.
+ * the -ecHandleQuit method.<br />
+ * For backward compatibility, this will call the -cmdQuit: method if a
+ * subclass has overriden it.
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
@@ -760,8 +762,10 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSMutableDictionary*)cmdOperator: (NSString*)name password: (NSString*)pass;
 
-/** This method simply calls -ecQuitFor:with: using a nil value for the
- * reason for quitting and the supplied status for the process exit status.
+/** This method calls -ecWillQuit: with a nil argument, then -ecHandleQuit,
+ * and finally calls -ecDidQuit: with the supplied value for the process
+ * exit status.<br />
+ * Subclasses should override -ecHandleQuit rather than this method.
  */
 - (oneway void) cmdQuit: (NSInteger)status;
 
