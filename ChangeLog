@@ -1,3 +1,16 @@
+2018-01-04  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcProcess.m: Avoid warning about unknown connection on shutdown.
+	Rewrite config update code to catch exceptions, ensure that methods
+	are called in the correct order so that -cmdUpdated is always last,
+	and ensure that -cmdUpdated is called when a local defaults update
+	occurs.
+
+2017-12-04  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcCommand.m: Change default period to start compressing logs to 7 days
+	and default for starting del;eting logs to 180 days.
+
 2017-11-02  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h: 

@@ -146,6 +146,8 @@ ecNativeThreadID()
  */
 static NSRecursiveLock	*ecLock = nil;
 
+static NSString         *configError = nil;
+static BOOL             configInProgress = NO;
 static BOOL		cmdFlagDaemon = NO;
 static BOOL		cmdFlagTesting = NO;
 static BOOL		cmdIsRunning = NO;
@@ -1377,6 +1379,65 @@ static NSString	*noFiles = @"No log files to archive";
   return cmdDefs;
 }
 
+/* This method handles the final stage of a configuration update either
+ * from the Control server or via the local NSUserDefaults system.
+ * If no error has occurred so far, we call the method to chewck/apply
+ * the updated config.
+ * If an error occurs at any stage, we reset the error string and call
+ * the method to report it.
+ */
+- (void) _checkUpdate
+{
+  NSString      *err;
+
+  if (nil == configError)
+    {
+      NS_DURING
+        ASSIGN(configError, [self cmdUpdated]);
+      NS_HANDLER
+        NSLog(@"Problem after updating config (in cmdUpdated) %@",
+          localException);
+        ASSIGN(configError, @"the -cmdUpdated method raised an exception");
+      NS_ENDHANDLER
+    }
+  
+  err = AUTORELEASE(configError);
+  configError = nil;
+  /* NB. if err is nil this will clear any currently raised alarm
+   */
+  [self ecConfigurationError: err];
+}
+
+/* This method is called when the defaults database is updated for any
+ * reason and also if the configuration from the Control server changes.
+ * In the latter case, the notification argument is nil.
+ * If no error has occurred, we call -cmdDefaultsChanged:
+ * After this is done, we check that the update is OK (on the next runloop
+ * iteration in the main thread).  The async processing ensures that all
+ * handling of defaults database notifications has been done before we
+ * check the effects of the update.
+ */
+- (void) _defaultsChanged: (NSNotification*)n
+{
+  if (YES == configInProgress)
+    {
+      return;   // Ignore defaults updates during configuration update.
+    }
+  if (nil == configError)
+    {
+      NS_DURING
+        [self cmdDefaultsChanged: n];
+      NS_HANDLER
+        NSLog(@"Problem in cmdDefaultsChanged:) %@", localException);
+        ASSIGN(configError,
+          @"the -cmdDefaultsChanged: method raised an exception");
+      NS_ENDHANDLER
+    }
+  [self performSelectorOnMainThread: @selector(_checkUpdate)
+                         withObject: nil
+                      waitUntilDone: NO];
+}
+
 - (void) cmdDefaultsChanged: (NSNotification*)n
 {
   NSEnumerator	*enumerator;
@@ -1817,8 +1878,13 @@ static BOOL     ecDidAwaken = NO;
   DESTROY(alarmDestination);
 
   /* Ensure our DO connection is invalidated so there will be no more
-   * remote communications.
+   * remote communications or connection related events.
    */
+  [EcProcConnection setDelegate: nil];
+  [[NSNotificationCenter defaultCenter]
+    removeObserver: self
+              name: nil
+            object: EcProcConnection];
   [EcProcConnection invalidate];
 
   /* The very last thing we do is to close down the log filed so they
@@ -3937,24 +4003,8 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) cmdUpdate: (NSMutableDictionary*)info
 {
-  BOOL  defaultsChanged;
-
-  if (nil == info)
-    {
-      defaultsChanged = NO;
-    }
-  else
-    {
-      ASSIGNCOPY(cmdConf, info);
-      defaultsChanged = [cmdDefs setConfiguration: cmdConf];
-    }
-  /* If the defaults did not actually change,
-   * trigger an update anyway.
-   */
-  if (NO == defaultsChanged)
-    {
-      [self cmdDefaultsChanged: nil];
-    }
+  ASSIGNCOPY(cmdConf, info);
+  [cmdDefs setConfiguration: cmdConf];
 }
 
 - (NSString*) cmdUpdated
@@ -4485,7 +4535,7 @@ With two parameters ('maximum' and a number),\n\
 
       [[NSNotificationCenter defaultCenter]
 	addObserver: self
-	selector: @selector(cmdDefaultsChanged:)
+	selector: @selector(_defaultsChanged:)
 	name: NSUserDefaultsDidChangeNotification
 	object: [NSUserDefaults standardUserDefaults]];
 
@@ -5290,26 +5340,17 @@ With two parameters ('maximum' and a number),\n\
 
   if (nil == cmdConf || [cmdConf isEqual: newConfig] == NO)
     {
-      NSString  *err = nil;
-
+      DESTROY(configError);
+      configInProgress = YES;
       NS_DURING
         [self cmdUpdate: newConfig];
       NS_HANDLER
         NSLog(@"Problem before updating config (in cmdUpdate:) %@",
           localException);
-        err = @"the -cmdUpdate: method raised an exception";
+        ASSIGN(configError, @"the -cmdUpdate: method raised an exception");
       NS_ENDHANDLER
-      if (nil == err)
-        {
-          NS_DURING
-            err = [self cmdUpdated];
-          NS_HANDLER
-            NSLog(@"Problem after updating config (in cmdUpdated) %@",
-              localException);
-            err = @"the -cmdUpdated method raised an exception";
-          NS_ENDHANDLER
-        }
-      [self ecConfigurationError: err];
+      configInProgress = NO;
+      [self _defaultsChanged: nil];
     }
 }
 
