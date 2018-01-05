@@ -6,6 +6,9 @@
 	implementation calls the -ecQuitFor:status: method using a status of
 	minus one so that the Command server will restart the program after
 	it shuts down.
+	EcCommand.m: New Launch option 'Time' to specify how long after a
+	crash we attempt to re-start an autolaunched program.
+	Control.plist: Document launch options better
 
 2018-01-04  Richard Frith-Macdonald <rfm@gnu.org>
 

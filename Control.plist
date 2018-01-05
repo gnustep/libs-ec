@@ -32,8 +32,24 @@
     };
     Command = {
       /* Section for Command server on localhost
+       * The 'Launch' dictionary specifies what programs may be launched.
        */
       Launch = {
+        /* Specifications of how to launch individual programs:
+         *
+         * Disabled = (boolean) Whether this program can be launched
+         * Prog = (string)      The name (or full path) of the executable
+         * Home = (string)      The directory the program is started up in
+         * Args = (array)       The arguments supplied to the program
+         * Auto = (boolean)     Whether the program is started automatically
+         * Time = (integer)     How many seconds after a crash until the
+         *                      automatic restart (defaults to about 300)
+         * AddE = (dictionary)  key/value pairs added to the environment
+         * SetE = (dictionary)  key/value pairs to be used as environment
+         * KeepStandardInput = (boolean)     Don't close stdin
+         * KeepStandardOutput = (boolean)    Don't close stdout
+         * KeepStandardError = (boolean)     Don't close stderr
+         */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
 	  Home = "~xxx/Test";				// Directory to run in
@@ -53,6 +69,7 @@
 	  Prog = "Feep";                         	// RName of binary
 	  Home = "~xxx/Test";				// Directory to run in
 	  Auto = YES;					// Auto-launch?
+          Time = 30;            // Interval for relaunching after crash
 	};
       };
       /* Specify launch order ... Feep first, Bar second

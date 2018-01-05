@@ -185,6 +185,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) newConfig: (NSMutableDictionary*)newConfig;
 - (void) pingControl;
 - (void) quitAll;
+- (void) reLaunch: (NSTimer*)t;
 - (void) requestConfigFor: (id<CmdConfig>)c;
 - (NSData*) registerClient: (id<CmdClient>)c
 		      name: (NSString*)n;
@@ -405,6 +406,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Auto for %@", k);
+		      launchInfo = nil;
+		      break;
+		    }
+		  o = [d objectForKey: @"Time"];
+		  if (o != nil && ([o isKindOfClass: [NSString class]] == NO
+                    || [o intValue] < 1 || [o intValue] > 600))
+		    {
+		      NSLog(@"bad 'Launch' Time for %@", k);
 		      launchInfo = nil;
 		      break;
 		    }
@@ -1533,6 +1542,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      if ([o transient] == NO)
 		{
+                  NSString	*t;
 		  EcAlarm	*a;
 
 		  s = EcMakeManagedObject(host, name, nil);
@@ -1545,12 +1555,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    proposedRepairAction: @"Check system status"
 		    additionalText: @"removed (lost) server"];
 		  [self alarm: a];
-		}
-	      else
-		{
-		  s = [NSString stringWithFormat: cmdLogFormat(LT_DEBUG,
-		    @"removed (lost) server - '%@' on %@"), name, host];
-		  [l appendString: s];
+
+                  t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
+                  if ([t intValue] > 0)
+                    {
+                      [NSTimer scheduledTimerWithTimeInterval: [t intValue]
+					       target: self
+					     selector: @selector(reLaunch:)
+					     userInfo: name
+					      repeats: NO];
+                    }     
 		}
 	    }
 	}
@@ -2322,6 +2336,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	format: NSPropertyListBinaryFormat_v1_0
 	errorDescription: 0];
     }
+}
+
+- (void) reLaunch: (NSTimer*)t
+{
+  NSString      *name = [t userInfo];
+
+  if ([name isKindOfClass: [NSString class]]
+    && [self findIn: clients byName: name] == nil
+    && [launching objectForKey: name] == nil)
+    {
+      [self launch: name];
+    } 
 }
 
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c
