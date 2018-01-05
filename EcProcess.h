@@ -540,6 +540,17 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
+/** This method is designed for handling an orderly restart.<br />
+ * The default implementation calls -ecQuitFor:status: with minus one as
+ * the status code so that the Command server will start the process
+ * again.<br />
+ * The method is called automatically when the MemoryMaximum limit is
+ * exceeded (to gracefully handle memory leaks by restarting).<br />
+ * Subclasses may override this method to allow the shutdown process to be
+ * handled differently.
+ */
+- (oneway void) ecRestart: (NSString*)reason;
+
 /** Return the timestamp at which this process started up (when the
  * receiver was initialised).
  */

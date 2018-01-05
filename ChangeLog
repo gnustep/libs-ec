@@ -1,5 +1,15 @@
+2018-01-05  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcProcess.h:
+	EcProcess.m: New -ecRestart: method called when we pass the maximum
+	memory usage limit or when a restart command is issued.  The default
+	implementation calls the -ecQuitFor:status: method using a status of
+	minus one so that the Command server will restart the program after
+	it shuts down.
+
 2018-01-04  Richard Frith-Macdonald <rfm@gnu.org>
 
+	EcProcess.h: Improve comments.
 	EcProcess.m: Avoid warning about unknown connection on shutdown.
 	Rewrite config update code to catch exceptions, ensure that methods
 	are called in the correct order so that -cmdUpdated is always last,

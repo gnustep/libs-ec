@@ -1104,6 +1104,7 @@ findMode(NSDictionary* d, NSString* s)
 
 @interface	EcProcess (Private)
 - (void) cmdMesgrelease: (NSArray*)msg;
+- (void) cmdMesgrestart: (NSArray*)msg;
 - (void) cmdMesgtesting: (NSArray*)msg;
 - (void) _memCheck;
 - (NSString*) _moveLog: (NSString*)name to: (NSDate*)when;
@@ -1916,7 +1917,7 @@ static BOOL     ecDidAwaken = NO;
   return ecIsQuitting();
 }
 
-- (oneway void) ecQuitFor: (NSString*) reason with: (NSInteger)status
+- (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status
 {
   [self ecWillQuit: reason];
   if (class_getMethodImplementation([EcProcess class], @selector(cmdQuit:))
@@ -1934,6 +1935,18 @@ static BOOL     ecDidAwaken = NO;
       [self ecHandleQuit];
       [self ecDidQuit: status];
     }
+}
+
+- (oneway void) ecRestart: (NSString*)reason
+{
+  if (NO == [NSThread isMainThread])
+    {
+      [self performSelectorOnMainThread: _cmd
+                             withObject: reason
+                          waitUntilDone: NO];
+      return;
+    }
+  [self ecQuitFor: reason with: -1];
 }
 
 - (void) ecLoggersChanged: (NSNotification*)n
@@ -4789,6 +4802,34 @@ With two parameters ('maximum' and a number),\n\
     }
 }
 
+- (void) cmdMesgrestart: (NSArray*)msg
+{
+  if ([msg count] == 0)
+    {
+      [self cmdPrintf: @"requests a restart"];
+    }
+  else
+    {
+      if ([[msg objectAtIndex: 0] caseInsensitiveCompare: @"help"]
+        == NSOrderedSame)
+	{
+	  [self cmdPrintf: @"\nThe restart command is used to request a"];
+	  [self cmdPrintf: @" restart of the process.\n"];
+	  [self cmdPrintf: @"This is like quitting the process but with"];
+	  [self cmdPrintf: @" a new process started by the Command\n"];
+	  [self cmdPrintf: @" server and potentially different shutdown"];
+	  [self cmdPrintf: @" behavior.\n"];
+	}
+      else
+	{
+          [self performSelectorOnMainThread: @selector(ecRestart:)
+                                 withObject: @"Console restart command"
+                              waitUntilDone: NO];
+	  [self cmdPrintf: @"A restart is being requested.\n"];
+	}
+    }
+}
+
 - (void) cmdMesgtesting: (NSArray*)msg
 {
   if ([msg count] == 0)
@@ -4968,13 +5009,16 @@ With two parameters ('maximum' and a number),\n\
     }
 
   /* If we have a defined maximum memory usage for the process,
-   * we should shut down with a non-zero status to get a restart.
+   * we should perform a restart once that limit is passed.
    */
   if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
     {
-      if (NO == ecIsQuitting())
+      static BOOL       memRestart = NO;
+
+      if (NO == memRestart)
         {
-          [self ecQuitFor: @"memory usage limit reached" with: -1];
+          memRestart = YES;
+          [self ecRestart: @"memory usage limit reached"];
         }
       return;
     }
