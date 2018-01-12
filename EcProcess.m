@@ -5095,23 +5095,25 @@ With two parameters ('maximum' and a number),\n\
             {
               [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
                 @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB",
-                (unsigned long)memAvge/1024,
-                (long)(memAvge - mPrev)/1024,
-                (unsigned long)excAvge/1024,
-                (long)(excAvge - ePrev)/1024,
-                (long)(memAvge - mPrev + ePrev - excAvge)/1024];
-            }
-          else
-            {
-              [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
-                @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB since %@",
+                @" possible leak of %ldKB (%d%%)",
                 (unsigned long)memAvge/1024,
                 (long)(memAvge - mPrev)/1024,
                 (unsigned long)excAvge/1024,
                 (long)(excAvge - ePrev)/1024,
                 (long)(memAvge - mPrev + ePrev - excAvge)/1024,
+                ((memAvge - mPrev + ePrev - excAvge)*100)/mPrev];
+            }
+          else
+            {
+              [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
+                @" with %luKB (grown by %ldKB) accounted for;"
+                @" possible leak of %ldKB (%d%%) since %@",
+                (unsigned long)memAvge/1024,
+                (long)(memAvge - mPrev)/1024,
+                (unsigned long)excAvge/1024,
+                (long)(excAvge - ePrev)/1024,
+                (long)(memAvge - mPrev + ePrev - excAvge)/1024,
+                ((memAvge - mPrev + ePrev - excAvge)*100)/mPrev,
                 when];
             }
         }
