@@ -5018,6 +5018,7 @@ With two parameters ('maximum' and a number),\n\
       if (NO == memRestart)
         {
           memRestart = YES;
+          [self cmdAlert: @"MemoryMaximum exceeded ... initiating restart"];
           [self ecRestart: @"memory usage limit reached"];
         }
       return;
