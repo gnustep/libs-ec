@@ -132,7 +132,7 @@ ecNativeThreadID()
   id            val;            // The fallback value of the default
 }
 + (void) defaultsChanged: (NSUserDefaults*)defs;
-+ (NSMutableString*) listHelp;
++ (NSMutableString*) listHelp: (NSString*)key;
 + (NSDictionary*) merge: (NSDictionary*)d;
 + (void) registerDefault: (NSString*)name
             withTypeText: (NSString*)type
@@ -3363,11 +3363,19 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	  [self cmdPrintf: @"With the 'revert' parameter,\n  the command"];
 	  [self cmdPrintf: @" is used to revert all overides.\n"];
 	  [self cmdPrintf: @"With the 'list' parameter,\n  this lists"];
-	  [self cmdPrintf: @" registered (not all) defaults options.\n"];
+	  [self cmdPrintf: @" registered (not all) defaults names.\n"];
+	  [self cmdPrintf: @"With the 'list' parameter followed by a name,\n"];
+	  [self cmdPrintf: @" shows the help for the specified default.\n"];
 	}
       else if ([msg count] > 1 && [[msg objectAtIndex: 1] isEqual: @"list"])
 	{
-          [self cmdPrintf: @"%@", [EcDefaultRegistration listHelp]];
+          NSString      *key = nil;
+
+          if ([msg count] > 2)
+            {
+              key = [msg objectAtIndex: 2];
+            }
+          [self cmdPrintf: @"%@", [EcDefaultRegistration listHelp: key]];
         }
       else if ([msg count] > 1 && [[msg objectAtIndex: 1] isEqual: @"revert"])
 	{
@@ -5095,25 +5103,25 @@ With two parameters ('maximum' and a number),\n\
             {
               [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
                 @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB (%d%%)",
+                @" possible leak of %ldKB (%u%%)",
                 (unsigned long)memAvge/1024,
                 (long)(memAvge - mPrev)/1024,
                 (unsigned long)excAvge/1024,
                 (long)(excAvge - ePrev)/1024,
                 (long)(memAvge - mPrev + ePrev - excAvge)/1024,
-                ((memAvge - mPrev + ePrev - excAvge)*100)/mPrev];
+                (unsigned)(((memAvge - mPrev + ePrev - excAvge)*100)/mPrev)];
             }
           else
             {
               [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
                 @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB (%d%%) since %@",
+                @" possible leak of %ldKB (%u%%) since %@",
                 (unsigned long)memAvge/1024,
                 (long)(memAvge - mPrev)/1024,
                 (unsigned long)excAvge/1024,
                 (long)(excAvge - ePrev)/1024,
                 (long)(memAvge - mPrev + ePrev - excAvge)/1024,
-                ((memAvge - mPrev + ePrev - excAvge)*100)/mPrev,
+                (unsigned)(((memAvge - mPrev + ePrev - excAvge)*100)/mPrev),
                 when];
             }
         }
@@ -5555,7 +5563,12 @@ static BOOL                     merged = NO;
   regDefs = [NSMutableDictionary new];
 }
 
-+ (NSMutableString*) listHelp
+/* Key may be one of:
+ *   nil        list all registered defaults keys
+ *   empty      list all registered defaults help
+ *   other      list the registered defaults help for the specified key
+ */
++ (NSMutableString*) listHelp: (NSString*)key
 {
   NSMutableString       *out = [NSMutableString stringWithCapacity: 1000];
   NSArray       *keys;
@@ -5595,35 +5608,79 @@ static BOOL                     merged = NO;
 
   keys = [keys sortedArrayUsingSelector: @selector(compare:)];
   e = [keys objectEnumerator];
-  while (nil != (k = [e nextObject]))
+  if (nil == key)
     {
-      EcDefaultRegistration     *d;
+      unsigned  col = 0;
 
-      [ecLock lock];
-      d = [regDefs objectForKey: k];
-      if (nil != d->type && nil != d->help)
+      /* We just want to list all the keys ...
+       */
+      while (nil != (k = [e nextObject]))
         {
-          /* If the help text is short enough, put it all on one line.
-           */
-          if ([d->help length] + max < 80)
+          if (col + [k length] > 70)
             {
-              NSMutableString   *m;
-
-              m = [NSMutableString stringWithFormat: @"-%@%@ [%@] ",
-                prf, k, d->type];
-              while ([m length] < max)
-                {
-                  [m appendString: @" "];
-                }
-              [out appendFormat: @"%@%@\n", m, d->help];
+              [out appendString: @"\n"];
+              col = 0;
             }
-          else
+          if (col > 0)
             {
-              [out appendFormat: @"-%@%@ [%@]\n  %@\n",
-                prf, k, d->type, d->help];
+              [out appendString: @" "];
+              col++;
             }
+          [out appendString: k];
+          col = [k length];
         }
-      [ecLock unlock];
+      if (col > 0)
+        {
+          [out appendString: @"\n"];
+        }
+    }
+  else
+    {
+      while (nil != (k = [e nextObject]))
+        {
+          EcDefaultRegistration     *d;
+
+          if ([key length] > 0)
+            {
+              /* We want help for a specific key.
+               */
+              if ([key caseInsensitiveCompare: k] != NSOrderedSame)
+                {
+                  NSString  *pk = [prf stringByAppendingString: k];
+
+                  if ([key caseInsensitiveCompare: pk] != NSOrderedSame)
+                    {
+                      continue; /* This is not the key we are looking for */
+                    }
+                }
+            }
+
+          [ecLock lock];
+          d = [regDefs objectForKey: k];
+          if (nil != d->type && nil != d->help)
+            {
+              /* If the help text is short enough, put it all on one line.
+               */
+              if ([d->help length] + max < 80)
+                {
+                  NSMutableString   *m;
+
+                  m = [NSMutableString stringWithFormat: @"-%@%@ [%@] ",
+                    prf, k, d->type];
+                  while ([m length] < max)
+                    {
+                      [m appendString: @" "];
+                    }
+                  [out appendFormat: @"%@%@\n", m, d->help];
+                }
+              else
+                {
+                  [out appendFormat: @"-%@%@ [%@]\n  %@\n",
+                    prf, k, d->type, d->help];
+                }
+            }
+          [ecLock unlock];
+        }
     }
   return out;
 }
@@ -5734,7 +5791,7 @@ static BOOL                     merged = NO;
 
 + (void) showHelp
 {
-  GSPrintf(stderr, @"%@", [self listHelp]);
+  GSPrintf(stderr, @"%@", [self listHelp: @""]);
 }
 
 - (void) dealloc
