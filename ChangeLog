@@ -1,3 +1,11 @@
+2018-02-20  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcAlerter.h:
+	EcAlerter.m:
+	New type 'Raise' to match only an alarm being raised.  Behavior of
+	'Alarm' changed to match both 'Raise' and 'Clear' (and reminders as
+	long as ReminderInterval matches).
+
 2018-01-05  Richard Frith-Macdonald <rfm@gnu.org>
 
 	EcProcess.h:

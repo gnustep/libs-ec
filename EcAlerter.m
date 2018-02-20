@@ -783,13 +783,19 @@ replaceFields(NSDictionary *fields, NSString *template)
       s = [d objectForKey: @"Type"];
       if (s != nil && [s isEqualToString: event->type] == NO)
         {
-          continue;		// Not a match.
+          /* For alarms only, the type 'Alarm' matches all three types
+           * of alarm event (raise, reminder, and clear).
+           */
+          if (NO == event->isAlarm || [s isEqualToString: @"Alarm"] == NO)
+            {
+              continue;		// Not a match.
+            }
         }
 
       /* The next set are performed only for alarms,
        * since a non-alarm can never match them.
        */
-      if (event->reminder >= 0)
+      if (YES == event->isAlarm)
         {
           if (event->reminder > 0 && NO == event->isClear)
             {
@@ -1186,6 +1192,7 @@ replaceFields(NSDictionary *fields, NSString *template)
           event->severityText = @"";
           event->isAlarm = NO;
           event->isClear = NO;
+          event->reminder = -1;
           if (nil != identifier)
             {
               event->type = @"Alert";
@@ -1201,6 +1208,7 @@ replaceFields(NSDictionary *fields, NSString *template)
           ASSIGN(event->severityText,
             [EcAlarm stringFromSeverity: event->severity]);
           event->isAlarm = YES;
+          event->reminder = reminder;
           if ([@"Clear" isEqual: [alarm extra]])
             {
               event->isClear = YES;
@@ -1209,10 +1217,16 @@ replaceFields(NSDictionary *fields, NSString *template)
           else
             {
               event->isClear = NO;
-              event->type = @"Alarm";
+              if (0 == event->reminder)
+                {
+                  event->type = @"Raise";
+                }
+              else
+                {
+                  event->type = @"Alarm";
+                }
             }
         }
-      event->reminder = reminder;
       event->duration = (0.0 - [timestamp timeIntervalSinceNow]) / 60.0;
 
       m = event->m = [[NSMutableDictionary alloc] initWithCapacity: 20];

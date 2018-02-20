@@ -66,10 +66,13 @@
  *   </desc>
  *   <term>Type</term>
  *   <desc>The type of message ... <em>Error</em>, <em>Alert</em>,
- *   <em>Alarm</em> or <em>Clear</em>.<br />
+ *   <em>Alarm</em>, <em>Raise</em> or <em>Clear</em>.<br />
  *   If this is not specified, messages of any type may match.<br />
- *   NB. Alarm reminders have a type of <em>Alarm</em> while alarm
- *   clears have a type of <em>Clear</em>.
+ *   NB. Alarm reminders have one of three types.  The type <em>Raise</em>
+ *   matches only the initial raising of an alarm while <em>Clear</em>
+ *   matches only the final clearing of the alarm.  The type <em>Alarm</em>
+ *   will match raising, clearing, and also (if ReminderInterval is set)
+ *   reminders about the alarm.
  *   </desc>
  *   <term>DurationAbove</term>
  *   <desc>For [EcAlarm] messages, this may be used to match any message
