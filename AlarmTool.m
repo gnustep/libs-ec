@@ -86,15 +86,15 @@ main()
   if ([args containsObject: @"--help"] == YES)
     {
       printf("AlarmTool ... options are\n");
-      printf("-Cause NN (no default)\n");
-      printf("\tSpecify probable cause of alarm (and implicitly the even type)\n");
-      printf("-Component NN (empty)\n");
+      printf("-Cause NN (configurationOrCustomizationError)\n");
+      printf("\tSpecify probable cause of alarm (and implicitly the event type)\n");
+      printf("-Component NN (no default)\n");
       printf("\tSpecify the name of the component raising the alarm.\n");
-      printf("-Problem NN (no default)\n");
+      printf("-Problem NN (just testing)\n");
       printf("\tSpecify the specific problem causing the alarm.  May be omitted for a clear.\n");
-      printf("-Process NN (no default)\n");
+      printf("-Process NN (dummy)\n");
       printf("\tSpecify the name of the process raising the alarm.\n");
-      printf("-Repair NN (no default)\n");
+      printf("-Repair NN (nothing to do)\n");
       printf("\tSpecify the proposed repair action.  May be omitted for a clear.\n");
       printf("-Severity NN (clear)\n");
       printf("\tSpecify the severity (clear, warning, minor, major, or critical)\n");
@@ -106,8 +106,7 @@ main()
   str = [defs stringForKey: @"Cause"];
   if (nil == str)
     {
-      NSLog(@"Missing Cause, try --help");
-      exit(1);
+      str = @"configurationOrCustomizationError";
     }
   cause = EcAlarmVersionMismatch;
   while (cause > EcAlarmProbableCauseUnknown)
@@ -164,23 +163,20 @@ main()
   proc = [defs stringForKey: @"Process"];
   if ([proc length] == 0)
     {
-      NSLog(@"No Process specified, try --help");
-      exit(1);
+      proc = @"dummy";
     }
   mobj = EcMakeManagedObject(nil, proc, comp);
 
   prob = [defs stringForKey: @"Problem"];
   if ([prob length] == 0)
     {
-      NSLog(@"No Problem specified, try --help");
-      exit(1);
+      prob = @"just testing";
     }
 
   repr = [defs stringForKey: @"Repair"];
   if (severity != EcAlarmSeverityCleared && [repr length] == 0)
     {
-      NSLog(@"No Repair specified, try --help");
-      exit(1);
+      repr = @"nothng to do";
     }
 
   text = [defs stringForKey: @"Text"];
