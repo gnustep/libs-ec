@@ -1,3 +1,14 @@
+2018-02-23  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* AlarmTool.m: Add default values for arguments, suitable for sending
+	a test/dummy alarm as an example.
+	* Control.m:
+	* EcControl.m:
+	* ECCL.h:
+	Add support for EcControlKey to force a value to be entered from the
+	terminal and have that value made available to all processes in the
+	cluster (eg so they can use a common encryption key not from disk).
+
 2018-02-20  Richard Frith-Macdonald <rfm@gnu.org>
 
 	EcAlerter.h:
