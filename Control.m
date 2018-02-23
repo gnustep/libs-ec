@@ -87,6 +87,8 @@ getkey(NSString **key)
   char          *one = NULL;
   char          *two = NULL;
 
+#define MINKEY  16
+
   /* Open the terminal
    */
   if ((stream = fopen("/dev/tty", "r+")) == NULL)
@@ -113,7 +115,7 @@ getkey(NSString **key)
       int       olen = 0;
       int       tlen = 0;
 
-      while (0 == olen)
+      while (olen < MINKEY)
         {
           size_t    len = 0;
 
@@ -127,6 +129,10 @@ getkey(NSString **key)
               return NO;
             }
           olen = trim(one);
+          if (olen < MINKEY)
+            {
+              fprintf(stream, "\nKey must be at least %u characters\n", MINKEY);
+            }
         }
   
       while (0 == tlen)
