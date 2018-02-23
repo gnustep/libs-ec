@@ -48,6 +48,8 @@
 }
 @end
 
+static NSString *controlKey = nil;
+
 static EcAlarmSinkSNMP	        *sink = nil;
 
 static NSMutableDictionary      *lastAlertInfo = nil;
@@ -1725,6 +1727,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (id) initWithDefaults: (NSDictionary*)defs
 {
+  ASSIGN(controlKey, [defs objectForKey: @"EcControlKey"]);
   ecSetLogsSubdirectory(@"Logs");
   self = [super initWithDefaults: defs];
   if (self != nil)
@@ -2850,6 +2853,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 	      app = [self recursiveInclude: hostObj];
 	      [host setObject: app forKey: appKey];
+              /* Set EcControlKey for all apps on all hosts.
+               */
+              [app setObject: controlKey forKey: @"EcControlKey"];
 	    }
 	  [root setObject: host forKey: hostKey];
 	}

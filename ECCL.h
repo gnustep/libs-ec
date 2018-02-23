@@ -54,6 +54,14 @@
           string ControlVersion is defined, it is written to one line of
           this file and in any case a timestamp is written.
         </p>
+        <p>If the EcControlKey user default (treated as a boolean) is true,
+          The Control server requires manual entry of a key from the
+          terminal and makes the string entered (leading and trailing
+          white space stripped) available as EcControlKey in the configuration
+          information it gives to other processes.<br />
+          This for instance allows all processes in a cluster to use a single
+          encryption key never stored on disk.
+        </p>
       </section>
 
       <section>
