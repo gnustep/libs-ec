@@ -1,3 +1,14 @@
+2018-03-02  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* Control.m:
+	* EcControl.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Allow EcControlKey to be an MD5 digest of the expected key, so we can
+	easily tell if the expected key was entered correctly.
+	Expose method to request entry of a hexadecimal key, with checking
+	against an MD5 digest of the expected value.
+
 2018-02-23  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* AlarmTool.m: Add default values for arguments, suitable for sending

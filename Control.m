@@ -32,144 +32,12 @@
 #import "EcProcess.h"
 
 #include <unistd.h>
-#include <termios.h>
 #include <stdio.h>
 
-static size_t
-trim(char *str)
-{
-  size_t        len = 0;
-  char          *frontp = str - 1;
-  char          *endp = NULL;
 
-  if (NULL == str || '\0' == str[0])
-    {
-      return 0;
-    }
-
-  len = strlen(str);
-  endp = str + len;
-
-  while (isspace(*(++frontp)))
-    ;
-
-  while (isspace(*(--endp)) && endp != frontp)
-    ;
-
-  if (str + len - 1 != endp)
-    {
-      *(endp + 1) = '\0';
-    }
-  else if (frontp != str && endp == frontp)
-    {
-      *str = '\0';
-    }
-
-  if (frontp != str)
-    {
-      endp = str;
-      while (*frontp)
-        {
-          *endp++ = *frontp++;
-        }
-      *endp = '\0';
-    }
-
-  return endp - str;
-}
-
-static BOOL
-getkey(NSString **key)
-{
-  FILE  *stream;
-  struct termios old;
-  struct termios new;
-  char          *one = NULL;
-  char          *two = NULL;
-
-#define MINKEY  16
-
-  /* Open the terminal
-   */
-  if ((stream = fopen("/dev/tty", "r+")) == NULL)
-    {
-      return NO;
-    }
-  /* Turn echoing off 
-   */
-  if (tcgetattr(fileno(stream), &old) != 0)
-    {
-      fclose(stream);
-      return NO;
-    }
-  new = old;
-  new.c_lflag &= ~ECHO;
-  if (tcsetattr (fileno(stream), TCSAFLUSH, &new) != 0)
-    {
-      fclose(stream);
-      return NO;
-    }
-
-  while (NULL == one || NULL == two)
-    {
-      int       olen = 0;
-      int       tlen = 0;
-
-      while (olen < MINKEY)
-        {
-          size_t    len = 0;
-
-          fprintf(stream, "\nPlease enter EcControlKey: ");
-          if (one != NULL) { free(one); one = NULL; }
-          olen = getline(&one, &len, stream);
-          if (olen < 0)
-            {
-              if (one != NULL) { free(one); one = NULL; }
-              fclose(stream);
-              return NO;
-            }
-          olen = trim(one);
-          if (olen < MINKEY)
-            {
-              fprintf(stream, "\nKey must be at least %u characters\n", MINKEY);
-            }
-        }
-  
-      while (0 == tlen)
-        {
-          size_t    len = 0;
-
-          fprintf(stream, "\nPlease re-enter to confirm: ");
-          if (two != NULL) { free(two); two = NULL; }
-          tlen = getline(&two, &len, stream);
-          if (tlen < 0)
-            {
-              if (one != NULL) { free(one); one = NULL; }
-              if (two != NULL) { free(two); two = NULL; }
-              fclose(stream);
-              return NO;
-            }
-          tlen = trim(two);
-        }
-
-      if (strcmp(one, two) != 0)
-        {
-          free(one); one = NULL;
-          free(two); two = NULL;
-          fprintf(stream, "\nKeys do not match, please try again.");
-        }
-    }
-  
-  /* Restore terminal. */
-  (void) tcsetattr(fileno(stream), TCSAFLUSH, &old);
-
-  *key = [NSString stringWithUTF8String: one];
-  free(one);
-  free(two);
-  fprintf(stream, "\nEcControlKey accepted.\n");
-  fclose(stream);
-  return YES;
-}
+#if     !defined(EC_DEFAULTS_PREFIX)
+#define EC_DEFAULTS_PREFIX nil
+#endif
 
 #if	!defined(EC_BASE_CLASS)
 #define	EC_BASE_CLASS	EcControl
@@ -203,6 +71,7 @@ main(int argc, char *argv[])
       NSString          *path = [[NSBundle mainBundle] executablePath];
       NSAutoreleasePool *inner = nil;
       BOOL              done = NO;
+      NSUInteger        index = NSNotFound;
       int               status = 0;
       NSTask	        *t;
 
@@ -210,20 +79,43 @@ main(int argc, char *argv[])
 
       if ([pArgs containsObject: @"--Watcher"] == NO)
         {
-          /* In the top level task ... set flags to create a subtask
-           * to act as a watcher for other tasks, and once that has
-           * been created, exit to leave it running as a daemon.
-           */
-          if ([[NSUserDefaults standardUserDefaults] boolForKey:
-            @"EcControlKey"] == YES)
+          NSUserDefaults        *defs;
+          NSString              *str;
+
+          defs = [NSUserDefaults standardUserDefaults];
+          str = [defs stringForKey: @"EcControlKey"];
+          if ([str length] == 32 || [str boolValue] == YES)
             {
-              if (getkey(&key) == NO)
+              NSData    *digest = nil;
+
+              if ([str length] == 32)
+                {
+                  /* Check that the 32 character value is hex digits,
+                   * in which case it should be the MD5 digest of the
+                   * actual key to be entered.
+                   */
+                  digest = AUTORELEASE([[NSData alloc]
+                    initWithHexadecimalRepresentation: str]);
+                  if ([digest length] != 16)
+                    {
+                      NSLog(@"Bad values specified in EcControlKey... abort");
+                      exit(1);
+                    }
+                }
+              key = [EcProcess ecGetKey: "EcControlKey"
+                                   size: 32
+                                    md5: digest];
+              if (nil == key)
                 {
                   NSLog(@"Failed to read EcControlKey from terminal ... abort");
                   exit(1);
                 }
             }
 
+          /* In the top level task ... set flags to create a subtask
+           * to act as a watcher for other tasks, and once that has
+           * been created, exit to leave it running as a daemon.
+           */
           [args addObject: @"--Watcher"];
           t = [NSTask new];
           NS_DURING
@@ -267,8 +159,26 @@ main(int argc, char *argv[])
 
       /* Set args to tell subtask task not to make itself a daemon
        */
-      [args addObject: @"-Daemon"];
-      [args addObject: @"NO"];
+      if (EC_DEFAULTS_PREFIX != nil)
+        {
+          NSString      *str;
+
+          str = [NSString stringWithFormat: @"-%@Daemon", EC_DEFAULTS_PREFIX];
+          index = [args indexOfObject: str];
+        }
+      if (NSNotFound == index)
+        {
+          index = [args indexOfObject: @"-Daemon"];
+        }
+      if (NSNotFound != index)
+        {
+          [args replaceObjectAtIndex: index + 1 withObject: @"NO"];
+        }
+      else
+        {
+          [args addObject: @"-Daemon"];
+          [args addObject: @"NO"];
+        }
 
       /* Set args to tell task it is being watched.
        */

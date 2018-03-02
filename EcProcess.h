@@ -182,6 +182,7 @@ typedef enum    {
  *	Useful functions -
  */
 extern void		cmdSetHome(NSString *home);
+extern NSString*	cmdDataDir();
 extern NSString*	cmdLogsDir(NSString *date);
 extern NSString*	cmdLogKey(EcLogType t);
 extern NSString*	cmdLogName();
@@ -407,6 +408,23 @@ extern NSString*	cmdVersion(NSString *ver);
  * </p>
 */
 @interface EcProcess : NSObject <CmdClient,EcAlarmDestination>
+
+/** This method is provided to prompt for an encryptionkey using the
+ * specified key name and read in a value from the terminal.<br />
+ * The entered value must be an even numbered sequence of hexadecimal
+ * digits, each pair representing one byte of the key.<br />
+ * The key length (number of bytes) must be the specified size, a value
+ * between 16 and 128, which is exactly half the number of hexadecimal
+ * digits that must be entered.<br />
+ * If the digest is not supplied, the user will be required to
+ * enter the value twice (and the two values must match) for
+ * confirmation.<br />
+ * If the digest is supplied, the md5 digest of the entered key must
+ * match it (but the user does not need to enter the value twice).
+ */
++ (NSString*) ecGetKey: (const char*)name
+                  size: (unsigned)size
+                   md5: (NSData*)digest;
 
 /** Provides initial configuration.
  * This method is used by -init and its return value is passed to

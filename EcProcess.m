@@ -85,8 +85,11 @@
 #include <sys/resource.h>
 #endif
 
+#if defined(HAVE_TERMIOS_H)
+#include <termios.h>
+#endif
+
 #if defined(HAVE_GETTID)
-#  include <unistd.h>
 #  include <sys/syscall.h>
 #  include <sys/types.h>
 #endif
@@ -121,6 +124,92 @@ ecNativeThreadID()
   return NSNotFound;
 #endif
 }
+
+/* Return the number of bytes represented by a hexadecimal string (length/2)
+ * or the number of 8bit characters  if the string is not hexadecimal digits.
+ * If the string is hexadecimal, standardise o uppercase.
+ */
+static size_t
+checkHex(char *str)
+{
+  const char    *src = str;
+  uint8_t       *dst = (uint8_t*)str;
+  size_t        l;
+
+  while (*src)
+    {
+      if (isxdigit(*src))
+        {
+          if (islower(*src))
+            {
+              *dst = toupper(*src);
+            }
+          else
+            {
+              *dst = *src;
+            }
+          dst++;
+        }
+      else if (!isspace(*src))
+        {
+          *dst = '\0';
+          return 0;     // Bad character
+        }
+      src++;
+    }
+  *dst = '\0';
+  l = ((char*)dst) - str;  
+  if (l%2 == 1)
+    {
+      return 0;         // Not an even number of digits
+    }
+  return l/2;           // Return number of bytes represented
+}
+
+#if 0
+static size_t
+trim(char *str)
+{
+  size_t        len = 0;
+  char          *frontp = str - 1;
+  char          *endp = NULL;
+
+  if (NULL == str || '\0' == str[0])
+    {
+      return 0;
+    }
+
+  len = strlen(str);
+  endp = str + len;
+
+  while (isspace(*(++frontp)))
+    ;
+
+  while (isspace(*(--endp)) && endp != frontp)
+    ;
+
+  if (str + len - 1 != endp)
+    {
+      *++endp = '\0';
+    }
+  else if (frontp != str && endp == frontp)
+    {
+      *str = '\0';
+    }
+
+  if (frontp != str)
+    {
+      endp = str;
+      while (*frontp)
+        {
+          *endp++ = *frontp++;
+        }
+      *endp = '\0';
+    }
+
+  return endp - str;
+}
+#endif
 
 @interface      EcDefaultRegistration : NSObject
 {
@@ -377,8 +466,101 @@ cmdSetUserDirectory(NSString *dir)
 
 static NSString	*dataDir = nil;
 
-/*
- * Return the current logging directory - if 'today' is not nil, treat it as
+/* Return the current data directory.
+ * Create the directory path if necessary.
+ */
+NSString*
+cmdDataDir()
+{
+  if (dataDir == nil)
+    {
+      NSFileManager	*mgr = [NSFileManager defaultManager];
+      NSString		*str = cmdUserDir();
+      BOOL		flag;
+
+      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+	{
+	  if ([mgr createDirectoryAtPath: str
+             withIntermediateDirectories: YES
+                              attributes: nil
+                                   error: NULL] == NO)
+	    {
+	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+		{
+		  NSLog(@"Unable to create directory - %@", str);
+		  return nil;
+		}
+	    }
+	  else
+	    {
+	      flag = YES;
+	    }
+	}
+      if (flag == NO)
+	{
+	  NSLog(@"The path '%@' is not a directory", str);
+	  return nil;
+	}
+
+      str = [str stringByAppendingPathComponent: @"Data"];
+      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+	{
+	  if ([mgr createDirectoryAtPath: str
+             withIntermediateDirectories: YES
+                              attributes: nil
+                                   error: NULL] == NO)
+	    {
+	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+		{
+		  NSLog(@"Unable to create directory - %@", str);
+		  return nil;
+		}
+	    }
+	  else
+	    {
+	      flag = YES;
+	    }
+	}
+      if (flag == NO)
+	{
+	  NSLog(@"The path '%@' is not a directory", str);
+	  return nil;
+	}
+
+      if (homeDir != nil)
+	{
+	  str = [str stringByAppendingPathComponent: homeDir];
+	  if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+	    {
+	      if ([mgr createDirectoryAtPath: str
+                 withIntermediateDirectories: YES
+                                  attributes: nil
+                                       error: NULL] == NO)
+		{
+		  if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+		    {
+		      NSLog(@"Unable to create directory - %@", str);
+		      return nil;
+		    }
+		}
+	      else
+		{
+		  flag = YES;
+		}
+	    }
+	  if (flag == NO)
+	    {
+	      NSLog(@"The path '%@' is not a directory", str);
+	      return nil;
+	    }
+	}
+
+      ASSIGNCOPY(dataDir, str);
+    }
+  return dataDir;
+}
+
+/* Return the current logging directory - if 'today' is not nil, treat it as
  * the name of a subdirectory in which todays logs should be archived.
  * Create the directory path if necessary.
  */
@@ -527,7 +709,7 @@ cmdLogName()
       [ecLock lock];
       if (nil == cmdLogName)
 	{
-	  NSString	*n = [EcProc cmdName];
+	  NSString	*n = cmdName;
 
 	  if (nil == n)
 	    {
@@ -1155,7 +1337,7 @@ findMode(NSDictionary* d, NSString* s)
 }
 
 
-- (Class)_memoryLoggerClassFromBundle: (NSString*)bundleName
+- (Class) _memoryLoggerClassFromBundle: (NSString*)bundleName
 {
   NSString *path = nil;
   Class c = Nil;
@@ -1195,6 +1377,133 @@ findMode(NSDictionary* d, NSString* s)
   return c;
 }
 
++ (NSString*) ecGetKey: (const char*)name
+                  size: (unsigned)size
+                   md5: (NSData*)digest
+{
+  struct termios old;
+  struct termios new;
+  char          *one = NULL;
+  char          *two = NULL;
+  FILE          *stream;
+  NSString      *key;
+
+  if (size < 16) size = 16;
+  if (size > 128) size = 128;
+
+  /* Open the terminal
+   */
+  if ((stream = fopen("/dev/tty", "r+")) == NULL)
+    {
+      return nil;
+    }
+  /* Turn echoing off 
+   */
+  if (tcgetattr(fileno(stream), &old) != 0)
+    {
+      fclose(stream);
+      return nil;
+    }
+  new = old;
+  new.c_lflag &= ~ECHO;
+  if (tcsetattr (fileno(stream), TCSAFLUSH, &new) != 0)
+    {
+      fclose(stream);
+      return nil;
+    }
+
+  while (NULL == one || NULL == two)
+    {
+      int       olen = 0;
+      int       tlen = 0;
+
+      while (olen != size)
+        {
+          size_t    len = 0;
+
+          fprintf(stream, "\nPlease enter %s: ", name);
+          if (one != NULL) { free(one); one = NULL; }
+          olen = getline(&one, &len, stream);
+          if (olen < 0)
+            {
+              if (one != NULL) { free(one); one = NULL; }
+              fclose(stream);
+              return nil;
+            }
+          olen = checkHex(one);
+          if (olen != size)
+            {
+              fprintf(stream, "\n%s must be %u hexadecimal digits.\n", name,
+                size);
+              olen = 0;
+            }
+          else if (nil != digest)
+            {
+              CREATE_AUTORELEASE_POOL(pool);
+              NSString  *s = [NSString stringWithUTF8String: one];
+              NSData    *d;
+              NSData    *md5;
+
+              s = [NSString stringWithUTF8String: one];
+              d = [[NSData alloc] initWithHexadecimalRepresentation: s];
+              md5 = [d md5Digest];
+              RELEASE(d);
+              if ([digest isEqual: md5])
+                {
+                  /* If the digest of the key matches the expected value,
+                   * we assume entry was correct and set two to be the
+                   * same as one so we will not prompt for a confirmation.
+                   */
+                  two = malloc(len + 1);
+                  strcpy(two, one);
+                  tlen = olen;
+                }
+              DESTROY(pool);
+            }
+        }
+  
+      while (0 == tlen)
+        {
+          size_t    len = 0;
+
+          fprintf(stream, "\nPlease re-enter %s to confirm: ", name);
+          if (two != NULL) { free(two); two = NULL; }
+          tlen = getline(&two, &len, stream);
+          if (tlen < 0)
+            {
+              if (one != NULL) { free(one); one = NULL; }
+              if (two != NULL) { free(two); two = NULL; }
+              fclose(stream);
+              return nil;
+            }
+          tlen = checkHex(two);
+          if (tlen != size)
+            {
+              fprintf(stream, "\n%s must be %u hexadecimal digits.\n", name,
+                size);
+              tlen = 0;
+            }
+        }
+
+      if (strcmp(one, two) != 0)
+        {
+          free(one); one = NULL;
+          free(two); two = NULL;
+          fprintf(stream,
+            "\nThe strings you entered do not match, please try again.");
+        }
+    }
+  
+  /* Restore terminal. */
+  (void) tcsetattr(fileno(stream), TCSAFLUSH, &old);
+
+  key = [NSString stringWithUTF8String: one];
+  free(one);
+  free(two);
+  fprintf(stream, "\n%s accepted.\n", name);
+  fclose(stream);
+  return key;
+}
 
 + (NSMutableDictionary*) ecInitialDefaults
 {
@@ -1218,6 +1527,348 @@ findMode(NSDictionary* d, NSString* s)
                                             forKeys: keys
                                               count: 2];
 }
+
++ (NSDictionary*) ecPrepareWithDefaults: (NSDictionary*)defs
+{
+  static BOOL   prepared = NO;
+
+  [ecLock lock];
+  if (NO == prepared)
+    {
+      NSProcessInfo	*pinfo;
+      NSArray           *args;
+      NSFileManager	*mgr;
+      NSEnumerator	*enumerator;
+      NSString		*str;
+      NSString		*dbg;
+      NSString		*prf;
+      BOOL		flag;
+
+      started = RETAIN([dateClass date]);
+
+      pinfo = [NSProcessInfo processInfo];
+      args = [pinfo arguments];
+      mgr = [NSFileManager defaultManager];
+      prf = EC_DEFAULTS_PREFIX;
+      if (nil == prf)
+	{
+	  prf = @"";
+	}
+
+      ASSIGN(cmdDefs, [NSUserDefaults
+	userDefaultsWithPrefix: prf
+	strict: EC_DEFAULTS_STRICT]);
+      defs = [EcDefaultRegistration merge: defs];
+      if (defs != nil)
+	{
+	  [cmdDefs registerDefaults: defs];
+	}
+
+      cmdUser = EC_EFFECTIVE_USER;
+      if (nil == cmdUser)
+	{
+	  cmdUser = [[cmdDefs stringForKey: @"EffectiveUser"] retain];
+	}
+      if (YES == [cmdUser isEqual: @"*"]
+        || YES == [cmdUser isEqualToString: NSUserName()])
+	{
+	  ASSIGN(cmdUser, NSUserName());
+	}
+      else if ([cmdUser length] == 0)
+        {
+          NSLog(@"This software is not configured to run as any user.\n"
+            @"You may use the EffectiveUser user default setting"
+            @" to specify the user (setting this to an asterisk ('*')"
+            @" allows the software to run as any user).  Alternatively"
+            @" an EC_EFFECTIVE_USER can be  defined when the ec library"
+            @" is built.");
+          exit(1);
+        }
+      else
+	{
+	  const char	*user = [cmdUser UTF8String];
+	  struct passwd	*pwd = getpwnam(user);
+	  int		uid;
+
+	  if (pwd != 0)
+	    {
+	      uid = pwd->pw_uid;
+	    }
+	  else
+	    {
+              NSLog(@"This software is configured to run as the user '%@',"
+                @" but there does not appear to be any such user.", cmdUser);
+              if ([cmdUser isEqual: EC_EFFECTIVE_USER])
+                {
+                  NSLog(@"You may use the EffectiveUser user default setting"
+                    @" to override the user (setting this to an asterisk ('*')"
+                    @" allows the software to run as any user).  Alternatively"
+                    @" a different EC_EFFECTIVE_USER can be  defined when the"
+                    @" ec library is built.");
+                }
+	      exit(1);
+	    }
+
+	  if (uid != (int)geteuid())
+	    {
+	      if (geteuid() == 0 || (int)getuid() == uid)
+		{
+		  if (0 != setuid(uid))
+		    {
+		      [ecLock unlock];
+		      NSLog(@"You must be '%@' to run this.", cmdUser);
+		      exit(1);
+		    }
+		}
+	      else
+		{
+		  [ecLock unlock];
+		  NSLog(@"You must be '%@' to run this.", cmdUser);
+		  exit(1);
+		}
+	    }
+	  GSSetUserName(cmdUser);
+	  if (NO == [cmdUser isEqualToString: NSUserName()])
+	    {
+	      [ecLock unlock];
+	      NSLog(@"You must be '%@' to run this.", cmdUser);
+	      exit(1);
+	    }
+	  ASSIGN(cmdDefs, [NSUserDefaults
+	    userDefaultsWithPrefix: prf
+	    strict: EC_DEFAULTS_STRICT]);
+	  if (defs != nil)
+	    {
+	      [cmdDefs registerDefaults: defs];
+	    }
+	}
+
+      /* See if we should keep stderr separate, or merge it with
+       * our debug output (the default).
+       */
+      cmdKeepStderr = [cmdDefs boolForKey: @"KeepStandardError"];
+
+      if (nil == noNetConfig)
+	{
+	  noNetConfig = [[NSMutableArray alloc] initWithCapacity: 4];
+	  [noNetConfig
+	    addObject: [prf stringByAppendingString: @"Daemon"]];
+	  [noNetConfig
+	    addObject: [prf stringByAppendingString: @"EffectiveUser"]];
+	  [noNetConfig
+	    addObject: [prf stringByAppendingString: @"Instance"]];
+	  [noNetConfig
+	    addObject: [prf stringByAppendingString: @"Transient"]];
+	}
+
+      defs = [cmdDefs dictionaryRepresentation];
+      enumerator = [defs keyEnumerator];
+      dbg = [prf stringByAppendingString: @"Debug-"];
+      while ((str = [enumerator nextObject]) != nil)
+	{
+	  if ([str hasPrefix: dbg])
+	    {
+	      id	obj = [defs objectForKey: str];
+	      NSString	*key = [str substringFromIndex: [dbg length]];
+
+	      if ([cmdDebugKnown objectForKey: key] == nil)
+		{
+		  [cmdDebugKnown setObject: key forKey: key];
+		}
+	      if ([obj isKindOfClass: stringClass])
+		{
+		  if ([obj intValue] != 0
+		    || [obj isEqual: @"YES"] || [obj isEqual: @"yes"])
+		    {
+		      if ([cmdDebugModes member: key] == nil)
+			{
+			  [cmdDebugModes addObject: key];
+			}
+		    }
+		  else
+		    {
+		      if ([cmdDebugModes member: key] != nil)
+			{
+			  [cmdDebugModes removeObject: key];
+			}
+		    }
+		}
+	    }
+	}
+
+      /* See if we have a name specified for this process.
+       */
+      ASSIGN(cmdName, [cmdDefs stringForKey: @"ProgramName"]);
+
+      /* If there's no ProgramName specified, but this is a Control server,
+       * try looking for the ControlName instead.
+       */
+      if (nil == cmdName
+	&& Nil != NSClassFromString(@"EcControl")
+        && YES == [self isSubclassOfClass: NSClassFromString(@"EcControl")])
+	{
+	  ASSIGN(cmdName, [cmdDefs stringForKey: @"ControlName"]);
+	}
+
+      /* If there's no ProgramName specified, but this is a Command server,
+       * try looking for the CommandName instead.
+       */
+      if (nil == cmdName
+	&& Nil != NSClassFromString(@"EcCommand")
+        && YES == [self isSubclassOfClass: NSClassFromString(@"EcCommand")])
+	{
+	  ASSIGN(cmdName, [cmdDefs stringForKey: @"CommandName"]);
+	}
+
+      /* Finally, if no name is given at all, use the standard process name.
+       */
+      if (nil == cmdName)
+	{
+	  ASSIGN(cmdName, [pinfo processName]);
+	}
+
+      /* This is the base name of the process (without instance)
+       */
+      if (nil == cmdBase)
+	{
+	  ASSIGN(cmdBase, cmdName);
+	}
+
+      /*
+       * Make sure our users home directory exists.
+       */
+      str = [cmdDefs objectForKey: @"UserDirectory"];
+      str = cmdSetUserDirectory(str);
+      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+	{
+	  if ([mgr createDirectoryAtPath: str
+             withIntermediateDirectories: YES
+                              attributes: nil
+                                   error: NULL] == NO)
+	    {
+	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+		{
+		  [ecLock unlock];
+		  NSLog(@"Unable to create directory - %@", str);
+		  exit(1);
+		}
+	    }
+	  else
+	    {
+	      flag = YES;
+	    }
+	}
+      if (flag == NO)
+	{
+	  [ecLock unlock];
+	  NSLog(@"The path '%@' is not a directory", str);
+	  exit(1);
+	}
+
+      str = [cmdDefs objectForKey: @"HomeDirectory"];
+      if (str != nil)
+	{
+	  if ([str length] == 0)
+	    {
+	      str = nil;
+	    }
+	  else if ([str isAbsolutePath] == YES)
+	    {
+	      NSLog(@"Absolute HomeDirectory ignored.");
+	      str = nil;
+	    }
+	  cmdSetHome(str);
+	}
+
+      str = [[cmdDefs stringForKey: @"Instance"] stringByTrimmingSpaces];
+      if (nil != str)
+        {
+          if ([str length] > 0 && isdigit([str characterAtIndex: 0]))
+            {
+              str = [NSString stringWithFormat: @"%d", [str intValue]];
+            }
+          else
+            {
+              str = nil;
+            }
+        }
+      ASSIGN(cmdInst, str);
+      if (nil != cmdInst)
+	{
+	  str = [[NSString alloc] initWithFormat: @"%@-%@", cmdName, cmdInst];
+	  ASSIGN(cmdName, str);
+	  [str release];
+	}
+
+      str = userDir;
+      if (cmdHomeDir() != nil)
+	{
+	  str = [str stringByAppendingPathComponent: cmdHomeDir()];
+	}
+      str = [str stringByStandardizingPath];
+      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+	{
+	  if ([mgr createDirectoryAtPath: str
+             withIntermediateDirectories: YES
+                              attributes: nil
+                                   error: NULL] == NO)
+	    {
+	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
+		{
+		  [ecLock unlock];
+		  NSLog(@"Unable to create directory - %@", str);
+		  exit(1);
+		}
+	    }
+	  else
+	    {
+	      flag = YES;
+	    }
+	}
+      if (flag == NO)
+	{
+	  [ecLock unlock];
+	  NSLog(@"The path '%@' is not a directory", str);
+	  exit(1);
+	}
+
+      if ([mgr changeCurrentDirectoryPath: str] == NO)
+	{
+	  [ecLock unlock];
+	  NSLog(@"Unable to move to directory - %@", str);
+	  exit(1);
+	}
+
+      /*
+       * Make sure the data directory exists.
+       */
+      if (cmdDataDir() == nil)
+	{
+	  [ecLock unlock];
+	  NSLog(@"Unable to create/access data directory");
+	  exit(1);
+	}
+
+      /*
+       * Make sure the logs directory exists.
+       */
+      if (cmdLogsDir(nil) == nil)
+	{
+	  [ecLock unlock];
+	  NSLog(@"Unable to create/access logs directory");
+	  exit(1);
+	}
+
+      [[NSProcessInfo processInfo] setProcessName: cmdName];
+
+      prepared = YES;
+    }
+  [ecLock unlock];
+  return defs;
+}
+
+
+
 
 + (void) ecRegisterDefault: (NSString*)name
               withTypeText: (NSString*)type
@@ -1289,92 +1940,7 @@ static NSString	*noFiles = @"No log files to archive";
 
 - (NSString*) cmdDataDirectory
 {
-  if (dataDir == nil)
-    {
-      NSFileManager	*mgr = [NSFileManager defaultManager];
-      NSString		*str = cmdUserDir();
-      BOOL		flag;
-
-      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-	{
-	  if ([mgr createDirectoryAtPath: str
-             withIntermediateDirectories: YES
-                              attributes: nil
-                                   error: NULL] == NO)
-	    {
-	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-		{
-		  NSLog(@"Unable to create directory - %@", str);
-		  return nil;
-		}
-	    }
-	  else
-	    {
-	      flag = YES;
-	    }
-	}
-      if (flag == NO)
-	{
-	  NSLog(@"The path '%@' is not a directory", str);
-	  return nil;
-	}
-
-      str = [str stringByAppendingPathComponent: @"Data"];
-      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-	{
-	  if ([mgr createDirectoryAtPath: str
-             withIntermediateDirectories: YES
-                              attributes: nil
-                                   error: NULL] == NO)
-	    {
-	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-		{
-		  NSLog(@"Unable to create directory - %@", str);
-		  return nil;
-		}
-	    }
-	  else
-	    {
-	      flag = YES;
-	    }
-	}
-      if (flag == NO)
-	{
-	  NSLog(@"The path '%@' is not a directory", str);
-	  return nil;
-	}
-
-      if (homeDir != nil)
-	{
-	  str = [str stringByAppendingPathComponent: homeDir];
-	  if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-	    {
-	      if ([mgr createDirectoryAtPath: str
-                 withIntermediateDirectories: YES
-                                  attributes: nil
-                                       error: NULL] == NO)
-		{
-		  if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-		    {
-		      NSLog(@"Unable to create directory - %@", str);
-		      return nil;
-		    }
-		}
-	      else
-		{
-		  flag = YES;
-		}
-	    }
-	  if (flag == NO)
-	    {
-	      NSLog(@"The path '%@' is not a directory", str);
-	      return nil;
-	    }
-	}
-
-      ASSIGNCOPY(dataDir, str);
-    }
-  return dataDir;
+  return cmdDataDir();
 }
 
 - (NSUserDefaults*) cmdDefaults
@@ -4099,37 +4665,21 @@ With two parameters ('maximum' and a number),\n\
     }
   else
     {
-      NSProcessInfo	*pinfo;
-      NSArray           *args;
-      NSFileManager	*mgr;
-      NSEnumerator	*enumerator;
+      NSArray           *args = [[NSProcessInfo processInfo] arguments];
       NSString		*str;
-      NSString		*dbg;
       NSString		*prf;
-      BOOL		flag;
       NSInteger		i;
 
       EcProc = self;
 
-      started = RETAIN([dateClass date]);
-
-      pinfo = [NSProcessInfo processInfo];
-      args = [pinfo arguments];
-      mgr = [NSFileManager defaultManager];
       prf = EC_DEFAULTS_PREFIX;
       if (nil == prf)
 	{
 	  prf = @"";
 	}
 
-      ASSIGN(cmdDefs, [NSUserDefaults
-	userDefaultsWithPrefix: prf
-	strict: EC_DEFAULTS_STRICT]);
-      defs = [EcDefaultRegistration merge: defs];
-      if (defs != nil)
-	{
-	  [cmdDefs registerDefaults: defs];
-	}
+      started = RETAIN([dateClass date]);
+      defs = [[self class] ecPrepareWithDefaults: defs];
 
       if ([args containsObject: @"--help"] || [args containsObject: @"-H"])
 	{
@@ -4201,222 +4751,6 @@ With two parameters ('maximum' and a number),\n\
 	  return nil;
 	}
 
-      cmdUser = EC_EFFECTIVE_USER;
-      if (nil == cmdUser)
-	{
-	  cmdUser = [[cmdDefs stringForKey: @"EffectiveUser"] retain];
-	}
-      if (YES == [cmdUser isEqual: @"*"]
-        || YES == [cmdUser isEqualToString: NSUserName()])
-	{
-	  ASSIGN(cmdUser, NSUserName());
-	}
-      else if ([cmdUser length] == 0)
-        {
-          NSLog(@"This software is not configured to run as any user.\n"
-            @"You may use the EffectiveUser user default setting"
-            @" to specify the user (setting this to an asterisk ('*')"
-            @" allows the software to run as any user).  Alternatively"
-            @" an EC_EFFECTIVE_USER can be  defined when the ec library"
-            @" is built.");
-          exit(1);
-        }
-      else
-	{
-	  const char	*user = [cmdUser UTF8String];
-	  struct passwd	*pwd = getpwnam(user);
-	  int		uid;
-
-	  if (pwd != 0)
-	    {
-	      uid = pwd->pw_uid;
-	    }
-	  else
-	    {
-              NSLog(@"This software is configured to run as the user '%@',"
-                @" but there does not appear to be any such user.", cmdUser);
-              if ([cmdUser isEqual: EC_EFFECTIVE_USER])
-                {
-                  NSLog(@"You may use the EffectiveUser user default setting"
-                    @" to override the user (setting this to an asterisk ('*')"
-                    @" allows the software to run as any user).  Alternatively"
-                    @" a different EC_EFFECTIVE_USER can be  defined when the"
-                    @" ec library is built.");
-                }
-	      exit(1);
-	    }
-
-	  if (uid != (int)geteuid())
-	    {
-	      if (geteuid() == 0 || (int)getuid() == uid)
-		{
-		  if (0 != setuid(uid))
-		    {
-		      [ecLock unlock];
-		      NSLog(@"You must be '%@' to run this.", cmdUser);
-		      exit(1);
-		    }
-		}
-	      else
-		{
-		  [ecLock unlock];
-		  NSLog(@"You must be '%@' to run this.", cmdUser);
-		  exit(1);
-		}
-	    }
-	  GSSetUserName(cmdUser);
-	  if (NO == [cmdUser isEqualToString: NSUserName()])
-	    {
-	      [ecLock unlock];
-	      NSLog(@"You must be '%@' to run this.", cmdUser);
-	      exit(1);
-	    }
-	  ASSIGN(cmdDefs, [NSUserDefaults
-	    userDefaultsWithPrefix: prf
-	    strict: EC_DEFAULTS_STRICT]);
-	  if (defs != nil)
-	    {
-	      [cmdDefs registerDefaults: defs];
-	    }
-	}
-
-      /* See if we should keep stderr separate, or merge it with
-       * our debug output (the default).
-       */
-      cmdKeepStderr = [cmdDefs boolForKey: @"KeepStandardError"];
-
-      if (nil == noNetConfig)
-	{
-	  noNetConfig = [[NSMutableArray alloc] initWithCapacity: 4];
-	  [noNetConfig
-	    addObject: [prf stringByAppendingString: @"Daemon"]];
-	  [noNetConfig
-	    addObject: [prf stringByAppendingString: @"EffectiveUser"]];
-	  [noNetConfig
-	    addObject: [prf stringByAppendingString: @"Instance"]];
-	  [noNetConfig
-	    addObject: [prf stringByAppendingString: @"Transient"]];
-	}
-
-      defs = [cmdDefs dictionaryRepresentation];
-      enumerator = [defs keyEnumerator];
-      dbg = [prf stringByAppendingString: @"Debug-"];
-      while ((str = [enumerator nextObject]) != nil)
-	{
-	  if ([str hasPrefix: dbg])
-	    {
-	      id	obj = [defs objectForKey: str];
-	      NSString	*key = [str substringFromIndex: [dbg length]];
-
-	      if ([cmdDebugKnown objectForKey: key] == nil)
-		{
-		  [cmdDebugKnown setObject: key forKey: key];
-		}
-	      if ([obj isKindOfClass: stringClass])
-		{
-		  if ([obj intValue] != 0
-		    || [obj isEqual: @"YES"] || [obj isEqual: @"yes"])
-		    {
-		      if ([cmdDebugModes member: key] == nil)
-			{
-			  [cmdDebugModes addObject: key];
-			}
-		    }
-		  else
-		    {
-		      if ([cmdDebugModes member: key] != nil)
-			{
-			  [cmdDebugModes removeObject: key];
-			}
-		    }
-		}
-	    }
-	}
-
-      /* See if we have a name specified for this process.
-       */
-      ASSIGN(cmdName, [cmdDefs stringForKey: @"ProgramName"]);
-
-      /* If there's no ProgramName specified, but this is a Control server,
-       * try looking for the ControlName instead.
-       */
-      if (nil == cmdName
-	&& Nil != NSClassFromString(@"EcControl")
-        && YES == [self isKindOfClass: NSClassFromString(@"EcControl")])
-	{
-	  ASSIGN(cmdName, [cmdDefs stringForKey: @"ControlName"]);
-	}
-
-      /* If there's no ProgramName specified, but this is a Command server,
-       * try looking for the CommandName instead.
-       */
-      if (nil == cmdName
-	&& Nil != NSClassFromString(@"EcCommand")
-        && YES == [self isKindOfClass: NSClassFromString(@"EcCommand")])
-	{
-	  ASSIGN(cmdName, [cmdDefs stringForKey: @"CommandName"]);
-	}
-
-      /* Finally, if no name is given at all, use the standard process name.
-       */
-      if (nil == cmdName)
-	{
-	  ASSIGN(cmdName, [pinfo processName]);
-	}
-
-      /* This is the base name of the process (without instance)
-       */
-      if (nil == cmdBase)
-	{
-	  ASSIGN(cmdBase, cmdName);
-	}
-
-      /*
-       * Make sure our users home directory exists.
-       */
-      str = [cmdDefs objectForKey: @"UserDirectory"];
-      str = cmdSetUserDirectory(str);
-      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-	{
-	  if ([mgr createDirectoryAtPath: str
-             withIntermediateDirectories: YES
-                              attributes: nil
-                                   error: NULL] == NO)
-	    {
-	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-		{
-		  [ecLock unlock];
-		  NSLog(@"Unable to create directory - %@", str);
-		  exit(1);
-		}
-	    }
-	  else
-	    {
-	      flag = YES;
-	    }
-	}
-      if (flag == NO)
-	{
-	  [ecLock unlock];
-	  NSLog(@"The path '%@' is not a directory", str);
-	  exit(1);
-	}
-
-      str = [cmdDefs objectForKey: @"HomeDirectory"];
-      if (str != nil)
-	{
-	  if ([str length] == 0)
-	    {
-	      str = nil;
-	    }
-	  else if ([str isAbsolutePath] == YES)
-	    {
-	      NSLog(@"Absolute HomeDirectory ignored.");
-	      str = nil;
-	    }
-	  cmdSetHome(str);
-	}
-
       for (i = 0; i < 32; i++)
 	{
 	  switch (i)
@@ -4467,87 +4801,6 @@ With two parameters ('maximum' and a number),\n\
 		break;
 	    }
 	}
-
-      str = [[cmdDefs stringForKey: @"Instance"] stringByTrimmingSpaces];
-      if (nil != str)
-        {
-          if ([str length] > 0 && isdigit([str characterAtIndex: 0]))
-            {
-              str = [NSString stringWithFormat: @"%d", [str intValue]];
-            }
-          else
-            {
-              str = nil;
-            }
-        }
-      ASSIGN(cmdInst, str);
-      if (nil != cmdInst)
-	{
-	  str = [[NSString alloc] initWithFormat: @"%@-%@", cmdName, cmdInst];
-	  ASSIGN(cmdName, str);
-	  [str release];
-	}
-
-      str = userDir;
-      if (cmdHomeDir() != nil)
-	{
-	  str = [str stringByAppendingPathComponent: cmdHomeDir()];
-	}
-      str = [str stringByStandardizingPath];
-      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-	{
-	  if ([mgr createDirectoryAtPath: str
-             withIntermediateDirectories: YES
-                              attributes: nil
-                                   error: NULL] == NO)
-	    {
-	      if ([mgr fileExistsAtPath: str isDirectory: &flag] == NO)
-		{
-		  [ecLock unlock];
-		  NSLog(@"Unable to create directory - %@", str);
-		  exit(1);
-		}
-	    }
-	  else
-	    {
-	      flag = YES;
-	    }
-	}
-      if (flag == NO)
-	{
-	  [ecLock unlock];
-	  NSLog(@"The path '%@' is not a directory", str);
-	  exit(1);
-	}
-
-      if ([mgr changeCurrentDirectoryPath: str] == NO)
-	{
-	  [ecLock unlock];
-	  NSLog(@"Unable to move to directory - %@", str);
-	  exit(1);
-	}
-
-      /*
-       * Make sure the data directory exists.
-       */
-      if ([self cmdDataDirectory] == nil)
-	{
-	  [ecLock unlock];
-	  NSLog(@"Unable to create/access data directory");
-	  exit(1);
-	}
-
-      /*
-       * Make sure the logs directory exists.
-       */
-      if (cmdLogsDir(nil) == nil)
-	{
-	  [ecLock unlock];
-	  NSLog(@"Unable to create/access logs directory");
-	  exit(1);
-	}
-
-      [[NSProcessInfo processInfo] setProcessName: cmdName];
 
       /* Archive any existing debug log left over by a crash.
        */

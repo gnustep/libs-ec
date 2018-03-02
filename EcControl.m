@@ -2758,6 +2758,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       NSMutableDictionary	*root;
       NSEnumerator		*rootEnum;
       id			hostKey;
+      NSString                  *digest = nil;
 
       if ([conf isKindOfClass: [NSDictionary class]] == NO)
 	{
@@ -2775,6 +2776,50 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
        * applications/classes levels of the configuration.
        */
       conf = [self recursiveInclude: conf];
+
+      /* Get the EcControlKey from the generic area of the configuration.
+       * If present, this should be an MD5 digest of the actual key.
+       */
+      if ([[conf objectForKey: @"*"] isKindOfClass: [NSDictionary class]]
+        && [[[conf objectForKey: @"*"] objectForKey: @"*"]
+          isKindOfClass: [NSDictionary class]])
+        {
+          digest = [[[conf objectForKey: @"*"] objectForKey: @"*"]
+            objectForKey: @"EcControlKey"];
+        }
+      if ([controlKey length] > 0 && nil == digest)
+        {
+          ASSIGN(configFailed,
+            @"EcControlKey supplied on startup but not in Control.plist");
+          [[self cmdLogFile: logname] printf: @"%@", configFailed];
+          return NO;
+        }
+      if ([controlKey length] == 0 && digest != nil)
+        {
+          ASSIGN(configFailed,
+            @"EcControlKey configured but no value supplied on startup");
+          [[self cmdLogFile: logname] printf: @"%@", configFailed];
+          return NO;
+        }
+      if (digest != nil)
+        {
+          NSData        *key;
+          NSData        *md5;
+          NSString      *hex;
+
+          key = [[NSData alloc] initWithHexadecimalRepresentation: controlKey];
+          md5 = [key md5Digest];
+          RELEASE(key);
+          hex = [md5 hexadecimalRepresentation];
+          if (NO == [digest isEqual: hex])
+            {
+              ASSIGN(configFailed,
+                @"EcControlKey is not the MD5 digest of value from startup");
+              [[self cmdLogFile: logname] printf: @"%@", configFailed];
+              return NO;
+            }
+        }
+
       [conf writeToFile: @"/tmp/Control.cnf" atomically: YES];
       [mgr changeFileAttributes: [NSDictionary dictionaryWithObjectsAndKeys:
         [NSNumber numberWithInt: 0666], NSFilePosixPermissions,
