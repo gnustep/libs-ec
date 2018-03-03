@@ -125,6 +125,8 @@ ecNativeThreadID()
 #endif
 }
 
+static NSString * const ecControlKey = @"EcControlKey";
+
 /* Return the number of bytes represented by a hexadecimal string (length/2)
  * or the number of 8bit characters  if the string is not hexadecimal digits.
  * If the string is hexadecimal, standardise o uppercase.
@@ -3958,13 +3960,26 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           old = [cmdDefs objectForKey: key];
           if ([mode caseInsensitiveCompare: @"delete"] == NSOrderedSame)
             {
-              [cmdDefs setCommand: nil forKey: key];
-              val = [cmdDefs objectForKey: key];
+              if ([key isEqualToString: ecControlKey])
+                {
+                  [self cmdPrintf: @"%@ can only be set on startup.\n", key];
+                  val = nil;
+                }
+              else
+                {
+                  [cmdDefs setCommand: nil forKey: key];
+                  val = [cmdDefs objectForKey: key];
+                }
             }
           else if ([mode caseInsensitiveCompare: @"write"] == NSOrderedSame
             || [mode caseInsensitiveCompare: @"set"] == NSOrderedSame)
 	    {
-              if ([msg count] == 4)
+              if ([key isEqualToString: ecControlKey])
+                {
+                  [self cmdPrintf: @"%@ can only be set on startup.\n", key];
+                  val = nil;
+                }
+              else if ([msg count] == 4)
                 {
                   val = [msg objectAtIndex: 3];
                   [cmdDefs setCommand: val forKey: key];
@@ -3986,7 +4001,15 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"read"] == NSOrderedSame
             || [mode caseInsensitiveCompare: @"get"] == NSOrderedSame)
             {
-              val = [cmdDefs objectForKey: key];
+              if ([key isEqualToString: ecControlKey])
+                {
+                  [self cmdPrintf: @"%@ can not be displayed.\n", key];
+                  val = nil;
+                }
+              else
+                {
+                  val = [cmdDefs objectForKey: key];
+                }
             }
           else
             {
@@ -3997,7 +4020,19 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                 key];
               val = [cmdDefs objectForKey: key];
             }
-          if (val == old || [val isEqual: old])
+
+          if ([key isEqualToString: ecControlKey])
+            {
+              if ([old length] == 0)
+                {
+                  [self cmdPrintf: @"%@ is not set.\n", key];
+                }
+              else
+                {
+                  [self cmdPrintf: @"%@ was set on startup.\n", key];
+                }
+            }
+          else if (val == old || [val isEqual: old])
             {
               if (nil == val)
                 {
