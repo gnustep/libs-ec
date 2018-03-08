@@ -2796,10 +2796,23 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         }
       if ([controlKey length] == 0 && digest != nil)
         {
-          ASSIGN(configFailed,
-            @"EcControlKey configured but no value supplied on startup");
-          [[self cmdLogFile: logname] printf: @"%@", configFailed];
-          return NO;
+          NSString      *key;
+
+          if ([(key = [[[conf objectForKey: @"*"] objectForKey: @"*"]
+            objectForKey: @"EcControlKeyTest"]) length] == 64)
+            {
+              /* Operating in test mode with the master key stored in
+               * Control.plist as EcControlKeyTest
+               */
+              ASSIGN(controlKey, key);
+            }
+          else
+            {
+              ASSIGN(configFailed,
+                @"EcControlKey configured but no value supplied on startup");
+              [[self cmdLogFile: logname] printf: @"%@", configFailed];
+              return NO;
+            }
         }
       if (digest != nil)
         {

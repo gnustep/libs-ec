@@ -54,13 +54,23 @@
           string ControlVersion is defined, it is written to one line of
           this file and in any case a timestamp is written.
         </p>
-        <p>If the EcControlKey user default (treated as a boolean) is true,
-          The Control server requires manual entry of a key from the
-          terminal and makes the string entered (leading and trailing
-          white space stripped) available as EcControlKey in the configuration
-          information it gives to other processes.<br />
+        <p>If the EcControlKey NSUserDefault (32 hex digits) is set when the
+          Control server is started, it must also be set to the same value
+          in Control.plist, and on startup the Control server then requires
+          manual entry of a key from the terminal (and makes the string
+          entered (leading and trailing white space stripped) available as
+          EcControlKey in the configuration information it gives to other
+          processes.<br />
           This for instance allows all processes in a cluster to use a single
-          encryption key never stored on disk.
+          encryption key never stored on disk.<br />
+          The value of EcControlKey in Control.plist must be the MD5 hash of
+          the value entered as the master key, otherwise the Control server
+          will log a warning and shut down.<br />
+          For purposes of automated testing only, Control.plist may contain
+          the master key (64 hex digits) in EcControlKeyTest.  In this case
+          EcControlKey need not be defined as an NSUserDefault (because the
+          Control server does not need to read the master key from the
+          terminal).
         </p>
       </section>
 

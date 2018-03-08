@@ -1,3 +1,9 @@
+2018-03-08  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.m: Allow EcControlKeyTest to be defined to supply a key
+	without requring it to be entered from the terminal.  This is solely
+	to enable automated testing of systems.
+
 2018-03-02  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* Control.m:
