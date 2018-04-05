@@ -2642,6 +2642,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               [mgr removeFileAtPath: src handler: nil];
               continue; // Nothing to compress
             }
+          if ([a fileSize] >= [[[mgr fileSystemAttributesAtPath: src]
+            objectForKey: NSFileSystemFreeSize] integerValue])
+            {
+              [mgr removeFileAtPath: src handler: nil];
+              [self cmdError: @"Unable to compress %@ (too big; deleted)", src];
+              continue; // Not enough space free to compress
+            }
 
           dst = [src stringByAppendingPathExtension: @"gz"];
           if ([mgr fileExistsAtPath: dst isDirectory: &isDirectory] == YES)

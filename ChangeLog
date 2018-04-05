@@ -1,3 +1,10 @@
+2018-04-05  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Do not try to compress old debug files if there is
+	not enough space on the filesystem for both the uncompressed and
+	compressed versions to co-exist while compressing.  Instead delete
+	the file and generate an error message.
+
 2018-03-08  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcControl.m: Allow EcControlKeyTest to be defined to supply a key
