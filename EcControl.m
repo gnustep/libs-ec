@@ -991,7 +991,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      else if (comp(wd, @"List") >= 0)
 		{
-		  m = @"List\nLists all the connected commands.\n"
+		  m = @"List\nLists all the connected Command processes "
+                      @"and any client processes on each.\n"
 		      @"List consoles\nLists all the connected consoles.\n";
 		}
 	      else if (comp(wd, @"Memory") >= 0)
