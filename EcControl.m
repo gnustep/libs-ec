@@ -895,7 +895,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      @"Flush\tHost\tList\tMemory\tOn\t"
 	      @"Password\tRepeat\tQuit\tSet\tStatus\tTell\tUnset\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
-	      @"Use 'tell xxx help' to get help for a specific process.\n"
+	      @"Use 'tell xxx help' to get help for a specific client.\n"
 	      @"A command line consists of a sequence of words, "
 	      @"the first of which is the command to be executed. "
 	      @"A word can be a simple sequence of non-space characters, "
@@ -966,8 +966,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"Connect") >= 0)
 		{
 		  m = @"Connect name\nInstructs the Control server that "
-		      @"commands from your console should go to servers "
+		      @"commands from your console should go to clients "
 		      @"whose names match the value you give.\n"
+		      @"eg. 'connect foo' is equivalent to prefixing "
+		      @"subsequent commands with 'tell foo'\n'"
 		      @"To remove this association, you will need to type "
 		      @"the command 'control connect'\n'";
 		}
@@ -982,6 +984,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  m = @"Host name\nInstructs the Control server that "
 		      @"commands from your console should go to the host "
 		      @"whose names match the value you give.\n"
+		      @"eg. 'host xxx' is equivalent to prefixing "
+		      @"subsequent commands with 'on xxx'\n'"
 		      @"To remove this association, you will need to type "
 		      @"the command 'control host'\n'";
 		}
@@ -1052,8 +1056,17 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"Tell") >= 0)
 		{
 		  m = @"Tell 'name' 'command'\n"
-		      @"Sends the command to the named client.\n"
-		      @"eg. 'tell myserver help'.\n";
+		      @"Sends the command to the named client on the host "
+                      @"specified by 'host' or 'on', or by default on the "
+                      @"same host as the Control server.\n"
+		      @"eg. 'tell myserver help'.\n"
+                      @"Use 'all' as a special case to send a command to "
+                      @"all clients on the host.\n"
+                      @"Use an integer value to send a command to the "
+                      @"client listed at that position on the host.\n"
+                      @"Otherwise, the command is sent to any client "
+                      @"whose name matches the text entered.\n "
+                      @"A 'tell' to a non-existent client is ignored.\n";
 		}
 	      else if (comp(wd, @"UnSet") >= 0)
 		{
