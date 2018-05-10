@@ -1214,7 +1214,22 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else if (comp(wd, @"restart") >= 0)
         {
 	  wd = cmdWord(cmd, 1);
-	  if ([wd length] > 0 && comp(wd, @"all") == 0)
+	  if ([wd length] > 0 && comp(wd, @"self") == 0)
+            {
+              if (terminating == nil)
+                {
+                  [self information: @"Re-starting Control server\n"
+                               type: LT_AUDIT
+                                 to: nil
+                               from: nil];
+                  exit(-1);          // Watcher should restart us
+                }
+              else
+                {
+                  m = @"Already terminating!\n";
+                }
+            }
+	  else if ([wd length] > 0 && comp(wd, @"all") == 0)
 	    {
               NSUInteger        i;
               NSArray           *hosts = [[commands copy] autorelease];

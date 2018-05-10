@@ -1,5 +1,7 @@
 2018-05-10  Richard Frith-Macdonald <rfm@gnu.org>
 
+        * Control.m:
+	* EcControl.m:
         * Command.m:
 	* EcCommand.m:
 	On restart of the Command server, lanch the new copy after half a

@@ -210,6 +210,12 @@ main(int argc, char *argv[])
                 {
                   done = YES;
                 }
+              else if (255 == ([t terminationStatus] & 255))
+                {
+                  /* Probably a restart. try to start after 0.5 seconds
+                   */
+                  [NSThread sleepForTimeInterval: 0.5];
+                }
               else
                 {
                   /* Subprocess died ... try to restart after 30 seconds
