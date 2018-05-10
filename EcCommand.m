@@ -1202,7 +1202,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			    localException);
 			}
 		      NS_ENDHANDLER
-		      exit(1);          // Watcher should restart us
+		      exit(-1);          // Watcher should restart us
 		    }
 		  else
 		    {
