@@ -1,3 +1,15 @@
+2018-06-12  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcClientI.h:
+	* EcClientI.m:
+	* EcCommand.m:
+	* EcControl.m:
+	* EcProcess.m:
+	When we restart clients, store that information so that, when the
+	client unregisters, we can immediately add them to the set of
+	processes to be launched again (and ensure the next launch attempt
+	is in 0.5 of a second or less).
+
 2018-05-10  Richard Frith-Macdonald <rfm@gnu.org>
 
         * Control.m:

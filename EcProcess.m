@@ -5121,7 +5121,7 @@ With two parameters ('maximum' and a number),\n\
           [self performSelectorOnMainThread: @selector(ecRestart:)
                                  withObject: @"Console restart command"
                               waitUntilDone: NO];
-	  [self cmdPrintf: @"A restart is being requested.\n"];
+	  [self cmdPrintf: @"A restart is being requested for %@.\n", cmdName];
 	}
     }
 }

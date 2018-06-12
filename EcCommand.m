@@ -1245,8 +1245,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			  m = [m stringByAppendingFormat: 
 			    @"  The process '%@' should restart shortly.\n",
 			    [c name]];
-                          [c setTerminating: YES];
-			  [[c obj] cmdQuit: 0];
+                          [c setRestarting: YES];
+                          [[c obj] ecRestart: @"Console command 'restart'"];
 			  found = YES;
 			}
 		      NS_HANDLER
@@ -2406,8 +2406,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      NS_DURING
 		{
 		  [launches setObject: when forKey: [c name]];
-                  [c setTerminating: YES];
-		  [[c obj] cmdQuit: 0];
+                  [c setRestarting: YES];
+                  [[c obj] ecRestart: @"Console command 'restart all'"];
 		}
 	      NS_HANDLER
 		{
@@ -2444,8 +2444,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  NS_DURING
 		    {
                       [launches setObject: when forKey: [c name]];
-                      [c setTerminating: YES];
-                      [[c obj] cmdQuit: 0];
+                      [c setRestarting: YES];
+                      [[c obj] ecRestart: @"Console command 'restart all'"];
 		    }
 		  NS_HANDLER
 		    {
@@ -3071,6 +3071,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       NSString	        *m;
       NSUInteger	i;
+      BOOL	        restarting = [o restarting];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
 
@@ -3093,6 +3094,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  [self information: m from: nil to: nil type: LT_AUDIT];
 	}
       [self update];
+      if (YES == restarting)
+        {
+          [launches setObject: [NSDate distantPast]
+                       forKey: name];
+          if ([[timer fireDate] timeIntervalSinceNow] > 0.5)
+            {
+              [self timedOut: nil];
+            }
+        }
     }
 }
 
@@ -3104,6 +3114,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       NSString	        *m;
       NSUInteger       	i;
+      BOOL	        restarting = [o restarting];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
 
@@ -3126,6 +3137,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  [self information: m from: nil to: nil type: LT_AUDIT];
 	}
       [self update];
+      if (YES == restarting)
+        {
+          [launches setObject: [NSDate distantPast]
+                       forKey: name];
+          if ([[timer fireDate] timeIntervalSinceNow] > 0.5)
+            {
+              [self timedOut: nil];
+            }
+        }
     }
 }
 

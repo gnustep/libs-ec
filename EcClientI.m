@@ -169,6 +169,11 @@
   return processIdentifier;
 }
 
+- (BOOL) restarting
+{
+  return restarting;
+}
+
 - (void) setConfig: (NSData*)c
 {
   ASSIGN(config, c);
@@ -187,6 +192,18 @@
 - (void) setProcessIdentifier: (int)p
 {
   processIdentifier = p;
+}
+
+- (void) setRestarting: (BOOL)flag
+{
+  if (flag != restarting)
+    {
+      restarting = flag ? YES : NO;
+      if (YES == restarting)
+        {
+          NSLog(@"Restarting %@", name);
+        }
+    }
 }
 
 - (void) setTerminating: (BOOL)flag

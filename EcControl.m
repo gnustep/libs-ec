@@ -1030,7 +1030,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      else if (comp(wd, @"Restart") >= 0)
 		{
-		  m = @"Restart all\nAsks all hosts to restart servers.\n";
+		  m = @"Restart all\nAsks all hosts to restart clients.\n"
+		      @"Restart self\nRestarts the Control server.\n";
 		}
 	      else if (comp(wd, @"Set") >= 0)
 		{
