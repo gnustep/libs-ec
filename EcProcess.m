@@ -1288,7 +1288,6 @@ findMode(NSDictionary* d, NSString* s)
 
 @interface	EcProcess (Private)
 - (void) cmdMesgrelease: (NSArray*)msg;
-- (void) cmdMesgrestart: (NSArray*)msg;
 - (void) cmdMesgtesting: (NSArray*)msg;
 - (void) _memCheck;
 - (NSString*) _moveLog: (NSString*)name to: (NSDate*)when;
@@ -2435,6 +2434,10 @@ static BOOL     ecDidAwaken = NO;
     {
       [self cmdAudit: @"Shutdown '%@' (normal)", [self cmdName]];
     }
+  else if (-1 == status)
+    {
+      [self cmdAudit: @"Shutdown '%@' (restart)", [self cmdName]];
+    }
   else
     {
       [self cmdAudit: @"Shutdown '%@' (status %"PRIdPTR")",
@@ -2514,6 +2517,8 @@ static BOOL     ecDidAwaken = NO;
                           waitUntilDone: NO];
       return;
     }
+  [self cmdAudit: @"Restarting '%@' (%@)", [self cmdName], reason];
+  [auditLogger flush];
   [self ecQuitFor: reason with: -1];
 }
 
@@ -5095,34 +5100,6 @@ With two parameters ('maximum' and a number),\n\
 	}
       [self cmdPrintf: @"Double release checking: %s\n",
 	[cmdDefs boolForKey: @"Release"] ? "YES" : "NO"];
-    }
-}
-
-- (void) cmdMesgrestart: (NSArray*)msg
-{
-  if ([msg count] == 0)
-    {
-      [self cmdPrintf: @"requests a restart"];
-    }
-  else
-    {
-      if ([[msg objectAtIndex: 0] caseInsensitiveCompare: @"help"]
-        == NSOrderedSame)
-	{
-	  [self cmdPrintf: @"\nThe restart command is used to request a"];
-	  [self cmdPrintf: @" restart of the process.\n"];
-	  [self cmdPrintf: @"This is like quitting the process but with"];
-	  [self cmdPrintf: @" a new process started by the Command\n"];
-	  [self cmdPrintf: @" server and potentially different shutdown"];
-	  [self cmdPrintf: @" behavior.\n"];
-	}
-      else
-	{
-          [self performSelectorOnMainThread: @selector(ecRestart:)
-                                 withObject: @"Console restart command"
-                              waitUntilDone: NO];
-	  [self cmdPrintf: @"A restart is being requested for %@.\n", cmdName];
-	}
     }
 }
 

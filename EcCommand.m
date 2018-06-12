@@ -193,7 +193,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      name: (NSString*)n
 		 transient: (BOOL)t;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
-- (NSArray*) restartAll;
+- (NSArray*) restartAll: (NSString*)from;
 - (void) terminate;
 - (void) timedOut: (NSTimer*)t;
 - (void) unregisterByObject: (id)obj;
@@ -1213,7 +1213,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  NSArray       *a;
 
-                  a = [self restartAll];
+                  a = [self restartAll: f];
 		  if ([a count] == 0)
 		    {
 		      m = @"All clients have been shut down for restart.\n";
@@ -1233,6 +1233,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  unsigned	i;
 		  BOOL		found = NO;
                   NSDate        *when;
+                  NSString      *reason;
+
+                  reason = [NSString stringWithFormat:
+                    @"Console 'restart ...' from '%@'", f];
 
                   when = [NSDate dateWithTimeIntervalSinceNow: 30.0 - DLY];
 		  for (i = 0; i < [a count]; i++)
@@ -1246,7 +1250,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			    @"  The process '%@' should restart shortly.\n",
 			    [c name]];
                           [c setRestarting: YES];
-                          [[c obj] ecRestart: @"Console command 'restart'"];
+                          [[c obj] ecRestart: reason];
 			  found = YES;
 			}
 		      NS_HANDLER
@@ -2373,9 +2377,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
 }
 
-- (NSArray*) restartAll
+- (NSArray*) restartAll: (NSString*)from
 {
   NSMutableArray	*a = nil;
+  NSString              *reason;
+
+  reason = [NSString stringWithFormat:
+    @"Console 'restart all' from '%@'", from];
 
   /* Quit tasks, but don't suspend them.
    */
@@ -2407,7 +2415,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  [launches setObject: when forKey: [c name]];
                   [c setRestarting: YES];
-                  [[c obj] ecRestart: @"Console command 'restart all'"];
+                  [[c obj] ecRestart: reason];
 		}
 	      NS_HANDLER
 		{
@@ -2445,7 +2453,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    {
                       [launches setObject: when forKey: [c name]];
                       [c setRestarting: YES];
-                      [[c obj] ecRestart: @"Console command 'restart all'"];
+                      [[c obj] ecRestart: reason];
 		    }
 		  NS_HANDLER
 		    {

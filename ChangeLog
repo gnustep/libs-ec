@@ -8,7 +8,9 @@
 	When we restart clients, store that information so that, when the
 	client unregisters, we can immediately add them to the set of
 	processes to be launched again (and ensure the next launch attempt
-	is in 0.5 of a second or less).
+	is in 0.5 of a second or less).  Improve audit messages for restart.
+	Remove restart command from individual processes so that it is
+	reliably done from Command server.
 
 2018-05-10  Richard Frith-Macdonald <rfm@gnu.org>
 

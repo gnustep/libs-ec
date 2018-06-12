@@ -893,7 +893,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"Commands are -\n"
 	      @"Help\tAlarms\tArchive\tClear\tConfig\tConnect\t"
 	      @"Flush\tHost\tList\tMemory\tOn\t"
-	      @"Password\tRepeat\tQuit\tSet\tStatus\tTell\tUnset\n\n"
+	      @"Password\tRepeat\tRestart\tQuit\tSet\tStatus\tTell\tUnset\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"Use 'tell xxx help' to get help for a specific client.\n"
 	      @"A command line consists of a sequence of words, "
@@ -1030,8 +1030,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      else if (comp(wd, @"Restart") >= 0)
 		{
-		  m = @"Restart all\nAsks all hosts to restart clients.\n"
-		      @"Restart self\nRestarts the Control server.\n";
+		  m = @"Restart all\nAsks all hosts to restart all clients.\n"
+		      @"Restart self\nRestarts the Control server itself.\n";
 		}
 	      else if (comp(wd, @"Set") >= 0)
 		{
@@ -1261,7 +1261,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    }
           else
             {
-              m = @"Try 'restart all' or 'on host restart ...\n";
+              m = @"Try 'restart self', 'restart all'"
+                @" or 'on host restart ...\n";
             }
         }
       else if (comp(wd, @"set") >= 0)
