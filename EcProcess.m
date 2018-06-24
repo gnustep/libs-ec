@@ -264,9 +264,11 @@ static int	cmdSignalled = 0;
 
 static NSTimeInterval   initAt = 0.0;
 
-/* Internal value for use only by ecIsQuitting() and ecWillQuit()
+/* Internal value for use only by quitting mechanism.
  */
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
+static NSInteger        ecQuitStatus = -1;      // Status for the quit
+static NSString         *ecQuitReason = nil;    // Reason for the quit
 static BOOL             ecWillAbort = NO;       // Abort on next quit
 
 /* Test to see if the process is tryiung to quit gracefully.
@@ -289,46 +291,6 @@ ecIsQuitting()
     }
   return YES;
 } 
-
-/* Function to start quitting (graceful shutdown).
- */
-static void
-ecWillQuit(NSString *reason)
-{
-  NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
-
-  if (0.0 == beganQuitting)
-    {
-      beganQuitting = now;
-#ifndef __MINGW__
-      if (reservedPipe[1] > 0)
-        {
-          close(reservedPipe[0]); reservedPipe[0] = 0;
-          close(reservedPipe[1]); reservedPipe[1] = 0;
-        }
-#endif
-      if ([reason length] > 0)
-        {
-          NSLog(@"will quit: %@", reason);
-        }
-    }
-  else if (YES == ecWillAbort)
-    {
-      if ([reason length] > 0)
-        {
-          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
-            reason, (now - beganQuitting));
-        }
-      else
-        {
-          NSLog(@"abort: quit requested while quitting after %g sec.\n",
-            (now - beganQuitting));
-        }
-      signal(SIGABRT, SIG_DFL);
-      abort();
-    }
-  ecWillAbort = YES;
-}
 
 static RETSIGTYPE
 ihandler(int sig)
@@ -2013,6 +1975,26 @@ static NSString	*noFiles = @"No log files to archive";
                       waitUntilDone: NO];
 }
 
+/* This method is only ever run asynchronously in the main thread.
+ */
+- (void) _ecQuit
+{
+  if (ecDeferQuit > 0)
+    {
+      /* Some method needs to complete in this (the main) thread
+       * before we can quit.  Try again in a short time.
+       */
+      [self performSelector: _cmd
+                 withObject: nil
+                 afterDelay: 0.01];
+    }
+  else
+    {
+      [self ecHandleQuit];
+      [self ecDidQuit];
+    }
+}
+
 - (void) cmdDefaultsChanged: (NSNotification*)n
 {
   NSEnumerator	*enumerator;
@@ -2401,15 +2383,16 @@ static BOOL     ecDidAwaken = NO;
   return ecDidAwaken;
 }
 
-- (oneway void) ecDidQuit: (NSInteger)status
+- (oneway void) ecDidQuit
 {
   NSArray	*keys;
   NSUInteger	index;
-  NSDate        *now = [NSDate date];
+  NSInteger     status;
+  NSDate        *now;
 
   if (NO == ecIsQuitting())
     {
-      ecWillQuit(nil);
+      [self ecWillQuit];
     }
 
   if (cmdPTimer != nil)
@@ -2418,6 +2401,7 @@ static BOOL     ecDidAwaken = NO;
       cmdPTimer = nil;
     }
 
+  status = ecQuitStatus;
   if (0 == status)
     {  
       /* Normal shutdown ... unmanage this process first.
@@ -2470,6 +2454,7 @@ static BOOL     ecDidAwaken = NO;
    * are archived to the correct directory for the current date.
    */
   keys = [cmdLogMap allKeys];
+  now = [NSDate date];
   for (index = 0; index < [keys count]; index++)
     {
       [self ecLogEnd: [keys objectAtIndex: index] to: now];
@@ -2490,7 +2475,14 @@ static BOOL     ecDidAwaken = NO;
 
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status
 {
-  [self ecWillQuit: reason];
+  [ecLock lock];
+  if (0.0 == beganQuitting)
+    {
+      ASSIGN(ecQuitReason, reason);
+      ecQuitStatus = status;
+    }
+  [ecLock unlock];
+  [self ecWillQuit];
   if (class_getMethodImplementation([EcProcess class], @selector(cmdQuit:))
     != class_getMethodImplementation([self class], @selector(cmdQuit:)))
     {
@@ -2503,9 +2495,20 @@ static BOOL     ecDidAwaken = NO;
     }
   else
     {
-      [self ecHandleQuit];
-      [self ecDidQuit: status];
+      [self performSelectorOnMainThread: @selector(_ecQuit)
+                             withObject: nil
+                          waitUntilDone: NO];
     }
+}
+
+- (NSString*) ecQuitReason
+{
+  return ecQuitReason;
+}
+
+- (NSInteger) ecQuitStatus
+{
+  return ecQuitStatus;
 }
 
 - (oneway void) ecRestart: (NSString*)reason
@@ -2536,9 +2539,41 @@ static BOOL     ecDidAwaken = NO;
   return started;
 }
 
-- (void) ecWillQuit: (NSString*)reason
+- (void) ecWillQuit
 {
-  ecWillQuit(reason);
+  NSTimeInterval    now = [NSDate timeIntervalSinceReferenceDate];
+
+  if (0.0 == beganQuitting)
+    {
+      beganQuitting = now;
+#ifndef __MINGW__
+      if (reservedPipe[1] > 0)
+        {
+          close(reservedPipe[0]); reservedPipe[0] = 0;
+          close(reservedPipe[1]); reservedPipe[1] = 0;
+        }
+#endif
+      if ([ecQuitReason length] > 0)
+        {
+          NSLog(@"will quit: %@", ecQuitReason);
+        }
+    }
+  else if (YES == ecWillAbort)
+    {
+      if ([ecQuitReason length] > 0)
+        {
+          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
+            ecQuitReason, (now - beganQuitting));
+        }
+      else
+        {
+          NSLog(@"abort: quit requested while quitting after %g sec.\n",
+            (now - beganQuitting));
+        }
+      signal(SIGABRT, SIG_DFL);
+      abort();
+    }
+  ecWillAbort = YES;
 }
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event
@@ -4644,9 +4679,20 @@ With two parameters ('maximum' and a number),\n\
 
 - (oneway void) cmdQuit: (NSInteger)status
 {
-  [self ecWillQuit: nil];
-  [self ecHandleQuit];
-  [self ecDidQuit: status];
+  /* NB. must not call -ecQuitFor:with: since that method calls ths one
+   * and we do not want nmutual recursion.
+   */
+  [ecLock lock];
+  if (0.0 == beganQuitting)
+    {
+      ASSIGN(ecQuitReason, nil);
+      ecQuitStatus = status;
+    }
+  [ecLock unlock];
+  [self ecWillQuit];
+  [self performSelectorOnMainThread: @selector(_ecQuit)
+                         withObject: nil
+                      waitUntilDone: NO];
 }
 
 - (void) cmdUpdate: (NSMutableDictionary*)info

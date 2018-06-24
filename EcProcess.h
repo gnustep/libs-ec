@@ -408,6 +408,15 @@ extern NSString*	cmdVersion(NSString *ver);
  * </p>
 */
 @interface EcProcess : NSObject <CmdClient,EcAlarmDestination>
+{
+  /** Any method which is executing in the main thread (and needs to
+   * return before a quit can be handled in the main thread) must
+   * increment this counter on entry and decrement it again before exit.
+   * This allows the process to ensure that it calls -ecHandleQuit when
+   * no such method is in progress.
+   */
+  NSUInteger    ecDeferQuit;
+}
 
 /** This method is provided to prompt for an encryptionkey using the
  * specified key name and read in a value from the terminal.<br />
@@ -525,18 +534,19 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Called once other stages of a graceful shutdown has completed in
  * order to perform final cleanup and have the process exit with the
- * specified status.<br />
- * If -ecWillQuit: has not been called, this method performs the same
- * operations of setting the start time for the period after which the
- * process should abort.<br />
- * Subclasses should usually override -ecHandleQuit rather than this method.
+ * expected status.<br />
+ * Called automatically but subclasses overriding -ecHandleQuit may
+ * call it explicitly at the end of the handling process.
  */
-- (oneway void) ecDidQuit: (NSInteger)status;
+- (oneway void) ecDidQuit;
 
-/** Called by -ecQuitFor:with: after -ecWillQuit: and before -edDidQuit:
- * as a method for subclasses to use to implement their own behaviors.<br />
+/** Called by -ecQuitFor:with: or -cmdQuit: (after the -ecWillQuit and
+ * before the -ecDidQuit methods) as a method for subclasses to use to
+ * implement their own behaviors.<br />
  * Subclass implementations should call the superclass implementation
- * as the last thing they do.
+ * as the last thing they do.<br />
+ * This method is always called in the main thread of the process and
+ * when the ecDeferQuit instance variable is zero.
  */
 - (void) ecHandleQuit;
 
@@ -557,6 +567,15 @@ extern NSString*	cmdVersion(NSString *ver);
  * subclass has overriden it.
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
+
+/** Returns the quit reason supplied to the -ecQuitFor:with method.
+ */
+- (NSString*) ecQuitReason;
+
+/** Returns the quit status supplied to the -ecQuitFor:with or -cmdQuit:
+ * method.
+ */
+- (NSInteger) ecQuitStatus;
 
 /** This method is designed for handling an orderly restart.<br />
  * The default implementation calls -ecQuitFor:status: with minus one as
@@ -581,10 +600,11 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** This aborts immediately if the process is already quitting,
  * otherwise it returns after setting the start time used by the
- * -ecIsQuitting method and (if reason is not nil/empty) generating a
- * log of why quitting was started.
+ * -ecIsQuitting method and (if -ecQuitReason is not nil/empty)
+ * generating a log of why quitting was started.<br />
+ * Called automatically when the process starts shutting down.
  */
-- (void) ecWillQuit: (NSString*)reason;
+- (void) ecWillQuit;
 
 /* Call these methods during initialisation of your instance
  * to set up automatic management of connections to servers. 

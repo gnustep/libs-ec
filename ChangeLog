@@ -1,3 +1,11 @@
+2018-06-24  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Change quit API to handle the quit in the main thread consistently and
+	also provide a mechanism to ensure that handling a quit does not block
+	other methods on which graceful shutdown depends.
+
 2018-06-12  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcClientI.h:
