@@ -1,3 +1,11 @@
+2018-06-25  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlerter.h:
+	* EcAlerter.m:
+	Extend to permit (simple) handling of audit logs as well as
+	error/alert/alarm.
+	New -handleAudit:withHost:andServer:timestamp: method.
+
 2018-06-24  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

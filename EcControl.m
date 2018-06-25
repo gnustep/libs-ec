@@ -1744,9 +1744,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [[self cmdLogFile: logname] puts: inf];
     }
   /*
-   * Errors and alerts (severe errors) get passed to a handler.
+   * Errors, audit logs, and alerts (severe errors) get passed to a handler.
    */
-  if (t == LT_ERROR || t == LT_ALERT)
+  if (t == LT_ERROR || t == LT_AUDIT || t == LT_ALERT)
     {
       if (alerter != nil)
         {

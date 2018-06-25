@@ -395,6 +395,15 @@
  */
 - (void) flushSms;
 
+/** This method handles an audit event.<br />
+ * The default implementation does nothing (an audit event is automatically
+ * written to the debug log before it reaches this point).
+ */
+- (void) handleAudit: (NSString*)text
+            withHost: (NSString*)hostName
+           andServer: (NSString*)serverName
+           timestamp: (NSDate*)timestamp;
+
 /** <p>This method handles an error/alert event (an 'error' is one which may
  * be buffered, while an 'alert' must be sent immediately).<br />
  * If the identifier field is non-nil then the event is an alert which is
@@ -428,7 +437,7 @@
                alarm: (EcAlarm*)alarm
             reminder: (int)reminder;
 
-/** <p>This method handles error/alert messages.  It is able to handle
+/** <p>This method handles error/alert/audit messages.  It is able to handle
  * multiple (newline separated messages.
  * </p>
  * <p>Each message must be a line of the format -<br />
@@ -436,7 +445,8 @@
  * </p>
  * <p>Each message is parsed an then the components are passed to the
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
- * method.
+ * method or it the -handleAudit:withHost:andServer:timestamp: method
+ * if it isa an audit event.
  * </p>
  */
 - (void) handleInfo: (NSString*)str;

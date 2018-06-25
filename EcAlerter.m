@@ -1164,6 +1164,14 @@ replaceFields(NSDictionary *fields, NSString *template)
   RELEASE(pool);
 }
 
+- (void) handleAudit: (NSString*)text
+            withHost: (NSString*)hostName
+           andServer: (NSString*)serverName
+           timestamp: (NSDate*)timestamp
+{
+  return;
+}
+
 - (void) handleEvent: (NSString*)text
             withHost: (NSString*)hostName
            andServer: (NSString*)serverName
@@ -1295,6 +1303,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  NSString		*serverName;
 	  NSString		*hostName;
 	  BOOL  		immediate;
+	  BOOL  		isAudit;
 	  unsigned		pos;
 
 	  str = inf;
@@ -1307,11 +1316,13 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  * serverName(hostName): timestamp Alert - message
 	  * or
 	  * serverName(hostName): timestamp Error - message
+	  * or
+	  * serverName(hostName): timestamp Audit - message
 	  */
 	  r = [str rangeOfString: @":"];
 	  if (r.length == 0)
 	    {
-	      continue;		// Not an alert or error
+	      continue;		// Not an audit, alert or error
 	    }
 	  serverName = [str substringToIndex: r.location];
 	  str = [str substringFromIndex: NSMaxRange(r) + 1];
@@ -1325,20 +1336,29 @@ replaceFields(NSDictionary *fields, NSString *template)
 	    NSMakeRange(pos, [serverName length] - pos - 1)];
 	  serverName = [serverName substringToIndex: r.location];
 
-	  r = [str rangeOfString: @" Alert - "];
-	  if (r.length == 0)
-	    {
-	      r = [str rangeOfString: @" Error - "];
-	      if (r.length == 0)
-		{
-		  continue;		// Not an alert or error
-		}
-	      immediate = NO;
-	    }
-	  else
-	    {
-	      immediate = YES;
-	    }
+          r = [str rangeOfString: @" Audit - "];
+          if (r.length == 0)
+            {
+              isAudit = NO;
+              r = [str rangeOfString: @" Alert - "];
+              if (r.length == 0)
+                {
+                  r = [str rangeOfString: @" Error - "];
+                  if (r.length == 0)
+                    {
+                      continue;		// Not an alert or error
+                    }
+                  immediate = NO;
+                }
+              else
+                {
+                  immediate = YES;
+                }
+            }
+          else
+            {
+              isAudit = YES;
+            }
 	  timestamp = [NSCalendarDate
             dateWithString: [str substringToIndex: r.location]
             calendarFormat: @"%Y-%m-%d %H:%M:%S.%F %z"];
@@ -1353,13 +1373,23 @@ replaceFields(NSDictionary *fields, NSString *template)
 
 	  str = [str substringFromIndex: NSMaxRange(r)];
 
-          [self handleEvent: str
-                   withHost: hostName
-                  andServer: serverName
-                  timestamp: timestamp
-                 identifier: (YES == immediate) ? (id)@"" : (id)nil
-                      alarm: nil
-                   reminder: -1];
+          if (YES == isAudit)
+            {
+              [self handleAudit: str
+                       withHost: hostName
+                      andServer: serverName
+                      timestamp: timestamp];
+            }
+          else
+            {
+              [self handleEvent: str
+                       withHost: hostName
+                      andServer: serverName
+                      timestamp: timestamp
+                     identifier: (YES == immediate) ? (id)@"" : (id)nil
+                          alarm: nil
+                       reminder: -1];
+            }
 	}
     }
   NS_HANDLER
