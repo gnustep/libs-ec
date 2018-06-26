@@ -878,6 +878,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  m = @"Configuration file re-read ... UNCHANGED.\n";
 		}
 	    }
+    [self information: [NSString stringWithFormat:
+                         cmdLogFormat(LT_AUDIT, @"CONSOLE_CONFIG 1 %@"), m]
+                 type: LT_AUDIT
+                   to: nil
+                 from: nil];
 	}
       else if (comp(wd, @"flush") >= 0)
 	{
@@ -1989,8 +1994,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (obj != nil)
     {
       m = [NSString stringWithFormat:
-	@"%@ rejected console with info '%@' (already registered by name)\n",
-	[NSDate date], n];
+	      cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console"
+        @" with info '%@' (already registered by name)"), n];
       [self information: m
 		   type: LT_AUDIT
 		     to: nil
@@ -2001,8 +2006,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (obj != nil)
     {
       m = [NSString stringWithFormat:
-	@"%@ rejected console with info '%@' (already registered)\n",
-	[NSDate date], n];
+	      cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+        @" info '%@' (already registered)"), n];
       [self information: m
 		   type: LT_AUDIT
 		     to: nil
@@ -2027,22 +2032,22 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       if (info == nil)
 	{
 	  m = [NSString stringWithFormat:
-	    @"%@ rejected console with info '%@' (unknown operator)\n",
-	    [NSDate date], n];
+	    cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+      @" info '%@' (unknown operator)"), n];
 	  [self information: m
 		       type: LT_AUDIT
-			 to: nil
+			       to: nil
 		       from: nil];
 	  return @"Unknown user name";
 	}
       else if (passwd && [passwd length] && [passwd isEqual: p] == NO)
 	{
 	  m = [NSString stringWithFormat:
-	    @"%@ rejected console with info '%@' (bad password)\n",
-	    [NSDate date], n];
+	    cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+      @" info '%@' (bad password)"), n];
 	  [self information: m
 		       type: LT_AUDIT
-			 to: nil
+			       to: nil
 		       from: nil];
 	  return @"Bad username/password combination";
 	}
@@ -2051,11 +2056,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   [consoles addObject: obj];
   [consoles sortUsingSelector: @selector(compare:)];
   RELEASE(obj);
-  m = [NSString stringWithFormat: @"%@ registered new console with info '%@'\n",
-    [NSDate date], n];
+  m = [NSString stringWithFormat:
+    cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN 1 Registered new console"
+    @" with info '%@'"), n];
   [self information: m
 	       type: LT_AUDIT
-		 to: nil
+		       to: nil
 	       from: nil];
   return nil;
 }
