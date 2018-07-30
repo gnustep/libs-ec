@@ -1745,15 +1745,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    }
 		}
 	    }
-	  else if (t == LT_ERROR && [c getErrors] == NO)
+	  else if (t == LT_ERROR && [c getErrors] == NO
+            && (nil == to || [to isEqual: name] == NO))
 	    {
 	      continue;
 	    }
-	  else if (t == LT_ALERT && [c getAlerts] == NO)
+	  else if (t == LT_ALERT && [c getAlerts] == NO
+            && (nil == to || [to isEqual: name] == NO))
 	    {
 	      continue;
 	    }
-	  else if (t == LT_AUDIT && [c getAudits] == NO)
+	  else if (t == LT_AUDIT && [c getAudits] == NO
+            && (nil == to || [to isEqual: name] == NO))
 	    {
 	      continue;
 	    }
@@ -2027,7 +2030,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (obj != nil)
     {
       m = [NSString stringWithFormat:
-	      cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console"
+        cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console"
         @" with info '%@' (already registered by name)"), n];
       [self information: m
 		   type: LT_AUDIT
@@ -2039,7 +2042,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (obj != nil)
     {
       m = [NSString stringWithFormat:
-	      cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+        cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
         @" info '%@' (already registered)"), n];
       [self information: m
 		   type: LT_AUDIT
@@ -2065,22 +2068,24 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       if (info == nil)
 	{
 	  m = [NSString stringWithFormat:
-	    cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
-      @" info '%@' (unknown operator)"), n];
+	    cmdLogFormat(LT_AUDIT,
+            @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+            @" info '%@' (unknown operator)"), n];
 	  [self information: m
 		       type: LT_AUDIT
-			       to: nil
+                         to: nil
 		       from: nil];
 	  return @"Unknown user name";
 	}
       else if (passwd && [passwd length] && [passwd isEqual: p] == NO)
 	{
 	  m = [NSString stringWithFormat:
-	    cmdLogFormat(LT_AUDIT, @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
-      @" info '%@' (bad password)"), n];
+	    cmdLogFormat(LT_AUDIT,
+            @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+            @" info '%@' (bad password)"), n];
 	  [self information: m
 		       type: LT_AUDIT
-			       to: nil
+                         to: nil
 		       from: nil];
 	  return @"Bad username/password combination";
 	}
@@ -2094,7 +2099,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     @" with info '%@'"), n];
   [self information: m
 	       type: LT_AUDIT
-		       to: nil
+                 to: nil
+	       from: nil];
+  m = [NSString stringWithFormat:
+    cmdLogFormat(LT_AUDIT, @"Logged in with info '%@'"), n];
+  [self information: m
+	       type: LT_AUDIT
+                 to: n
 	       from: nil];
   return nil;
 }
