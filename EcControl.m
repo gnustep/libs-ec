@@ -596,7 +596,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  if ([cmd count] != 3)
 	    {
 	      [self information: @"parameters are old password and new one.\n"
-			   type: LT_AUDIT
+			   type: LT_CONSOLE
 			     to: [console name]
 			   from: nil];
 	      return;
@@ -618,7 +618,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		@"Operators.plist"];
 	      [p writeToFile: path atomically: YES];
 	      [self information: @"new password set.\n"
-			   type: LT_AUDIT
+			   type: LT_CONSOLE
 			     to: [console name]
 			   from: nil];
 	      return;
@@ -626,7 +626,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  else
 	    {
 	      [self information: @"old password is incorrect.\n"
-			   type: LT_AUDIT
+			   type: LT_CONSOLE
 			     to: [console name]
 			   from: nil];
 	      return;
@@ -660,7 +660,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else
 		{
 		  [self information: @"Attempt to work on unknown host"
-			       type: LT_AUDIT
+			       type: LT_CONSOLE
 				 to: [console name]
 			       from: nil];
 		  return;
@@ -779,7 +779,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  [console setConnectedServ: nil];
 		  [self information: @"Server has gone away"
-			       type: LT_AUDIT
+			       type: LT_CONSOLE
 				 to: [console name]
 			       from: nil];
 		}
@@ -892,11 +892,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  m = @"Configuration file re-read ... UNCHANGED.\n";
 		}
 	    }
-    [self information: [NSString stringWithFormat:
-                         cmdLogFormat(LT_AUDIT, @"CONSOLE_CONFIG 1 %@"), m]
-                 type: LT_AUDIT
-                   to: nil
-                 from: nil];
+          [self information: m
+                       type: LT_CONSOLE
+                         to: [console name]
+                       from: nil];
+          [self information: [NSString stringWithFormat:
+             cmdLogFormat(LT_AUDIT, @"CONSOLE_CONFIG 1 %@"), m]
+                       type: LT_AUDIT
+                         to: nil
+                       from: nil];
 	}
       else if (comp(wd, @"flush") >= 0)
 	{
@@ -1242,7 +1246,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               if (terminating == nil)
                 {
                   [self information: @"Re-starting Control server\n"
-                               type: LT_AUDIT
+                               type: LT_CONSOLE
                                  to: nil
                                from: nil];
                   exit(-1);          // Watcher should restart us
@@ -1483,7 +1487,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       if (m != nil)
 	{
 	  [self information: m
-		       type: LT_AUDIT
+		       type: LT_CONSOLE
 			 to: [console name]
 		       from: nil];
 	}
@@ -1780,14 +1784,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   /*
    * Log, alerts, and accounting get written to the log file too.
    */
-  if (t == LT_AUDIT || t == LT_ALERT)
+  if (t == LT_AUDIT || t == LT_ALERT || t == LT_CONSOLE)
     {
       [[self cmdLogFile: logname] puts: inf];
     }
   /*
    * Errors, audit logs, and alerts (severe errors) get passed to a handler.
    */
-  if (t == LT_ERROR || t == LT_AUDIT || t == LT_ALERT)
+  if (t == LT_ERROR || t == LT_AUDIT || t == LT_ALERT || t == LT_CONSOLE)
     {
       if (alerter != nil)
         {
@@ -1924,7 +1928,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       m = [NSString stringWithFormat:
 	  @"Rejected new host with bad name '%@' at %@\n", n, [NSDate date]];
       [self information: m
-		   type: LT_AUDIT
+		   type: LT_CONSOLE
 		     to: nil
 		   from: nil];
       [dict setObject: @"unable to handle given hostname."
@@ -1944,7 +1948,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  @"Re-registered existing host with name '%@' at %@\n",
 	      n, [NSDate date]];
       [self information: m
-		   type: LT_AUDIT
+		   type: LT_CONSOLE
 		     to: nil
 		   from: nil];
     }
@@ -1977,7 +1981,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           [commands removeObjectIdenticalTo: old];
         }
       [self information: m
-                   type: LT_AUDIT
+                   type: LT_CONSOLE
                      to: nil
                    from: nil];
     }
@@ -2101,8 +2105,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	       type: LT_AUDIT
                  to: nil
 	       from: nil];
-  m = [NSString stringWithFormat:
-    cmdLogFormat(LT_AUDIT, @"Logged in with info '%@'"), n];
+  m = [NSString stringWithFormat: @"Logged in with info '%@'", n];
   [self information: m
 	       type: LT_AUDIT
                  to: n
@@ -2112,7 +2115,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c
 {
-  [self information: msg type: LT_AUDIT to: n from: c];
+  [self information: msg type: LT_CONSOLE to: n from: c];
 }
 
 - (void) reportAlarm: (EcAlarm*)alarm
@@ -2318,7 +2321,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (nil == terminating)
     {
       [self information: @"Handling terminate."
-                   type: LT_AUDIT
+                   type: LT_CONSOLE
                      to: nil
                    from: nil];
     }
@@ -2682,7 +2685,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [commands removeObjectIdenticalTo: o];
     }
   [self information: m
-	       type: LT_AUDIT
+	       type: LT_CONSOLE
 		 to: nil
 	       from: nil];
   if (nil != terminating && 0 == [commands count])

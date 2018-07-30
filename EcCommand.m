@@ -1193,7 +1193,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                           [self information: @"Re-starting Command server\n"
                                        from: t
                                          to: f
-                                       type: LT_AUDIT];
+                                       type: LT_CONSOLE];
 			  [control unregister: self];
 			}
 		      NS_HANDLER
@@ -1377,7 +1377,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  m = [NSString stringWithFormat: @"Unknown command - '%@'\n", wd];
 	}
 
-      [self information: m from: t to: f type: LT_AUDIT];
+      [self information: m from: t to: f type: LT_CONSOLE];
     }
   else
     {
@@ -1843,9 +1843,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
       if (nil == taskInfo)
         {
-          m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+          m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
             @"unrecognized name to launch %@"), name];
-          [self information: m from: nil to: nil type: LT_AUDIT];
+          [self information: m from: nil to: nil type: LT_CONSOLE];
           return NO;
         }
       else
@@ -1930,9 +1930,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                   if ([task validatedLaunchPath] == nil)
                     {
                       failed = @"failed to launch (not executable)";
-                      m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+                      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
                         @"failed to launch (not executable) %@"), name];
-                      [self information: m from: nil to: nil type: LT_AUDIT];
+                      [self information: m from: nil to: nil type: LT_CONSOLE];
                       prog = nil;
                     }
                   if (prog != nil)
@@ -1973,18 +1973,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               NS_HANDLER
                 {
                   failed = @"failed to launch";
-                  m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+                  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
                     @"failed to launch (%@) %@"), localException, name];
-                  [self information: m from: nil to: nil type: LT_AUDIT];
+                  [self information: m from: nil to: nil type: LT_CONSOLE];
                 }
               NS_ENDHANDLER
             }
           else
             {
               failed = @"bad program name to launch";
-              m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+              m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
                 @"bad program name to launch %@"), name];
-              [self information: m from: nil to: nil type: LT_AUDIT];
+              [self information: m from: nil to: nil type: LT_CONSOLE];
             }
           if (nil != failed)
             {
@@ -2113,6 +2113,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  break;
 
       case LT_ALERT: 
+	  m = msg;
+	  break;
+
+      case LT_CONSOLE: 
 	  m = msg;
 	  break;
 
@@ -2263,7 +2267,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	@"%@ back-off new server with name '%@' on %@\n",
 	[NSDate date], n, host];
       [[self cmdLogFile: logname] puts: m];
-      [self information: m from: nil to: nil type: LT_AUDIT];
+      [self information: m from: nil to: nil type: LT_CONSOLE];
       dict = [NSMutableDictionary dictionaryWithCapacity: 1];
       [dict setObject: @"configuration data not yet available."
 	       forKey: @"back-off"];
@@ -2314,7 +2318,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else
 	{
 	  [obj setTransient: NO];
-	  [self information: m from: nil to: nil type: LT_AUDIT];
+	  [self information: m from: nil to: nil type: LT_CONSOLE];
 	}
       [self update];
       d = [self configurationFor: n];
@@ -2331,7 +2335,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	@"%@ rejected new server with name '%@' on %@\n",
 	[NSDate date], n, host];
       [[self cmdLogFile: logname] puts: m];
-      [self information: m from: nil to: nil type: LT_AUDIT];
+      [self information: m from: nil to: nil type: LT_CONSOLE];
       dict = [NSMutableDictionary dictionaryWithCapacity: 1];
       [dict setObject: @"client with that name already registered."
 	       forKey: @"rejected"];
@@ -2750,7 +2754,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [self information: @"Handling shutdown.\n"
 		   from: nil
 		     to: nil
-		   type: LT_AUDIT];
+		   type: LT_CONSOLE];
     }
 
   if (nil == terminating)
@@ -2781,10 +2785,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) terminate
 {
-  [self information: @"Terminate einitiated.\n"
+  [self information: @"Terminate initiated.\n"
                from: nil
                  to: nil
-               type: LT_AUDIT];
+               type: LT_CONSOLE];
   [self terminate: nil];
 }
 
@@ -2921,11 +2925,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    {
 	      NSString	*m;
 
-	      m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+	      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 		@"Client '%@' failed to respond for over %d seconds"),
 		[r name], (int)pingDelay];
 	      [[[[r obj] connectionForProxy] sendPort] invalidate];
-	      [self information: m from: nil to: nil type: LT_AUDIT];
+	      [self information: m from: nil to: nil type: LT_CONSOLE];
 	      lost = YES;
 	    }
 	}
@@ -2934,11 +2938,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  NSString	*m;
 
-	  m = [NSString stringWithFormat: cmdLogFormat(LT_AUDIT,
+	  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 	    @"Control server failed to respond for over %d seconds"),
 	    (int)pingDelay];
 	  [[(NSDistantObject*)control connectionForProxy] invalidate];
-	  [self information: m from: nil to: nil type: LT_AUDIT];
+	  [self information: m from: nil to: nil type: LT_CONSOLE];
 	  lost = YES;
 	}
       if (lost == YES)
@@ -3099,7 +3103,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       if (transient == NO)
 	{
-	  [self information: m from: nil to: nil type: LT_AUDIT];
+	  [self information: m from: nil to: nil type: LT_CONSOLE];
 	}
       [self update];
       if (YES == restarting)
@@ -3142,7 +3146,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       if (transient == NO)
 	{
-	  [self information: m from: nil to: nil type: LT_AUDIT];
+	  [self information: m from: nil to: nil type: LT_CONSOLE];
 	}
       [self update];
       if (YES == restarting)
@@ -3194,7 +3198,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [self information: @"Final shutdown."
 		   from: nil
 		     to: nil
-		   type: LT_AUDIT];
+		   type: LT_CONSOLE];
       [terminating invalidate];
       terminating = nil;
       [self cmdQuit: tStatus];

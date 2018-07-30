@@ -42,6 +42,7 @@ typedef enum    {
   LT_ERROR,             /* Error - needs dealing with.          */
   LT_AUDIT,             /* Not a problem but needs logging.     */
   LT_ALERT,             /* Severe - needs immediate attention.  */
+  LT_CONSOLE,           /* For Console (implicit audit).        */
 } EcLogType;
 
 

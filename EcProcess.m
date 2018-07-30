@@ -659,6 +659,7 @@ cmdLogKey(EcLogType t)
       case LT_ERROR:	return @"Error";
       case LT_AUDIT:	return @"Audit";
       case LT_ALERT:	return @"Alert";
+      case LT_CONSOLE:  return @"Audit";        // Console messages are audited
       default:		return @"UnknownLogType";
     }
 }
@@ -2982,6 +2983,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	[self cmdAlert: @"%@", message];
 	break;
       case LT_AUDIT:
+      case LT_CONSOLE:
 	[self cmdAudit: @"%@", message];
 	break;
       default:

@@ -1,7 +1,12 @@
 2018-07-30  Richard Frith-Macdonald <rfm@gnu.org>
 
-	EcControl.m: Add option to turn on/off audito log reporting in Console
-	and make it off by default.
+	EcProcess.h: Add LT_CONSOLE for messages to be reported in the console
+	and also be logged to file as an audit log.
+	EcProcess.m: Add LT_CONSOLE implementation/
+	EcCommand.m: Use LT_CONSOLE for messages about process start/stop.
+	EcControl.m: Add option to turn on/off audit log reporting in Console
+	and make it off by default, so we only see audit style logs
+	specifically intended for the Console
 
 2018-06-26  armando.pesentigritti@theengagehub.com
 
