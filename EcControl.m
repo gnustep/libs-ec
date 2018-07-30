@@ -181,6 +181,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   BOOL		warnings;
   BOOL		errors;
   BOOL		alerts;
+  BOOL          audits;
 }
 - (id) initFor: (id)o
 	  name: (NSString*)n
@@ -189,12 +190,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (NSString*) chost;
 - (NSString*) cserv;
 - (BOOL) getAlerts;
+- (BOOL) getAudits;
 - (BOOL) getErrors;
 - (BOOL) getGeneral;
 - (BOOL) getWarnings;
 - (NSString*) pass;
 - (NSString*) promptAfter: (NSString*)msg;
 - (void) setAlerts: (BOOL)flag;
+- (void) setAudits: (BOOL)flag;
 - (void) setConnectedHost: (NSString*)c;
 - (void) setConnectedServ: (NSString*)c;
 - (void) setErrors: (BOOL)flag;
@@ -227,6 +230,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return alerts;
 }
 
+- (BOOL) getAudits
+{
+  return audits;
+}
+
 - (BOOL) getErrors
 {
   return errors;
@@ -256,6 +264,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       general = NO;
       warnings = NO;
       alerts = YES;
+      audits = NO;
       errors = YES;
     }
   return self;
@@ -289,6 +298,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) setAlerts: (BOOL)flag
 {
   alerts = flag;
+}
+
+- (void) setAudits: (BOOL)flag
+{
+  audits = flag;
 }
 
 - (void) setConnectedHost: (NSString*)c
@@ -1052,6 +1066,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"    displays error messages.\n"
 		      @"  set display alerts\n"
 		      @"    displays alert messages.\n"
+		      @"  set display audits\n"
+		      @"    displays audit messages.\n"
 		      @"\n";
 		}
 	      else if (comp(wd, @"Status") >= 0)
@@ -1083,6 +1099,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"  unset display warnings\n"
 		      @"  unset display errors\n"
 		      @"  unset display alerts\n"
+		      @"  unset display audits\n"
 		      @"\n";
 		}
 	    }
@@ -1284,13 +1301,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      if ([wd length] == 0)
 		{
 		  m = [NSString stringWithFormat: @"display settings -\n"
-		    @"general: %d warnings: %d errors: %d alerts: %d\n",
+		    @"general: %d warnings: %d errors: %d alerts: %d"
+                    @" alerts: %d\n",
 		    [console getGeneral], [console getWarnings],
-		    [console getErrors], [console getAlerts]];
+		    [console getErrors], [console getAlerts],
+                    [console getAudits]];
 		}
 	      else if (comp(wd, @"alerts") >= 0)
 		{
 		  [console setAlerts: YES];
+		}
+	      else if (comp(wd, @"audits") >= 0)
+		{
+		  [console setAudits: YES];
 		}
 	      else if (comp(wd, @"errors") >= 0)
 		{
@@ -1416,13 +1439,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      if ([wd length] == 0)
 		{
 		  m = [NSString stringWithFormat: @"display settings -\n"
-		    @"general: %d warnings: %d errors: %d alerts: %d\n",
+		    @"general: %d warnings: %d errors: %d alerts: %d"
+                    @" audits: %d\n",
 		    [console getGeneral], [console getWarnings],
-		    [console getErrors], [console getAlerts]];
+		    [console getErrors], [console getAlerts],
+                    [console getAudits]];
 		}
 	      else if (comp(wd, @"alerts") >= 0)
 		{
 		  [console setAlerts: NO];
+		}
+	      else if (comp(wd, @"audits") >= 0)
+		{
+		  [console setAudits: NO];
 		}
 	      else if (comp(wd, @"errors") >= 0)
 		{
@@ -1721,6 +1750,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      continue;
 	    }
 	  else if (t == LT_ALERT && [c getAlerts] == NO)
+	    {
+	      continue;
+	    }
+	  else if (t == LT_AUDIT && [c getAudits] == NO)
 	    {
 	      continue;
 	    }

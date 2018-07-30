@@ -1,3 +1,8 @@
+2018-07-30  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcControl.m: Add option to turn on/off audito log reporting in Console
+	and make it off by default.
+
 2018-06-26  armando.pesentigritti@theengagehub.com
 
 	EcControl.m: Make some events audit logs where they might be security
