@@ -2347,8 +2347,11 @@ static BOOL     ecDidAwaken = NO;
     {
       EcAlarm       *a;
 
-      /* Truncate additional text to fit if necessary.
+      /* We may need to truncate additional text to fit the limit for
+       * an alarm, so we must log to stderr *before* doing that.
        */
+      NSLog(@"ecConfigurationError: %@", err);
+
       err = [err stringByTrimmingSpaces];
       if ([err length] > 255)
         {
