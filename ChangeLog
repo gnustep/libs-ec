@@ -3,6 +3,9 @@
 	EcAlerter.m: Fix off by one error in getting string after colon.
 	EcProcess.m: Correct the number of hex digits we say we want when
 	reading in an encryption key.
+	EcControl.m: Improve logging of Console commands and add casts and
+	comments to avoid compiler warnings about using an NSHost as a
+	dictionary key.
 	Control.m: Change the name of the encryption key we prompt for,
 	from 'EcControlKey' to 'master encryption key'.
 

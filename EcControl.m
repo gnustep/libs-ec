@@ -569,7 +569,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  [full appendFormat: @" %@", [cmd objectAtIndex: i]];
 	}
       [[self cmdLogFile: logname]
-	printf: @"%@ %@> %@\n", [NSDate date], [console name], full];
+	printf: @"Console (%@): %@ Cmd -%@\n",
+        [console name], [NSDate date], full];
       RELEASE(full);
 
       if ([console chost] != nil || [console cserv] != nil)
@@ -2007,7 +2008,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       [dict setObject: o forKey: @"*"];
     }
-  o = [config objectForKey: h];
+  // Configuration keys may be NSHost objects
+  o = [config objectForKey: (NSString*)h];
   if (o != nil)
     {
       [dict setObject: o forKey: n];
@@ -2105,7 +2107,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	       type: LT_AUDIT
                  to: nil
 	       from: nil];
-  m = [NSString stringWithFormat: @"Logged in with info '%@'", n];
+  m = [NSString stringWithFormat: @"Logged in with info '%@'\n", n];
   [self information: m
 	       type: LT_AUDIT
                  to: n
@@ -3131,7 +3133,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                 {
                   h = [NSHost hostWithName: [c name]];
                 }
-	      o = [config objectForKey: h];
+              // Configuration keys may be NSHost objects
+	      o = [config objectForKey: (NSString*)h];
 	      if (o != nil)
 		{
 		  [dict setObject: o forKey: [c name]];
