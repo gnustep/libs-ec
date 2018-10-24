@@ -102,12 +102,12 @@ main(int argc, char *argv[])
                       exit(1);
                     }
                 }
-              key = [EcProcess ecGetKey: "EcControlKey"
+              key = [EcProcess ecGetKey: "master encryption key"
                                    size: 32
                                     md5: digest];
               if (nil == key)
                 {
-                  NSLog(@"Failed to read EcControlKey from terminal ... abort");
+                  NSLog(@"Failed to read master key from terminal ... abort");
                   exit(1);
                 }
             }

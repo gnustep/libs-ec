@@ -1,3 +1,11 @@
+2018-10-24  Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcAlerter.m: Fix off by one error in getting string after colon.
+	EcProcess.m: Correct the number of hex digits we say we want when
+	reading in an encryption key.
+	Control.m: Change the name of the encryption key we prompt for,
+	from 'EcControlKey' to 'master encryption key'.
+
 2018-07-30  Richard Frith-Macdonald <rfm@gnu.org>
 
 	EcProcess.h: Add LT_CONSOLE for messages to be reported in the console

@@ -419,7 +419,7 @@ extern NSString*	cmdVersion(NSString *ver);
   NSUInteger    ecDeferQuit;
 }
 
-/** This method is provided to prompt for an encryptionkey using the
+/** This method is provided to prompt for an encryption key using the
  * specified key name and read in a value from the terminal.<br />
  * The entered value must be an even numbered sequence of hexadecimal
  * digits, each pair representing one byte of the key.<br />

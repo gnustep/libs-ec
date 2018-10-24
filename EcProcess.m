@@ -1398,7 +1398,7 @@ findMode(NSDictionary* d, NSString* s)
           if (olen != size)
             {
               fprintf(stream, "\n%s must be %u hexadecimal digits.\n", name,
-                size);
+                size * 2);
               olen = 0;
             }
           else if (nil != digest)
@@ -1444,7 +1444,7 @@ findMode(NSDictionary* d, NSString* s)
           if (tlen != size)
             {
               fprintf(stream, "\n%s must be %u hexadecimal digits.\n", name,
-                size);
+                size * 2);
               tlen = 0;
             }
         }
