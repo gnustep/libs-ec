@@ -1325,7 +1325,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	      continue;		// Not an audit, alert or error
 	    }
 	  serverName = [str substringToIndex: r.location];
-	  str = [str substringFromIndex: NSMaxRange(r) + 1];
+	  str = [str substringFromIndex: NSMaxRange(r)];
 	  r = [serverName rangeOfString: @"("];
 	  if (r.length == 0)
 	    {
