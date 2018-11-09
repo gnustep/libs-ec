@@ -1,3 +1,8 @@
+2018-11-09  Wolfgang Lux  <wolfgang.lux@gmail.com>
+
+	EcProcess.m: Call ecAwaken only after registration at the name
+	server was successful.
+
 2018-10-24  Richard Frith-Macdonald <rfm@gnu.org>
 
 	EcAlerter.m: Fix off by one error in getting string after colon.

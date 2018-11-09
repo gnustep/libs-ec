@@ -3352,11 +3352,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   NSRunLoop             *loop;
   NSDate                *future;
 
-  /* Called to permit subclasses to initialise before entering run loop.
-   */
-  [self ecAwaken];
-  RELEASE(arp);
-  arp = [NSAutoreleasePool new];
   if (YES == cmdIsTransient)
     {
       [self cmdWarn: @"Attempted to run transient process."];
@@ -3418,6 +3413,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   EcProcConnection = c;
   
   [self _connectionRegistered];
+
+  /* Called to permit subclasses to initialise before entering run loop.
+   */
+  [self ecAwaken];
+  RELEASE(arp);
+  arp = [NSAutoreleasePool new];
 
   [self cmdAudit: @"Started '%@' in %g seconds",
     [self cmdName], [NSDate timeIntervalSinceReferenceDate] - initAt];
