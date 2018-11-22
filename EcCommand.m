@@ -1316,7 +1316,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  if ([a count] == 0)
 		    {
 		      m = [NSString stringWithFormat: 
-			@"No such client as '%@'\n", dest];
+			@"No such client as '%@' on '%@'\n", dest, host];
 		    }
 		  else
 		    {

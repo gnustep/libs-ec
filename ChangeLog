@@ -1,3 +1,10 @@
+2018-11-22  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Report host name when we report that there are no
+	clients.
+	* EcControl.m: When a 'tell' command is not sent to a specific host,
+	it should go to all the hosts, not to a random one.
+
 2018-11-09  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	EcProcess.m: Call ecAwaken only after registration at the name
@@ -5,28 +12,28 @@
 
 2018-10-24  Richard Frith-Macdonald <rfm@gnu.org>
 
-	EcAlerter.m: Fix off by one error in getting string after colon.
-	EcProcess.m: Correct the number of hex digits we say we want when
+	* EcAlerter.m: Fix off by one error in getting string after colon.
+	* EcProcess.m: Correct the number of hex digits we say we want when
 	reading in an encryption key.
-	EcControl.m: Improve logging of Console commands and add casts and
+	* EcControl.m: Improve logging of Console commands and add casts and
 	comments to avoid compiler warnings about using an NSHost as a
 	dictionary key.
-	Control.m: Change the name of the encryption key we prompt for,
+	* Control.m: Change the name of the encryption key we prompt for,
 	from 'EcControlKey' to 'master encryption key'.
 
 2018-07-30  Richard Frith-Macdonald <rfm@gnu.org>
 
-	EcProcess.h: Add LT_CONSOLE for messages to be reported in the console
+	* EcProcess.h: Add LT_CONSOLE for messages to be reported in the console
 	and also be logged to file as an audit log.
-	EcProcess.m: Add LT_CONSOLE implementation/
-	EcCommand.m: Use LT_CONSOLE for messages about process start/stop.
-	EcControl.m: Add option to turn on/off audit log reporting in Console
+	* EcProcess.m: Add LT_CONSOLE implementation/
+	* EcCommand.m: Use LT_CONSOLE for messages about process start/stop.
+	* EcControl.m: Add option to turn on/off audit log reporting in Console
 	and make it off by default, so we only see audit style logs
 	specifically intended for the Console
 
 2018-06-26  armando.pesentigritti@theengagehub.com
 
-	EcControl.m: Make some events audit logs where they might be security
+	* EcControl.m: Make some events audit logs where they might be security
 	or system stability related.
 
 2018-06-25  Richard Frith-Macdonald <rfm@gnu.org>

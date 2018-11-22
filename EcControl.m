@@ -1351,78 +1351,33 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
 	    {
-	      NSString	*dest = AUTORELEASE(RETAIN(wd));
-	      int	i;
-	      NSArray	*a = [[NSArray alloc] initWithArray: commands];
+	      NSUInteger	i;
+	      NSArray	        *a;
 
-	      [cmd removeObjectAtIndex: 0];
-	      [cmd removeObjectAtIndex: 0];
-	      if (comp(dest, @"all") == 0)
-		{
-		  dest = nil;
-		}
-
+              /* A simple 'tell' command which was not sent to a specific
+               * host using 'on host tell ...' should be forwarded to each
+               * Command server.
+               */
+	      a = [NSArray arrayWithArray: commands];
 	      for (i = 0; i < [a count]; i++)
 		{
 		  CommandInfo*	c = (CommandInfo*)[a objectAtIndex: i];
 
 		  if ([commands indexOfObjectIdenticalTo: c] != NSNotFound)
 		    {
-		      NSString	*to;
-
-		      if (dest)
-			{
-			  to = [c serverByAbbreviation: dest];
-			  if (to != nil)
-			    {
-			      NS_DURING
-				{
-				  NSData	*dat;
-
-				  dat = [NSPropertyListSerialization
-				    dataFromPropertyList: cmd
-				    format: NSPropertyListBinaryFormat_v1_0
-				    errorDescription: 0];
-				  [[c obj] command: dat
-						to: to
-					      from: [console name]];
-				}
-			      NS_HANDLER
-				{
-				  NSLog(@"Caught: %@", localException);
-				}
-			      NS_ENDHANDLER
-			    }
-			}
-		      else
-			{
-			  int	j;
-
-			  for (j = 0; j < [[c servers] count]; j++)
-			    {
-			      to = [[c servers] objectAtIndex: j];
-			      NS_DURING
-				{
-				  NSData	*dat;
-
-				  dat = [NSPropertyListSerialization
-				    dataFromPropertyList: cmd
-				    format: NSPropertyListBinaryFormat_v1_0
-				    errorDescription: 0];
-				  [[c obj] command: dat
-						to: to
-					      from: [console name]];
-				}
-			      NS_HANDLER
-				{
-				  NSLog(@"Caught: %@",
-					localException);
-				}
-			      NS_ENDHANDLER
-			    }
-			}
-		    }
-		}
+                      NS_DURING
+                        {
+                          [[c obj] command: dat
+                                        to: nil
+                                      from: [console name]];
+                        }
+                      NS_HANDLER
+                        {
+                          NSLog(@"Caught: %@", localException);
+                        }
+                      NS_ENDHANDLER
+                    }
+                }
 	      m = nil;
 	    }
 	  else
