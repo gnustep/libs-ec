@@ -4804,7 +4804,7 @@ With two parameters ('maximum' and a number),\n\
               GSPrintf(stderr,
 @"-%@CommandHost [aHost]    Host of the Command server to use.\n"
 @"-%@CommandName [aName]    Name of the Command server to use.\n"
-@"-%@Daemon [YES/NO]        Fork process to run in background?\n",
+@"-%@Daemon [YES/NO]        Fork process to run in background?\n"
 @"-%@Transient [YES/NO]     Expect this process be short-lived?\n",
                 prf, prf, prf, prf);
             }
