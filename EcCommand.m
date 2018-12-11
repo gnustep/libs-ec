@@ -630,6 +630,42 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
 }
 
+- (void) clientLost: (EcClientI*)o 
+{
+  [o setUnregistered: YES];
+  [clients removeObjectIdenticalTo: o];
+  if ([o transient] == NO)
+    {
+      NSString	*name = [o name];
+      NSString	*s;
+      NSString	*t;
+      EcAlarm	*a;
+
+      [[[[o obj] connectionForProxy] sendPort] invalidate];
+
+      s = EcMakeManagedObject(host, name, nil);
+      a = [EcAlarm alarmForManagedObject: s
+        at: nil
+        withEventType: EcAlarmEventTypeProcessingError
+        probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
+        specificProblem: @"Process availability"
+        perceivedSeverity: EcAlarmSeverityCritical
+        proposedRepairAction: @"Check system status"
+        additionalText: @"removed (lost) server"];
+      [self alarm: a];
+
+      t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
+      if ([t intValue] > 0)
+        {
+          [NSTimer scheduledTimerWithTimeInterval: [t intValue]
+                                   target: self
+                                 selector: @selector(reLaunch:)
+                                 userInfo: name
+                                  repeats: NO];
+        }     
+    }
+}
+
 - (oneway void) cmdGnip: (id <CmdPing>)from
                sequence: (unsigned)num
                   extra: (NSData*)data
@@ -1534,45 +1570,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 	  if ([(id)[o obj] connectionForProxy] == conn)
 	    {
-	      NSString	*name = [o name];
-	      NSString	*s;
-
 	      lostClients = YES;
-              [o setUnregistered: YES];
-	      [clients removeObjectIdenticalTo: o];
 	      if (i <= pingPosition && pingPosition > 0)
 		{
 		  pingPosition--;
 		}
-	      if ([o transient] == NO)
-		{
-                  NSString	*t;
-		  EcAlarm	*a;
-
-		  s = EcMakeManagedObject(host, name, nil);
-		  a = [EcAlarm alarmForManagedObject: s
-		    at: nil
-		    withEventType: EcAlarmEventTypeProcessingError
-		    probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
-		    specificProblem: @"Process availability"
-		    perceivedSeverity: EcAlarmSeverityCritical
-		    proposedRepairAction: @"Check system status"
-		    additionalText: @"removed (lost) server"];
-		  [self alarm: a];
-
-                  t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
-                  if ([t intValue] > 0)
-                    {
-                      [NSTimer scheduledTimerWithTimeInterval: [t intValue]
-					       target: self
-					     selector: @selector(reLaunch:)
-					     userInfo: name
-					      repeats: NO];
-                    }     
-		}
+              [self clientLost: o];
 	    }
 	}
-
       [c removeAllObjects];
 
       if ([l length] > 0)
@@ -2807,7 +2812,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       static unsigned	pingControlCount = 0;
       NSFileManager	*mgr;
-      NSDictionary	*a;
+      NSDictionary	*d;
+      NSMutableArray    *a;
       NSString          *s;
       float		f;
       unsigned		count;
@@ -2915,24 +2921,28 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       [self launch];
 
-      count = [clients count];
+      a = AUTORELEASE([clients mutableCopy]);
+      count = [a count];
       while (count-- > 0)
 	{
-	  EcClientI	*r = [clients objectAtIndex: count];
+	  EcClientI	*r = [a objectAtIndex: count];
 	  NSDate	*d = [r lastUnanswered];
 	  
-	  if (d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
+	  if ([clients indexOfObjectIdenticalTo: r] != NSNotFound
+            && d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
 	    {
 	      NSString	*m;
 
 	      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 		@"Client '%@' failed to respond for over %d seconds"),
 		[r name], (int)pingDelay];
-	      [[[[r obj] connectionForProxy] sendPort] invalidate];
 	      [self information: m from: nil to: nil type: LT_CONSOLE];
 	      lost = YES;
+              [self clientLost: r];
 	    }
 	}
+      [a removeAllObjects];
+
       if (control != nil && lastUnanswered != nil
 	&& [lastUnanswered timeIntervalSinceDate: now] < -pingDelay)
 	{
@@ -2981,9 +2991,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       mgr = [NSFileManager defaultManager];
 
       s = [[self ecUserDirectory] stringByAppendingPathComponent: @"DebugLogs"];
-      a = [mgr fileSystemAttributesAtPath: s];
-      f = [[a objectForKey: NSFileSystemFreeSize] floatValue] 
-        / [[a objectForKey: NSFileSystemSize] floatValue];
+      d = [mgr fileSystemAttributesAtPath: s];
+      f = [[d objectForKey: NSFileSystemFreeSize] floatValue] 
+        / [[d objectForKey: NSFileSystemSize] floatValue];
       if (f <= spaceFree)
 	{
 	  static NSDate	*last = nil;
@@ -3009,8 +3019,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      [self information: m from: nil to: nil type: LT_ALERT];
 	    }
 	}
-      f = [[a objectForKey: NSFileSystemFreeNodes] floatValue] 
-        / [[a objectForKey: NSFileSystemNodes] floatValue];
+      f = [[d objectForKey: NSFileSystemFreeNodes] floatValue] 
+        / [[d objectForKey: NSFileSystemNodes] floatValue];
       if (f <= nodesFree)
 	{
 	  static NSDate	*last = nil;
@@ -3038,9 +3048,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
 
       s = [[self ecUserDirectory] stringByAppendingPathComponent: @"Logs"];
-      a = [mgr fileSystemAttributesAtPath: s];
-      f = [[a objectForKey: NSFileSystemFreeSize] floatValue] 
-        / [[a objectForKey: NSFileSystemSize] floatValue];
+      d = [mgr fileSystemAttributesAtPath: s];
+      f = [[d objectForKey: NSFileSystemFreeSize] floatValue] 
+        / [[d objectForKey: NSFileSystemSize] floatValue];
       if (f <= spaceFree)
 	{
 	  static NSDate	*last = nil;
@@ -3055,8 +3065,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      [self information: m from: nil to: nil type: LT_ALERT];
 	    }
         }
-      f = [[a objectForKey: NSFileSystemFreeNodes] floatValue] 
-        / [[a objectForKey: NSFileSystemNodes] floatValue];
+      f = [[d objectForKey: NSFileSystemFreeNodes] floatValue] 
+        / [[d objectForKey: NSFileSystemNodes] floatValue];
       if (f <= nodesFree)
 	{
 	  static NSDate	*last = nil;

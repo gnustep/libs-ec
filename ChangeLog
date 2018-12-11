@@ -1,3 +1,8 @@
+2018-12-11  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Improve  alarm generation to cover the case of hung
+	processes better.
+
 2018-11-23  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m: Remove excess comma which was messing up the printf
