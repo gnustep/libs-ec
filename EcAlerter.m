@@ -1289,6 +1289,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 
 - (void) handleInfo: (NSString*)str
 {
+  NSString      *info = str;
+
   NS_DURING
     {
       NSArray		*a;
@@ -1299,6 +1301,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	{
 	  NSString		*inf = [a objectAtIndex: i];
 	  NSRange		r;
+          NSString              *tsString;
 	  NSCalendarDate	*timestamp;
 	  NSString		*serverName;
 	  NSString		*hostName;
@@ -1306,6 +1309,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  BOOL  		isAudit;
 	  unsigned		pos;
 
+          inf = [inf stringByTrimmingSpaces];
 	  str = inf;
 	  if ([str length] == 0)
 	    {
@@ -1359,21 +1363,28 @@ replaceFields(NSDictionary *fields, NSString *template)
             {
               isAudit = YES;
             }
+
+          tsString = [str substringToIndex: r.location];
+          tsString = [tsString stringByTrimmingSpaces];
 	  timestamp = [NSCalendarDate
-            dateWithString: [str substringToIndex: r.location]
+            dateWithString: tsString
             calendarFormat: @"%Y-%m-%d %H:%M:%S.%F %z"];
           if (nil == timestamp)
             {
               /* Old style.
                */
               timestamp = [NSCalendarDate
-                dateWithString: [str substringToIndex: r.location]
+                dateWithString: tsString
                 calendarFormat: @"%Y-%m-%d %H:%M:%S %z"];
             }
 
 	  str = [str substringFromIndex: NSMaxRange(r)];
 
-          if (YES == isAudit)
+          if (nil == timestamp)
+            {
+              NSLog(@"Bad timestamp (%@) in handleInfo:'%@'", tsString, inf);
+            }
+          else if (YES == isAudit)
             {
               [self handleAudit: str
                        withHost: hostName
@@ -1394,7 +1405,7 @@ replaceFields(NSDictionary *fields, NSString *template)
     }
   NS_HANDLER
     {
-      NSLog(@"Problem in handleInfo:'%@' ... %@", str, localException);
+      NSLog(@"Problem in handleInfo:'%@' ... %@", info, localException);
     }
   NS_ENDHANDLER
 }

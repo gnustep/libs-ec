@@ -443,10 +443,10 @@
  * <p>Each message must be a line of the format -<br />
  * serverName(hostName): YYYY-MM-DD hh:mm:ss.mmm szzzz type - text
  * </p>
- * <p>Each message is parsed an then the components are passed to the
+ * <p>Each message is parsed and then the components are passed to the
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
  * method or it the -handleAudit:withHost:andServer:timestamp: method
- * if it isa an audit event.
+ * if it is an audit event.
  * </p>
  */
 - (void) handleInfo: (NSString*)str;
