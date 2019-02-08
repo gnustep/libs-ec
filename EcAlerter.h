@@ -474,7 +474,7 @@
 /** Cache a copy of the Rules with modifications to store information
  * so we don't need to regenerate it every time we check a message.
  */
-- (BOOL) setRules: (NSArray*)ra;
+- (void) setRules: (NSArray*)ra;
 
 /** Called to stop the alerter and shut it down.
  */

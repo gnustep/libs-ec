@@ -269,10 +269,11 @@ replaceFields(NSDictionary *fields, NSString *template)
   ASSIGNCOPY(eHost, [c objectForKey: @"EmailHost"]);
   ASSIGNCOPY(ePort, [c objectForKey: @"EmailPort"]);
   [lock unlock];
-  return [self setRules: [c objectForKey: @"Rules"]];
+  [self setRules: [c objectForKey: @"Rules"]];
+  return YES;
 }
 
-- (BOOL) setRules: (NSArray*)ra
+- (void) setRules: (NSArray*)ra
 {
   NSMutableArray        *r = AUTORELEASE([ra mutableCopy]); 
   NSUInteger            i;
@@ -295,7 +296,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (nil == val)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"HostRegex"];
 	  [val release];
@@ -308,7 +310,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (val == nil)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"PatternRegex"];
 	  RELEASE(val);
@@ -321,7 +324,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (val == nil)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"ServerRegex"];
 	  RELEASE(val);
@@ -334,7 +338,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (val == nil)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"SeverityTextRegex"];
 	  RELEASE(val);
@@ -347,7 +352,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (val == nil)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"Extra1Regex"];
 	  RELEASE(val);
@@ -360,7 +366,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 	  val = [[Regex alloc] initWithString: str];
 	  if (val == nil)
 	    {
-	      return NO;
+	      [r removeObjectAtIndex: i--];
+	      continue;
 	    }
 	  [md setObject: val forKey: @"Extra2Regex"];
 	  RELEASE(val);
@@ -374,7 +381,8 @@ replaceFields(NSDictionary *fields, NSString *template)
           if (nil == d)
             {
               NSLog(@"ActiveFrom='%@' is not a valid date/time", str);
-              return NO;
+              [r removeObjectAtIndex: i--];
+              continue;
             }
           else
             {
@@ -389,7 +397,8 @@ replaceFields(NSDictionary *fields, NSString *template)
           if (nil == d)
             {
               NSLog(@"ActiveTo='%@' is not a valid date/time", str);
-              return NO;
+              [r removeObjectAtIndex: i--];
+              continue;
             }
           else
             {
@@ -404,7 +413,8 @@ replaceFields(NSDictionary *fields, NSString *template)
           if (nil == d)
             {
               NSLog(@"ActiveTimezone='%@' is not a valid time zone", str);
-              return NO;
+              [r removeObjectAtIndex: i--];
+              continue;
             }
           [md setObject: d forKey: @"ActiveTimeZone"];
         }
@@ -461,7 +471,8 @@ replaceFields(NSDictionary *fields, NSString *template)
               else
                 {
                   NSLog(@"ActiveTimes='%@' with bad day of week", obj);
-                  return NO;
+                  [r removeObjectAtIndex: i--];
+                  continue;
                 }
               a = [[[[t  objectForKey: str] componentsSeparatedByString: @","]
                 mutableCopy] autorelease];
@@ -487,14 +498,16 @@ replaceFields(NSDictionary *fields, NSString *template)
                     {
                       NSLog(@"ActiveTimes='%@' with missing '-' in time range",
                         obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   str = [r objectAtIndex: 0];
                   c = sscanf([str UTF8String], "%d:%d", &h, &m);
                   if (0 == c)
                     {
                       NSLog(@"ActiveTimes='%@' with missing HH:MM", obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   if (1 == c) m = 0;
                   if (h < 0 || h > 23)
@@ -504,7 +517,8 @@ replaceFields(NSDictionary *fields, NSString *template)
                   if (m < 0 || m > 59)
                     {
                       NSLog(@"ActiveTimes='%@' with minute out of range", obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   from = (h * 60) + m;
                   
@@ -513,7 +527,8 @@ replaceFields(NSDictionary *fields, NSString *template)
                   if (0 == c)
                     {
                       NSLog(@"ActiveTimes='%@' with missing HH:MM", obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   if (1 == c) m = 0;
                   if (h < 0 || h > 24 || (24 == h && 0 != m))
@@ -523,7 +538,8 @@ replaceFields(NSDictionary *fields, NSString *template)
                   if (m < 0 || m > 59)
                     {
                       NSLog(@"ActiveTimes='%@' with minute out of range", obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   if (0 == h && 0 == m)
                     {
@@ -535,13 +551,15 @@ replaceFields(NSDictionary *fields, NSString *template)
                     {
                       NSLog(@"ActiveTimes='%@' range end earlier than start",
                         obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   if (from < lastMinute)
                     {
                       NSLog(@"ActiveTimes='%@' range start earlier than"
                         @" preceding one", obj);
-                      return NO;
+                      [r removeObjectAtIndex: i--];
+                      continue;
                     }
                   lastMinute = to;
                   [r replaceObjectAtIndex: 0
@@ -553,7 +571,8 @@ replaceFields(NSDictionary *fields, NSString *template)
               if (0 == [a count])
                 {
                   NSLog(@"ActiveTimes='%@' with empty time range", obj);
-                  return NO;
+                  [r removeObjectAtIndex: i--];
+                  continue;
                 }
               [t setObject: a forKey: k];
             }
@@ -562,7 +581,8 @@ replaceFields(NSDictionary *fields, NSString *template)
       else if (obj != nil)
         {
           NSLog(@"ActiveTimes='%@' is not valid", obj);
-          return NO;
+          [r removeObjectAtIndex: i--];
+          continue;
         }
     }
   [lock lock];
@@ -572,7 +592,6 @@ replaceFields(NSDictionary *fields, NSString *template)
     {
       NSLog(@"Installed Rules: %@", r);
     }
-  return YES;
 }
 
 - (void) dealloc
