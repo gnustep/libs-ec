@@ -72,6 +72,11 @@
           Time = 30;            // Interval for relaunching after crash
 	};
       };
+      /* Specify how many tasks the Command server may have launching
+       * concurrently (default is 20).  You may want to set this to a
+       * lower value in order to reduce load when the system start up.
+       */
+      LaunchLimit = 20;
       /* Specify launch order ... Feep first, Bar second
        * Processes not listed here are launched in lexicographical order
        * after any processes which are listed.

@@ -125,6 +125,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSTimer		*timer;
   NSString		*logname;
   NSMutableDictionary	*config;
+  NSUInteger            launchLimit;
   NSDictionary		*launchInfo;
   NSArray               *launchOrder;
   NSDictionary		*environment;
@@ -196,6 +197,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (NSArray*) restartAll: (NSString*)from;
 - (void) terminate;
 - (void) timedOut: (NSTimer*)t;
+- (void) _timedOut: (NSTimer*)t;
+- (void) timeoutSoon;
 - (void) unregisterByObject: (id)obj;
 - (void) unregisterByName: (NSString*)n;
 - (void) update;
@@ -311,12 +314,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       ASSIGN(config, newConfig);
 
       d = [config objectForKey: [self cmdName]];
+      launchLimit = 0;
       DESTROY(launchInfo);
       DESTROY(launchOrder);
       DESTROY(environment);
       if ([d isKindOfClass: [NSDictionary class]] == YES)
 	{
           id                    o;
+          NSInteger             i;
           NSMutableDictionary   *m;
 	  NSString              *k;
           NSString              *err = nil;
@@ -379,6 +384,21 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                 proposedRepairAction: nil
                 additionalText: nil];
               [self alarm: a];
+            }
+
+          /* We may not have more than this number of tasks launching at
+           * any one time.  Once the launch limit is reached we should
+           * launch new tasks as and when launching tasks complete their
+           * startup and register with this process.
+           */
+	  i = [[[d objectForKey: @"LaunchLimit"] description] intValue];
+          if (i <= 0)
+            {
+              launchLimit = 20;
+            }
+          else
+            {
+              launchLimit = (NSUInteger)i;
             }
 
 	  launchInfo = [d objectForKey: @"Launch"];
@@ -1801,12 +1821,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       launches = [[NSMutableDictionary alloc] initWithCapacity: 10];
       launching = [[NSMutableDictionary alloc] initWithCapacity: 10];
 
-      timer = [NSTimer scheduledTimerWithTimeInterval: 5.0
-					       target: self
-					     selector: @selector(timedOut:)
-					     userInfo: nil
-					      repeats: YES];
-      [self timedOut: nil];
+      [self _timedOut: nil];    // Simulate timeout to set timer going
     }
   return self;
 }
@@ -2007,25 +2022,35 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return YES;
 }
 
+/* This method identifies candidate tasks for launching and starts launching
+ * as many as it can (by calling the -launch: method for each).  Tasks are
+ * launched in the preferred order defined by the launchOrder array.
+ */
 - (void) launch
 {
-  if (launchInfo != nil)
+  NSAutoreleasePool     *arp;
+  NSMutableArray        *toTry = AUTORELEASE([launchOrder mutableCopy]);
+  NSDate		*now = [NSDate date];
+
+  arp = [NSAutoreleasePool new];
+
+  while ([toTry count] > 0)
     {
       NSEnumerator	*enumerator;
       NSString		*key;
-      NSDate		*date;
       NSString		*firstKey = nil;
       NSDate		*firstDate = nil;
-      NSDate		*now = [NSDate date];
 
-      enumerator = [launchOrder objectEnumerator];
+      [arp emptyPool];
+      enumerator = [toTry objectEnumerator];
       while ((key = [enumerator nextObject]) != nil)
 	{
 	  EcClientI	*r = [self findIn: clients byName: key];
 
-	  if (r == nil)
+	  if (nil == r)
 	    {
 	      NSDictionary	*taskInfo = [launchInfo objectForKey: key];
+              NSDate		*date;
 	      BOOL		disabled;
 	      BOOL		autoLaunch;
 
@@ -2039,17 +2064,30 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    {
 		      if (autoLaunch == YES)
 			{
-			  NSDate		*start;
-			  NSTimeInterval	offset = -(DLY - 5.0);
-
-			  /* If there is no launch date, we set launch
-			   * dates so that we can try this in 5 seconds.
-			   */
-		          start = [NSDate dateWithTimeIntervalSinceNow: offset];
-			  [launches setObject: start forKey: key];
-			  date = start;
+                          /* This task needs to autolaunch so it is a
+                           * candidate now.
+                           */
+		          date = now;
 			}
+                      else
+                        {
+                          /* This task is not automatically launched.
+                           */
+                          [toTry removeObject: key];
+                        }
 		    }
+                  else
+                    {
+                      if ([now timeIntervalSinceDate: date] < DLY)
+                        {
+                          /* This was already launched recently.
+                           * Don't retry yet.
+                           */
+                          [toTry removeObject: key];
+                          date = nil;
+                        }
+                    }
+
 		  if (date != nil)
 		    {
 		      if (firstDate == nil
@@ -2061,16 +2099,29 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    }
 		}
 	    }
+          else
+            {
+              [toTry removeObject: key];        // Already launched
+            }
 	}
 
-      key = firstKey;
-      date = firstDate;
+      if (firstKey != nil)
+        {
+          /* We may only be in the task of launching a certain number
+           * of tasks at any one time. We ignore any candidate task
+           * if the limit has been reached (unless it is already launching
+           * and we must re-try because it has taken too long).
+           */
+          if ([launching count] < launchLimit
+            || [launching objectForKey: firstKey] != nil)
+            {
+              [self launch: firstKey];
+            }
 
-      if (date != nil && [now timeIntervalSinceDate: date] > DLY)
-	{
-          [self launch: key];
-	}
+          [toTry removeObject: firstKey];
+        }
     }
+  RELEASE(arp);
 }
 
 - (void) logMessage: (NSString*)msg
@@ -2331,6 +2382,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  [obj setConfig: d];
 	}
+      [self timeoutSoon];
       return [obj config];
     }
   else
@@ -2802,6 +2854,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   static BOOL	inTimeout = NO;
   NSDate	*now = [t fireDate];
 
+  if (t == timer)
+    {
+      timer = nil;
+    }
   if (now == nil)
     {
       now = [NSDate date];
@@ -3085,6 +3141,37 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   inTimeout = NO;
 }
 
+- (void) _timedOut: (NSTimer*)t
+{
+  NS_DURING
+    [self timedOut: t];
+  NS_HANDLER
+    NSLog(@"Problem in timeout: %@", localException);
+  NS_ENDHANDLER
+
+  if (nil == timer && NO == [self ecIsQuitting])
+    {
+      timer = [NSTimer scheduledTimerWithTimeInterval: 5.0
+					       target: self
+					     selector: @selector(_timedOut:)
+					     userInfo: nil
+					      repeats: NO];
+    }
+}
+
+- (void) timeoutSoon
+{
+  if (nil == timer || [[timer fireDate] timeIntervalSinceNow] > 0.1)
+    {
+      [timer invalidate];
+      timer = [NSTimer scheduledTimerWithTimeInterval: 0.1
+        target: self
+        selector: @selector(_timedOut:)
+        userInfo: nil
+        repeats: NO];
+    }
+}
+
 - (void) unregisterByObject: (id)obj
 {
   EcClientI	*o = [self findIn: clients byObject: obj];
@@ -3120,10 +3207,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         {
           [launches setObject: [NSDate distantPast]
                        forKey: name];
-          if ([[timer fireDate] timeIntervalSinceNow] > 0.5)
-            {
-              [self timedOut: nil];
-            }
+          [self timeoutSoon];
         }
     }
 }
@@ -3163,20 +3247,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         {
           [launches setObject: [NSDate distantPast]
                        forKey: name];
-          if ([[timer fireDate] timeIntervalSinceNow] > 0.5)
-            {
-              [self timedOut: nil];
-            }
+          [self timeoutSoon];
         }
     }
 }
 
 - (void) update
 {
-  if (control == nil)
-    {
-      [self timedOut: nil];
-    }
   if (control)
     {
       NS_DURING

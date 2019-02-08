@@ -1,3 +1,13 @@
+2019-02-08  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Allow the Command server to launch multiple tasks at
+	the same time.  Provide LaunchLimit config to specify the maximum
+	number of concurrent launches (in case launching a large number of
+	processes all at once would overload the hardware). Once the limit
+	of launching tasks is reached, new tasks should be launched as and
+	when launching tasks complete their startup and register with the
+	Command server.
+
 2018-12-11  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Improve  alarm generation to cover the case of hung
