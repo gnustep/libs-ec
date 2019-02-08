@@ -7,6 +7,10 @@
 	of launching tasks is reached, new tasks should be launched as and
 	when launching tasks complete their startup and register with the
 	Command server.
+	Add suspend and resume command to control whether the Command server
+	will actually launch/relaunch tasks, along with a LaunchStartSuspended
+	user default to control whether launching starts as soon as the Command
+	server starts up (by default launching is not suspended on startup).
 
 2018-12-11  Richard Frith-Macdonald <rfm@gnu.org>
 

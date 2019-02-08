@@ -126,6 +126,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSString		*logname;
   NSMutableDictionary	*config;
   NSUInteger            launchLimit;
+  BOOL                  launchSuspended;
   NSDictionary		*launchInfo;
   NSArray               *launchOrder;
   NSDictionary		*environment;
@@ -231,6 +232,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       NSLog(@"Exception sending domanage: to Control: %@", localException);
     }
   NS_ENDHANDLER
+}
+
+- (void) ecAwaken
+{
+  [super ecAwaken];
+  launchSuspended = [[self cmdDefaults] boolForKey: @"LaunchStartSuspended"];
+  [self _timedOut: nil];    // Simulate timeout to set timer going
 }
 
 - (oneway void) unmanage: (in bycopy NSString*)managedObject
@@ -826,7 +834,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    {
 	      m = @"Commands are -\n"
 	      @"Help\tArchive\tControl\tLaunch\tList\tMemory\t"
-              @"Quit\tRestart\tTell\n\n"
+              @"Quit\tRestart\tResume\tSuspend\tTell\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"A command line consists of a sequence of words, "
 	      @"the first of which is the command to be executed. "
@@ -900,6 +908,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"Restart self\n"
 		      @"Shuts down and starts Command server for this host.\n";
 		}
+	      else if (comp(wd, @"Resume") >= 0)
+		{
+		  m = @"Resumes the launching/relaunching of tasks.\n"
+		      @"Has no effect if launching has not been suspended.\n";
+		}
+	      else if (comp(wd, @"Suspend") >= 0)
+		{
+		  m = @"Suspends the launching/relaunching of tasks.\n"
+		      @"Has no effect if this has already been suspended.\n";
+		}
 	      else if (comp(wd, @"Tell") >= 0)
 		{
 		  m = @"Tell 'name' 'command'\n"
@@ -910,17 +928,29 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       else if (comp(wd, @"launch") >= 0)
 	{
-	  if ([cmd count] > 1)
+          if (YES == launchSuspended)
+            {
+              m = @"Launching of tasks is suspended.\n"
+                  @"Use the Resume command to resume launching.\n";
+            }
+	  else if ([cmd count] > 1)
 	    {
+              NSString	*nam = [cmd objectAtIndex: 1];
+              BOOL      all = NO;
+
+              if ([nam caseInsensitiveCompare: @"all"] == NSOrderedSame)
+                {
+                  all = YES;
+                }
+
 	      if (launchInfo != nil)
 		{
 		  NSEnumerator	*enumerator;
 		  NSString	*key;
-		  NSString	*nam = [cmd objectAtIndex: 1];
 		  BOOL		found = NO;
 
 		  enumerator = [launchOrder objectEnumerator];
-                  if ([nam caseInsensitiveCompare: @"all"] == NSOrderedSame)
+                  if (YES == all)
                     {
                       NSMutableArray  *names = [NSMutableArray array];
 
@@ -1103,6 +1133,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  m = @"There are no programs we can launch.\n";
 		}
+
+              if (YES == launchSuspended)
+                {
+                  m = [m stringByAppendingString:
+                    @"\nLaunching is suspended.\n"];
+                }
 	    }
 	}
       else if (comp(wd, @"memory") >= 0)
@@ -1327,6 +1363,31 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"Restart what?.\n";
 	    }
 	}
+      else if (comp(wd, @"resume") >= 0)
+	{
+          if (YES == launchSuspended)
+            {
+              launchSuspended = NO;
+	      m = @"Launching is now resumed.\n";
+              [self timeoutSoon];
+            }
+          else
+            {
+	      m = @"Launching was/is not suspended.\n";
+            }
+        }
+      else if (comp(wd, @"suspend") >= 0)
+	{
+          if (YES == launchSuspended)
+            {
+	      m = @"Launching was/is already suspended.\n";
+            }
+          else
+            {
+              launchSuspended = YES;
+	      m = @"Launching is now suspended.\n";
+            }
+        }
       else if (comp(wd, @"tell") >= 0)
 	{
 	  wd = cmdWord(cmd, 1);
@@ -1820,8 +1881,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       clients = [[NSMutableArray alloc] initWithCapacity: 10];
       launches = [[NSMutableDictionary alloc] initWithCapacity: 10];
       launching = [[NSMutableDictionary alloc] initWithCapacity: 10];
-
-      [self _timedOut: nil];    // Simulate timeout to set timer going
     }
   return self;
 }
@@ -2029,9 +2088,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) launch
 {
   NSAutoreleasePool     *arp;
-  NSMutableArray        *toTry = AUTORELEASE([launchOrder mutableCopy]);
-  NSDate		*now = [NSDate date];
+  NSMutableArray        *toTry;
+  NSDate		*now;
 
+  if (launchSuspended)
+    {
+      return;
+    }
+
+  toTry = AUTORELEASE([launchOrder mutableCopy]);
+  now = [NSDate date];
   arp = [NSAutoreleasePool new];
 
   while ([toTry count] > 0)
