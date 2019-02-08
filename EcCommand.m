@@ -2164,6 +2164,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			}
 		    }
 		}
+              else
+                {
+                  [toTry removeObject: key];    // Disabled
+                }
 	    }
           else
             {
