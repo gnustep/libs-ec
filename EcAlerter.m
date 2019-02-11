@@ -36,12 +36,9 @@
 #import "EcAlerter.h"
 #import "NSFileHandle+Printf.h"
 
-#include <regex.h>
-
 @interface Regex: NSObject
 {
-  regex_t	regex;
-  BOOL		built;
+  NSRegularExpression	*regex;
 }
 - (id) initWithString: (NSString*)pattern;
 - (NSString*) match: (NSString*)string;
@@ -50,50 +47,33 @@
 @implementation	Regex
 - (void) dealloc
 {
-  if (built == YES)
-    {
-      built = NO;
-      regfree(&regex);
-    }
+  [regex release];
   [super dealloc];
 }
 
 - (id) initWithString: (NSString*)pattern
 {
-  if (regcomp(&regex, [pattern UTF8String], REG_EXTENDED) != 0)
+  if ((self = [super init]) != nil)
     {
-      NSLog(@"Failed to compile regex - '%@'", pattern);
-      DESTROY(self);
-    }
-  else
-    {
-      built = YES;
+      regex = [[NSRegularExpression alloc]
+        initWithPattern: pattern
+                options: 0
+                  error: NULL];
+      if (regex == nil)
+        {
+          NSLog(@"Failed to compile regex - '%@'", pattern);
+          DESTROY(self);
+        }
     }
   return self;
 }
 
 - (NSString*) match: (NSString*)string
 {
-  regmatch_t	matches[2];
-  const char	*str = [string UTF8String];
+  NSRange r = NSMakeRange(0, [string length]);
 
-  if (0 == str)
-    {
-      return nil;
-    }
-  if (regexec(&regex, str, 1, matches, 0) != 0)
-    {
-      return nil;
-    }
-  else
-    {
-      int	l = matches[0].rm_eo - matches[0].rm_so;
-      char	b[l+1];
-
-      memcpy(b, &str[matches[0].rm_so], l);
-      b[l] = '\0';
-      return [NSString stringWithUTF8String: b];
-    }
+  r = [regex rangeOfFirstMatchInString: string options: 0 range: r];
+  return r.length != 0 ? [string substringWithRange: r] : nil;
 }
 @end
 

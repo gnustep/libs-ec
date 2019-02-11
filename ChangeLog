@@ -1,3 +1,8 @@
+2019-02-11  Wolfgang Lux  <wolfgang.lux@gmail.com>
+
+	* EcAlerter.m: Define Regex class as a simple wrapper around
+	NSRegularExpression.
+
 2019-02-08  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	* EcAlerter.m: Only ignore invalid rules in setRules: and update
