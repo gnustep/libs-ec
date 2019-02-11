@@ -1055,7 +1055,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"Restart") >= 0)
 		{
 		  m = @"Restart all\nAsks all hosts to restart all clients.\n"
-		      @"Restart self\nRestarts the Control server itself.\n";
+		      @"Restart self\nRestarts the Control server itself.\n"
+		      @"NB. On a system using encryption with EcControlKey,\n"
+		      @"restarting the server does not require key re-entry.\n";
 		}
 	      else if (comp(wd, @"Set") >= 0)
 		{
