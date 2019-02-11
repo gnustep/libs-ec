@@ -237,6 +237,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) ecAwaken
 {
   [super ecAwaken];
+  [[self ecAlarmDestination] setCoalesce: NO];
   launchSuspended = [[self cmdDefaults] boolForKey: @"LaunchStartSuspended"];
   [self _timedOut: nil];    // Simulate timeout to set timer going
 }
@@ -691,6 +692,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                                  userInfo: name
                                   repeats: NO];
         }     
+      else
+        {
+          [launches setObject: [NSDate distantPast]
+                       forKey: name];
+          [self timeoutSoon];
+        }
     }
 }
 
@@ -2481,7 +2488,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     && [self findIn: clients byName: name] == nil
     && [launching objectForKey: name] == nil)
     {
-      [self launch: name];
+      [launches setObject: [NSDate distantPast]
+                   forKey: name];
+      [self timeoutSoon];
     } 
 }
 

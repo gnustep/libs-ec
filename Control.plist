@@ -43,7 +43,7 @@
          * Args = (array)       The arguments supplied to the program
          * Auto = (boolean)     Whether the program is started automatically
          * Time = (integer)     How many seconds after a crash until the
-         *                      automatic restart (defaults to about 300)
+         *                      automatic restart (defaults to 0; fast)
          * AddE = (dictionary)  key/value pairs added to the environment
          * SetE = (dictionary)  key/value pairs to be used as environment
          * KeepStandardInput = (boolean)     Don't close stdin

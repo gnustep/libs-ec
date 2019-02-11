@@ -524,6 +524,10 @@ extern NSString*	cmdVersion(NSString *ver);
                specificProblem: (NSString*)specificProblem
                 additionalText: (NSString*)additionalText;
 
+/** Returns the alarm destination for this process.
+ */
+- (EcAlarmDestination*) ecAlarmDestination;
+
 /** Return a short copyright notice ... subclasses should override.
  */
 - (NSString*) ecCopyright;

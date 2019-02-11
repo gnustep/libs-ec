@@ -1,3 +1,9 @@
+2019-02-11  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Relaunch process more rapidly, turn off alarm coalesce.
+	* EcControl.m: Turn off alarm coalesce
+	* EcProcess.[hm]: Expose the alarm destination object.
+
 2019-02-11  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	* EcAlerter.m: Define Regex class as a simple wrapper around

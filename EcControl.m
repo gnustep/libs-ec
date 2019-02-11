@@ -1800,6 +1800,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return self;
 }
 
+- (void) ecAwaken
+{
+  [super ecAwaken];
+  [[self ecAlarmDestination] setCoalesce: NO];
+}
+
 - (int) ecRun
 {
   int	result;

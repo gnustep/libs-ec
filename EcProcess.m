@@ -2334,6 +2334,11 @@ static NSString	*noFiles = @"No log files to archive";
   return cmdSignalled;
 }
 
+- (EcAlarmDestination*) ecAlarmDestination
+{
+  return alarmDestination;
+}
+
 static BOOL     ecDidAwaken = NO;
 
 - (void) ecAwaken
@@ -2371,7 +2376,7 @@ static BOOL     ecDidAwaken = NO;
         _(@"Correct config (check additional text and/or log for details).")
         additionalText: err];
       [self alarm: a];
-      [alarmDestination shutdown];
+      [[self ecAlarmDestination] shutdown];
       [self ecQuitFor: @"configuration error" with: 1];
     }
   else
@@ -2410,9 +2415,9 @@ static BOOL     ecDidAwaken = NO;
     {  
       /* Normal shutdown ... unmanage this process first.
        */
-      [alarmDestination unmanage: nil];
+      [[self ecAlarmDestination] unmanage: nil];
     }
-  [alarmDestination shutdown];
+  [[self ecAlarmDestination] shutdown];
 
   /* Almost done ... flush any logs then write the final audit log and
    * flush again (so that audit log should be the last in the file).
@@ -2441,7 +2446,7 @@ static BOOL     ecDidAwaken = NO;
   /* Re-do the alarm destination shut down, just in case an alarm
    * occurred while we were flushing logs and/or unregistering.
    */
-  [alarmDestination shutdown];
+  [[self ecAlarmDestination] shutdown];
   DESTROY(alarmDestination);
 
   /* Ensure our DO connection is invalidated so there will be no more
@@ -2582,7 +2587,7 @@ static BOOL     ecDidAwaken = NO;
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event
 {
-  [alarmDestination alarm: event];
+  [[self ecAlarmDestination] alarm: event];
 }
 
 - (EcAlarm*) alarmConfigurationFor: (NSString*)managedObject
@@ -2617,7 +2622,7 @@ static BOOL     ecDidAwaken = NO;
 
 - (NSArray*) alarms
 {
-  return [alarmDestination alarms];
+  return [[self ecAlarmDestination] alarms];
 }
 
 - (void) clearConfigurationFor: (NSString*)managedObject
@@ -2639,12 +2644,12 @@ static BOOL     ecDidAwaken = NO;
 
 - (oneway void) domanage: (in bycopy NSString*)managedObject
 {
-  [alarmDestination domanage: managedObject];
+  [[self ecAlarmDestination] domanage: managedObject];
 }
 
 - (oneway void) unmanage: (in bycopy NSString*)managedObject
 {
-  [alarmDestination unmanage: managedObject];
+  [[self ecAlarmDestination] unmanage: managedObject];
 }
 
 - (int) processIdentifier
@@ -2801,7 +2806,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	    object: connection];
   if (cmdServer != nil && connection == [cmdServer connectionForProxy])
     {
-      [alarmDestination setDestination: nil];
+      [[self ecAlarmDestination] setDestination: nil];
       DESTROY(cmdServer);
       NSLog(@"lost connection 0x%p to command server\n", connection);
       /*
@@ -3138,7 +3143,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 			{
 			  alarmDestination = [EcAlarmDestination new];
 			}
-		      [alarmDestination setDestination: cmdServer];
+		      [[self ecAlarmDestination] setDestination: cmdServer];
 		      [[NSNotificationCenter defaultCenter]
 			addObserver: self
 			   selector: @selector(cmdConnectionBecameInvalid:)
@@ -3383,7 +3388,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
         _(@"Check for running copy of process and/or registration in gdomap.")
         additionalText: _(@"Process probably already running (possibly hung/delayed) or problem in name registration with distributed objects system (gdomap)")];
       [self alarm: a];
-      [alarmDestination shutdown];
+      [[self ecAlarmDestination] shutdown];
       [self ecQuitFor: @"unable to register with name server" with: 2];
       [self cmdFlushLogs];
       [arp release];
@@ -3724,7 +3729,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else
 	{
-	  NSArray	*a = [alarmDestination alarms];
+	  NSArray	*a = [[self ecAlarmDestination] alarms];
 
 	  if (0 == [a count])
 	    {
@@ -3792,7 +3797,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else
 	{
-	  NSArray	*a = [alarmDestination alarms];
+	  NSArray	*a = [[self ecAlarmDestination] alarms];
           NSUInteger    count = [msg count];
 
           if (count < 2)
@@ -3821,7 +3826,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                           alarm = [a objectAtIndex: i];
                           [self cmdPrintf: @"Clearing %@\n", alarm];
                           alarm = [alarm clear];
-                          [alarmDestination alarm: alarm];
+                          [[self ecAlarmDestination] alarm: alarm];
                         }
                     }
                   else if (1 == sscanf([arg UTF8String], "%" PRIxPTR, &addr))
@@ -3848,7 +3853,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                         {
                           [self cmdPrintf: @"Clearing %@\n", alarm];
                           alarm = [alarm clear];
-                          [alarmDestination alarm: alarm];
+                          [[self ecAlarmDestination] alarm: alarm];
                         }
                     }
                   else
