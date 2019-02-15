@@ -420,19 +420,26 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
             {
               NSDictionary      *info;
               NSString          *key;
+              int               reminder;
 
               key = [NSString stringWithFormat: @"%d", notificationID];
 
-              if (nil != (info = [lastAlertInfo objectForKey: key]))
+              if (nil == (info = [lastAlertInfo objectForKey: key]))
                 {
-                  int   reminder;
-
-                  reminder = [[info objectForKey: @"Reminder"] intValue];
-                  [lastAlertInfo removeObjectForKey: key];
+                  /* Alarm not yet reported ... report it before clearing.
+                   */
                   [self reportAlarm: old
-                           severity: EcAlarmSeverityCleared
-                           reminder: reminder];
+                           severity: [alarm perceivedSeverity]
+                           reminder: 0];
                 }
+
+              /* Report the clearing of the alarm.
+               */
+              reminder = [[info objectForKey: @"Reminder"] intValue];
+              [lastAlertInfo removeObjectForKey: key];
+              [self reportAlarm: old
+                       severity: EcAlarmSeverityCleared
+                       reminder: reminder];
             }
         }
     }
