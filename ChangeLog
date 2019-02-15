@@ -3,6 +3,8 @@
 	* EcControl.m: If we get an alarm clear before we have reported the
 	original alarm, we should report the alarm before reporting the
 	clear.
+	* EcCommand.m: Be slower to clear alarms on client startup;  in case
+	it's just going to crash fairly immediately.
 
 2019-02-11  Richard Frith-Macdonald <rfm@gnu.org>
 

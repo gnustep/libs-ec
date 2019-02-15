@@ -729,16 +729,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       /* See if we have a fitting client - and update records.
        */
       r = [self findIn: clients byObject: (id)from];
-      if (r != nil)
+      [r gnip: num];
+      if (r != nil && num > 2)
 	{
           NSString	*managedObject;
           NSString      *n;
           EcAlarm	*a;
 
-	  [r gnip: num];
           n = [r name];
 
-          /* After the first ping response from a client we assume
+          /* After the first few ping responses from a client we assume
            * that client has completed startup and is running OK.
            * We can therefore clear any loss of client alarm, any
            * alarm for being unable to register, and launch failure
