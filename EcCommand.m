@@ -661,42 +661,54 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) clientLost: (EcClientI*)o 
 {
+  BOOL  wasTerminating = [o terminating];
+
   [o setUnregistered: YES];
   [clients removeObjectIdenticalTo: o];
-  [[[[o obj] connectionForProxy] sendPort] invalidate];
 
-  if ([o transient] == NO && [o terminating] == NO)
+  if ([o transient] == NO)
     {
       NSString	*name = [o name];
-      NSString	*s;
-      NSString	*t;
-      EcAlarm	*a;
 
-      s = EcMakeManagedObject(host, name, nil);
-      a = [EcAlarm alarmForManagedObject: s
-        at: nil
-        withEventType: EcAlarmEventTypeProcessingError
-        probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
-        specificProblem: @"Process availability"
-        perceivedSeverity: EcAlarmSeverityCritical
-        proposedRepairAction: @"Check system status"
-        additionalText: @"removed (lost) server"];
-      [self alarm: a];
-
-      t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
-      if ([t intValue] > 0)
+      [[[[o obj] connectionForProxy] sendPort] invalidate];
+      if (YES == wasTerminating)
         {
-          [NSTimer scheduledTimerWithTimeInterval: [t intValue]
-                                   target: self
-                                 selector: @selector(reLaunch:)
-                                 userInfo: name
-                                  repeats: NO];
-        }     
+          /* Don't re-launch a terminating client
+           */
+          [launching removeObjectForKey: name];
+        }
       else
         {
-          [launches setObject: [NSDate distantPast]
-                       forKey: name];
-          [self timeoutSoon];
+          NSString	*s;
+          NSString	*t;
+          EcAlarm	*a;
+
+          s = EcMakeManagedObject(host, name, nil);
+          a = [EcAlarm alarmForManagedObject: s
+            at: nil
+            withEventType: EcAlarmEventTypeProcessingError
+            probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
+            specificProblem: @"Process availability"
+            perceivedSeverity: EcAlarmSeverityCritical
+            proposedRepairAction: @"Check system status"
+            additionalText: @"removed (lost) server"];
+          [self alarm: a];
+
+          t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
+          if ([t intValue] > 0)
+            {
+              [NSTimer scheduledTimerWithTimeInterval: [t intValue]
+                                       target: self
+                                     selector: @selector(reLaunch:)
+                                     userInfo: name
+                                      repeats: NO];
+            }     
+          else
+            {
+              [launches setObject: [NSDate distantPast]
+                           forKey: name];
+              [self timeoutSoon];
+            }
         }
     }
 }
@@ -3263,11 +3275,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
 
+      [o setUnregistered: YES];
+      [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
 	[NSDate date], name, host];
       [[self cmdLogFile: logname] puts: m];
-      [o setUnregistered: YES];
       i = [clients indexOfObjectIdenticalTo: o];
       if (i != NSNotFound)
 	{
@@ -3303,11 +3316,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
 
+      [o setUnregistered: YES];
+      [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
 	[NSDate date], name, host];
       [[self cmdLogFile: logname] puts: m];
-      [o setUnregistered: YES];
       i = [clients indexOfObjectIdenticalTo: o];
       if (i != NSNotFound)
 	{
