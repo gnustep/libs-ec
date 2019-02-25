@@ -663,14 +663,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   [o setUnregistered: YES];
   [clients removeObjectIdenticalTo: o];
-  if ([o transient] == NO)
+  [[[[o obj] connectionForProxy] sendPort] invalidate];
+
+  if ([o transient] == NO && [o terminating] == NO)
     {
       NSString	*name = [o name];
       NSString	*s;
       NSString	*t;
       EcAlarm	*a;
-
-      [[[[o obj] connectionForProxy] sendPort] invalidate];
 
       s = EcMakeManagedObject(host, name, nil);
       a = [EcAlarm alarmForManagedObject: s
