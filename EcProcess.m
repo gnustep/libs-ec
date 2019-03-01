@@ -51,7 +51,6 @@
 #import <GNUstepBase/GSObjCRuntime.h>
 #import <GNUstepBase/NSObject+GNUstepBase.h>
 
-
 #import "EcProcess.h"
 #import "EcLogger.h"
 #import "EcAlarm.h"
@@ -243,6 +242,7 @@ static BOOL		cmdFlagDaemon = NO;
 static BOOL		cmdFlagTesting = NO;
 static BOOL		cmdIsRunning = NO;
 static BOOL		cmdKeepStderr = NO;
+static BOOL		cmdKillDebug = NO;
 static NSString		*cmdBase = nil;
 static NSString		*cmdInst = nil;
 static NSString		*cmdName = nil;
@@ -1609,8 +1609,11 @@ findMode(NSDictionary* d, NSString* s)
 
       /* See if we should keep stderr separate, or merge it with
        * our debug output (the default).
+       * In addition, we can kill debug output (and standard error
+       * if it's not kept separate) by sending it to /dev/null
        */
       cmdKeepStderr = [cmdDefs boolForKey: @"KeepStandardError"];
+      cmdKillDebug = [cmdDefs boolForKey: @"KillDebugOutput"];
 
       if (nil == noNetConfig)
 	{
@@ -2281,8 +2284,17 @@ static NSString	*noFiles = @"No log files to archive";
           [self ecUnLock];
 	  return nil;
 	}
-      /*
-       * As a special case, if this is the default debug file
+
+      if (YES == cmdKillDebug && [name isEqual: cmdDebugName] == YES)
+	{
+	  const char	*msg = "Logging suppressed by KillDebugOutput=YES\n";
+
+	  [hdl writeData: [NSData dataWithBytes: msg length: strlen(msg)]];
+	  [hdl closeFile];
+	  hdl = [NSFileHandle fileHandleWithNullDevice];
+	}
+
+      /* As a special case, if this is the default debug file
        * we must set it up to write to stderr.
        */
       if (NO == cmdKeepStderr && [name isEqual: cmdDebugName] == YES)
