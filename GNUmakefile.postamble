@@ -39,7 +39,8 @@ after-uninstall::
 # before-distclean::
 
 # Things to do after distcleaning
-# after-distclean::
+after-distclean::
+	rm config.h config.log config.make config.status
 
 # Things to do before checking
 # before-check::
