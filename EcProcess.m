@@ -2009,6 +2009,31 @@ static NSString	*noFiles = @"No log files to archive";
 
   [EcDefaultRegistration defaultsChanged: cmdDefs];
 
+  /* Update debug output kill status if necessary.
+   */
+  if ([cmdDefs boolForKey: @"KillDebugOutput"] != cmdKillDebug)
+    {
+      NSFileHandle	*hdl;
+
+      [ecLock lock];
+      hdl = [cmdLogMap objectForKey: cmdDebugName];
+      if (hdl != nil)
+	{
+	  if (cmdKillDebug == NO)
+	    {
+	      NSString	*msg;
+
+	      msg = cmdLogFormat(LT_WARNING,
+	        @"Logging suppressed by KillDebugOutput=YES");
+	      [hdl writeData: [msg dataUsingEncoding: NSUTF8StringEncoding]];
+	    }
+	  [self ecLogEnd: cmdDebugName to: nil];
+	}
+      [ecLock unlock];
+      cmdKillDebug = (NO == cmdKillDebug ? YES : NO);
+      [self cmdLogFile: cmdDebugName];
+    }
+
   enumerator = [cmdDebugKnown keyEnumerator];
   while (nil != (mode = [enumerator nextObject]))
     {
@@ -2246,52 +2271,53 @@ static NSString	*noFiles = @"No log files to archive";
   hdl = [cmdLogMap objectForKey: name];
   if (nil == hdl)
     {
-      NSFileManager	*mgr = [NSFileManager defaultManager];
-      NSString		*path;
-
-      path = [cmdLogsDir(nil) stringByAppendingPathComponent: name];
-
       /* Archive any old left-over file.
        */
       [self _moveLog: name to: nil];
 
-      /*
-       * Create the file if necessary, and open it for updating.
-       */
-      if ([mgr isWritableFileAtPath: path] == NO
-	&& [mgr createFileAtPath: path contents: nil attributes: nil] == NO)
+      if (YES == cmdKillDebug && [name isEqual: cmdDebugName] == YES)
 	{
-	  NSLog(@"File '%@' is not writable and can't be created", path);
+	  /* Output is killed so we don't need to create the file
+	   * and can simply write to /dev/null
+	   */
+	  hdl = [NSFileHandle fileHandleWithNullDevice];
 	}
       else
 	{
-	  hdl = [NSFileHandle fileHandleForUpdatingAtPath: path];
-	  if (hdl == nil)
+	  NSFileManager	*mgr = [NSFileManager defaultManager];
+	  NSString	*path;
+
+	  path = [cmdLogsDir(nil) stringByAppendingPathComponent: name];
+
+	  /* Create the file if necessary, and open it for updating.
+	   */
+	  if ([mgr isWritableFileAtPath: path] == NO
+	    && [mgr createFileAtPath: path contents: nil attributes: nil] == NO)
 	    {
-	      if (status != nil)
-		{
-		  NSLog(@"%@", status);
-		}
-	      NSLog(@"Unable to log to %@", path);
+	      NSLog(@"File '%@' is not writable and can't be created", path);
 	    }
 	  else
 	    {
-	      [hdl seekToEndOfFile];
+	      hdl = [NSFileHandle fileHandleForUpdatingAtPath: path];
+	      if (hdl == nil)
+		{
+		  if (status != nil)
+		    {
+		      NSLog(@"%@", status);
+		    }
+		  NSLog(@"Unable to log to %@", path);
+		}
+	      else
+		{
+		  [hdl seekToEndOfFile];
+		}
 	    }
 	}
+
       if (hdl == nil)
 	{
-          [self ecUnLock];
+	  [self ecUnLock];
 	  return nil;
-	}
-
-      if (YES == cmdKillDebug && [name isEqual: cmdDebugName] == YES)
-	{
-	  const char	*msg = "Logging suppressed by KillDebugOutput=YES\n";
-
-	  [hdl writeData: [NSData dataWithBytes: msg length: strlen(msg)]];
-	  [hdl closeFile];
-	  hdl = [NSFileHandle fileHandleWithNullDevice];
 	}
 
       /* As a special case, if this is the default debug file
@@ -4026,7 +4052,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               if ([key isEqualToString: ecControlKey])
                 {
                   [self cmdPrintf: @"%@ can only be set on startup.\n", key];
-                  val = nil;
+                  return;
+                }
+              else if ([key isEqualToString: @"KillDebugOutput"])
+                {
+                  [self cmdPrintf: @"%@ can not be overridden.\n", key];
+                  return;
                 }
               else
                 {
@@ -4040,7 +4071,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               if ([key isEqualToString: ecControlKey])
                 {
                   [self cmdPrintf: @"%@ can only be set on startup.\n", key];
-                  val = nil;
+                  return;
+                }
+              else if ([key isEqualToString: @"KillDebugOutput"])
+                {
+                  [self cmdPrintf: @"%@ can not be overridden.\n", key];
+                  return;
                 }
               else if ([msg count] == 4)
                 {

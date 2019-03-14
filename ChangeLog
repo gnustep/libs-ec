@@ -1,3 +1,11 @@
+2019-03-02  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProces.h:
+	* EcProces.m:
+	Add KillDebugOutput option to configure a process to avoid logging
+	on systems where logged information should not be available for
+	security reasons.  This option is not overidable from the Console.
+
 2019-02-15  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcControl.m: If we get an alarm clear before we have reported the
