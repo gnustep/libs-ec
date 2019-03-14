@@ -251,15 +251,6 @@ extern NSString*	cmdVersion(NSString *ver);
  *     The default (EcKeepStandardError set to NO) is to merge the
  *     standard error logging with the debug logging.
  *   </desc>
- *   <term>EcKillDebugOutput</term>
- *   <desc>
- *     This boolean value determines whether debug output (including anything
- *     written to the standard error output if that is merged with debug)
- *     should be discarded (sent to the null device).<br />
- *     This setting cannot e controlled from the Console command line.<br />
- *     The default (EcKillDebugOutput set to NO) is to write debug output to
- *     file.
- *   </desc>
  *   <term>EcTransient</term>
  *   <desc>
  *     This boolean option is used to specify that the program
