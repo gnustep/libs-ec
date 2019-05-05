@@ -38,6 +38,7 @@
 #import "config.h"
 
 #define	DLY	300.0
+#define	FIB	0.1
 
 static const NSTimeInterval   day = 24.0 * 60.0 * 60.0;
 
@@ -103,6 +104,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (NSDictionary*) configuration;
 - (NSTimeInterval) delay;
 - (BOOL) disabled;
+- (BOOL) mayCoreDump;
 - (void) resetDelay;
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setWhen: (NSDate*)w;
@@ -187,7 +189,7 @@ static NSMutableDictionary	*launchInfo = nil;
     {
       if (fib1 <= 0.0)
 	{
-	  fib0 = fib1 = delay = 0.1;
+	  fib0 = fib1 = delay = FIB;
 	}
       else
 	{
@@ -203,6 +205,20 @@ static NSMutableDictionary	*launchInfo = nil;
 - (BOOL) disabled
 {
   return [[conf objectForKey: @"Disabled"] boolValue];
+}
+
+- (BOOL) mayCoreDump
+{
+  if (fib1 > FIB)
+    {
+      /* If fib1 is greater than the base value, we must have already done
+       * one restart due to a failure in launch or crash in early life.
+       * We therefore want to suppress core dumps from subsequent crashes
+       * in order to avoid filling the disk too quickly.
+       */
+      return NO;
+    }
+  return YES;
 }
 
 - (void) resetDelay
@@ -2150,6 +2166,22 @@ static NSMutableDictionary	*launchInfo = nil;
               [a addObject: home];
               args = a;
             }
+
+	  /* If we do not want the process to core-dump, we need to add
+	   * the argument to tell it.
+	   */
+	  if ([l mayCoreDump] == NO)
+	    {
+              NSMutableArray    *a = [[args mutableCopy] autorelease];
+
+              if (nil == a)
+                {
+                  a = [NSMutableArray arrayWithCapacity: 2];
+                }
+              [a addObject: @"-CoreSize"];
+              [a addObject: @"0"];
+              args = a;
+	    }
 
           /* Record time of launch start and the fact that this is launching.
            */

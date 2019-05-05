@@ -9,6 +9,9 @@
 	process launches successfully, the process must also stay alive and
 	respond to a few 'pings' before it is considered a successful launch
 	causing the inter-launch delay to be reset.
+	Also, from the second relaunch onwards in any sequence of failures,
+	the -CoreSize 0 arguments are passed to the lanched process to tell
+	it ti suppress core dumps.
 
 2019-03-02  Richard Frith-Macdonald <rfm@gnu.org>
 
