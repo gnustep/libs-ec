@@ -1,7 +1,19 @@
+2019-05-05  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	Rewrite code for launching/relaunching processes so that a crashing
+	process will not get relaunched too frequently (eg filling a disk
+	with core dumps).  We employ a fibonacci sequence to produce
+	increasing delays between successive launch failures (starting with
+	a tenth of a second).  This sequence is not reset simply because a
+	process launches successfully, the process must also stay alive and
+	respond to a few 'pings' before it is considered a successful launch
+	causing the inter-launch delay to be reset.
+
 2019-03-02  Richard Frith-Macdonald <rfm@gnu.org>
 
-	* EcProces.h:
-	* EcProces.m:
+	* EcProcess.h:
+	* EcProcess.m:
 	Add KillDebugOutput option to configure a process to avoid logging
 	on systems where logged information should not be available for
 	security reasons.  This option is not overidable from the Console.

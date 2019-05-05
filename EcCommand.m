@@ -87,6 +87,145 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
 }
 
+@interface	LaunchInfo : NSObject
+{
+  NSString		*name;	// The name of this process
+  NSDictionary		*conf;	// The configuration from Control.plist
+  NSDate		*when;	// The timestamp we want to launch at
+  NSTimeInterval	fib0;	// fibonacci sequence for delays
+  NSTimeInterval	fib1;	// fibonacci sequence for delays
+}
++ (LaunchInfo*) existing: (NSString*)name;
++ (LaunchInfo*) launchInfo: (NSString*)name;
++ (NSArray*) names;
++ (void) remove: (NSString*)name;
+- (BOOL) autoLaunch;
+- (NSDictionary*) configuration;
+- (NSTimeInterval) delay;
+- (BOOL) disabled;
+- (void) resetDelay;
+- (void) setConfiguration: (NSDictionary*)c;
+- (void) setWhen: (NSDate*)w;
+- (NSDate*) when;
+@end
+
+@implementation	LaunchInfo
+
+static NSMutableDictionary	*launchInfo = nil;
+
++ (LaunchInfo*) existing: (NSString*)name
+{
+  LaunchInfo	*l = RETAIN([launchInfo objectForKey: name]);
+
+  return AUTORELEASE(l);
+}
+
++ (void) initialize
+{
+  if (nil == launchInfo)
+    {
+      launchInfo = [NSMutableDictionary new];
+    }
+}
+
++ (LaunchInfo*) launchInfo: (NSString*)name
+{
+  LaunchInfo	*l = [launchInfo objectForKey: name];
+
+  if (nil == RETAIN(l))
+    {
+      l = [self new];
+      ASSIGNCOPY(l->name, name);
+      [launchInfo setObject: l forKey: l->name];
+    }
+  return AUTORELEASE(l);
+}
+
++ (NSArray*) names
+{
+  return [launchInfo allKeys];
+}
+
++ (void) remove: (NSString*)name
+{
+  [launchInfo removeObjectForKey: name];
+}
+
+- (BOOL) autoLaunch
+{
+  return [[conf objectForKey: @"Auto"] boolValue];
+}
+
+- (NSDictionary*) configuration
+{
+  return AUTORELEASE(RETAIN(conf));
+}
+
+- (void) dealloc
+{
+  RELEASE(name);
+  RELEASE(conf);
+  RELEASE(when);
+  [super dealloc];
+}
+
+/* The next delay for launchng this process.  If Time is configured,
+ * we use it (a value in seconds), otherwise we generate a fibonacci
+ * sequence of increasingly larger delays each time a launch attempt
+ * needs to be made.
+ */
+- (NSTimeInterval) delay
+{
+  NSTimeInterval	delay;
+  NSString		*t;
+
+  if (nil != (t = [conf objectForKey: @"Time"]) && [t doubleValue] > 0)
+    {
+      delay = [t doubleValue];
+    }
+  else
+    {
+      if (fib1 <= 0.0)
+	{
+	  fib0 = fib1 = delay = 0.1;
+	}
+      else
+	{
+	  delay = fib0 + fib1;
+	  fib0 = fib1;
+	  fib1 = delay;
+	}
+    }
+  [self setWhen: [NSDate dateWithTimeIntervalSinceNow: delay]];
+  return delay;
+}
+
+- (BOOL) disabled
+{
+  return [[conf objectForKey: @"Disabled"] boolValue];
+}
+
+- (void) resetDelay
+{
+  fib0 = fib1 = 0.0;
+}
+
+- (void) setConfiguration: (NSDictionary*)c
+{
+  ASSIGNCOPY(conf, c);
+}
+
+- (void) setWhen: (NSDate*)w
+{
+  ASSIGNCOPY(when, w);
+}
+
+- (NSDate*) when
+{
+  return AUTORELEASE(RETAIN(when));
+}
+@end
+
 /* Special configuration options are:
  *
  * CompressLogsAfter
@@ -127,10 +266,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSMutableDictionary	*config;
   NSUInteger            launchLimit;
   BOOL                  launchSuspended;
-  NSDictionary		*launchInfo;
   NSArray               *launchOrder;
   NSDictionary		*environment;
-  NSMutableDictionary	*launches;
   NSMutableDictionary   *launching;
   unsigned		pingPosition;
   NSTimer		*terminating;
@@ -176,7 +313,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  to: (NSString*)d
 		type: (EcLogType)t;
 - (void) killAll;
-- (void) launch;
+- (void) launchAny;
 - (void) logMessage: (NSString*)msg
 	       type: (EcLogType)t
 	        for: (id<CmdClient>)o;
@@ -321,21 +458,22 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       unsigned		i;
 
       ASSIGN(config, newConfig);
-
       d = [config objectForKey: [self cmdName]];
       launchLimit = 0;
-      DESTROY(launchInfo);
       DESTROY(launchOrder);
       DESTROY(environment);
       if ([d isKindOfClass: [NSDictionary class]] == YES)
 	{
+	  NSMutableArray	*missing;
+	  NSDictionary		*conf;
+	  NSEnumerator		*e;
           id                    o;
           NSInteger             i;
           NSMutableDictionary   *m;
 	  NSString              *k;
           NSString              *err = nil;
 
-          m = [[d mutableCopy] autorelease];
+          m = AUTORELEASE([d mutableCopy]);
           d = m;
           NS_DURING
             [self cmdUpdate: m];
@@ -410,87 +548,94 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               launchLimit = (NSUInteger)i;
             }
 
-	  launchInfo = [d objectForKey: @"Launch"];
-	  if ([launchInfo isKindOfClass: [NSDictionary class]] == NO)
+	  missing = AUTORELEASE([[LaunchInfo names] mutableCopy]);
+	  conf = [d objectForKey: @"Launch"];
+	  if ([conf isKindOfClass: [NSDictionary class]] == NO)
 	    {
 	      NSLog(@"No 'Launch' information in latest config update");
-	      launchInfo = nil;
 	    }
 	  else
 	    {
-	      NSEnumerator	*e = [launchInfo keyEnumerator];
+	      e = [conf keyEnumerator];
 
 	      while ((k = [e nextObject]) != nil)
 		{
-		  NSDictionary	*d = [launchInfo objectForKey: k];
+		  NSDictionary	*d = [conf objectForKey: k];
+		  LaunchInfo	*l;
 		  id		o;
 
 		  if ([d isKindOfClass: [NSDictionary class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' information for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Auto"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Auto for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Time"];
 		  if (o != nil && ([o isKindOfClass: [NSString class]] == NO
                     || [o intValue] < 1 || [o intValue] > 600))
 		    {
 		      NSLog(@"bad 'Launch' Time for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Disabled"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Disabled for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Args"];
 		  if (o != nil && [o isKindOfClass: [NSArray class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Args for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Home"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Home for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"Prog"];
 		  if (o == nil || [o isKindOfClass: [NSString class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' Prog for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"AddE"];
 		  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' AddE for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
 		  o = [d objectForKey: @"SetE"];
 		  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 		    {
 		      NSLog(@"bad 'Launch' SetE for %@", k);
-		      launchInfo = nil;
-		      break;
+		      continue;
 		    }
+
+		  /* Now that we have validated the config, we update
+		   * (creating if necessary) the LaunchInfo object.
+		   */
+		  l = [LaunchInfo launchInfo: k];
+		  [l setConfiguration: d];
+		  [missing removeObject: k];
 		}
 	    }
-	  RETAIN(launchInfo);
+
+	  /* Now any process names which have no configuration must be
+	   * removed from the list of launchable processes.
+	   */
+	  e = [missing objectEnumerator];
+	  while (nil != (k = [e nextObject]))
+	    {
+	      [LaunchInfo remove: k];
+	    }
 
           o = [d objectForKey: @"LaunchOrder"];
           if (NO == [o isKindOfClass: [NSArray class]])
@@ -501,7 +646,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                 }
               /* The default launch order is alphabetical by server name.
                */
-              o = [[launchInfo allKeys] sortedArrayUsingSelector:
+              o = [[LaunchInfo names] sortedArrayUsingSelector:
                 @selector(compare:)];
               launchOrder = RETAIN(o);
             }
@@ -529,17 +674,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                         @" (repeat of earlier item)", o, (unsigned)c);
                       [m removeObjectAtIndex: c];
                     }
-                  else if (nil == [launchInfo objectForKey: o])
+                  else if (nil == [LaunchInfo existing: o])
                     {
                       NSLog(@"bad 'LaunchOrder' item ('%@' at %u) ignored"
                         @" (not in 'Launch' dictionary)", o, (unsigned)c);
                       [m removeObjectAtIndex: c];
                     }
                 }
+
               /* Any missing servers are launched after others
                * they are in lexicographic order.
                */
-              o = [[launchInfo allKeys] sortedArrayUsingSelector:
+              o = [[LaunchInfo names] sortedArrayUsingSelector:
                 @selector(compare:)];
               e = [o objectEnumerator];
               while (nil != (k = [e nextObject]))
@@ -661,27 +807,21 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) clientLost: (EcClientI*)o 
 {
-  BOOL  wasTerminating = [o terminating];
+  BOOL  	wasTerminating = [o terminating];
+  NSString	*name = [o name];
 
   [o setUnregistered: YES];
   [clients removeObjectIdenticalTo: o];
+  [launching removeObjectForKey: name];
 
   if ([o transient] == NO)
     {
-      NSString	*name = [o name];
-
       [[[[o obj] connectionForProxy] sendPort] invalidate];
-      if (YES == wasTerminating)
+      if (NO == wasTerminating)
         {
-          /* Don't re-launch a terminating client
-           */
-          [launching removeObjectForKey: name];
-        }
-      else
-        {
-          NSString	*s;
-          NSString	*t;
-          EcAlarm	*a;
+	  LaunchInfo		*l = [LaunchInfo existing: name];
+          NSString		*s;
+          EcAlarm		*a;
 
           s = EcMakeManagedObject(host, name, nil);
           a = [EcAlarm alarmForManagedObject: s
@@ -694,21 +834,27 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
             additionalText: @"removed (lost) server"];
           [self alarm: a];
 
-          t = [[launchInfo objectForKey: name] objectForKey: @"Time"];
-          if ([t intValue] > 0)
-            {
-              [NSTimer scheduledTimerWithTimeInterval: [t intValue]
-                                       target: self
-                                     selector: @selector(reLaunch:)
-                                     userInfo: name
-                                      repeats: NO];
-            }     
-          else
-            {
-              [launches setObject: [NSDate distantPast]
-                           forKey: name];
-              [self timeoutSoon];
-            }
+	  if (l != nil && [l autoLaunch] == YES && [l disabled] == NO)
+	    {
+	      NSTimeInterval	delay = [l delay];
+
+	      s = [NSString stringWithFormat: 
+		@"%@ removed (lost) server with name '%@' on %@."
+		@" Relaunch in %g seconds.\n",
+		[NSDate date], name, host, delay];
+	      [NSTimer scheduledTimerWithTimeInterval: delay
+					       target: self
+					     selector: @selector(reLaunch:)
+					     userInfo: name
+					      repeats: NO];
+	    }
+	  else
+	    {
+	      s = [NSString stringWithFormat: 
+		@"%@ removed (lost) server with name '%@' on %@.\n",
+		[NSDate date], name, host];
+	    }
+	  [[self cmdLogFile: logname] puts: s];
         }
     }
 }
@@ -745,10 +891,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       if (r != nil && num > 2)
 	{
           NSString	*managedObject;
-          NSString      *n;
+          NSString      *n = [r name];
+	  LaunchInfo	*l = [LaunchInfo existing: n];
           EcAlarm	*a;
 
-          n = [r name];
+	  /* This was a successful launch so we don't need to impose
+	   * a delay between launch attempts.
+	   */
+	  [l resetDelay];
 
           /* After the first few ping responses from a client we assume
            * that client has completed startup and is running OK.
@@ -962,7 +1112,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                   all = YES;
                 }
 
-	      if (launchInfo != nil)
+	      if ([[LaunchInfo names] count] > 0)
 		{
 		  NSEnumerator	*enumerator;
 		  NSString	*key;
@@ -976,10 +1126,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                       while ((key = [enumerator nextObject]) != nil)
                         {
                           EcClientI	*r;
+			  LaunchInfo	*l;
                           NSDictionary  *inf;
 
-                          inf = [launchInfo objectForKey: key];
-			  if ([[inf objectForKey: @"Auto"] boolValue]==NO)
+                          l = [LaunchInfo existing: key];
+                          inf = [l configuration];
+			  if ([l autoLaunch] == NO)
                             {
                               continue;
                             }
@@ -989,8 +1141,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                               continue;
                             }
                           found = YES;
-                          [launches setObject: [NSDate distantPast]
-                                       forKey: key];
+			  if (nil != l)
+			    {
+			      [l setWhen: [NSDate distantPast]];
+			    }
                           [names addObject: key];
                         }
                       if (YES == found)
@@ -1013,8 +1167,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                               r = [self findIn: clients byName: key];
                               if (r == nil)
                                 {
-                                  [launches setObject: [NSDate distantPast]
-                                               forKey: key];
+				  LaunchInfo	*l;
+
+				  l = [LaunchInfo existing: key];
+				  if (nil != l)
+				    {
+				      [l setWhen: [NSDate distantPast]];
+				    }
                                   m = @"Ok - I will launch that program "
                                       @"when I get a chance.\n";
                                 }
@@ -1065,7 +1224,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    }
 	  else if (comp(wd, @"launches") >= 0)
 	    {
-	      if (launchInfo != nil)
+	      NSArray	*names = [LaunchInfo names];
+
+	      if ([names count] > 0)
 		{
 		  NSEnumerator	*enumerator;
 		  NSString	*key;
@@ -1073,33 +1234,33 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  NSDate	*now = [NSDate date];
 
 		  m = @"Programs we can launch -\n";
-		  enumerator = [[[launchInfo allKeys] sortedArrayUsingSelector:
+		  enumerator = [[names sortedArrayUsingSelector:
 		    @selector(compare:)] objectEnumerator];
 		  while ((key = [enumerator nextObject]) != nil)
 		    {
-		      EcClientI	*r;
-		      NSDictionary	*inf = [launchInfo objectForKey: key];
+		      EcClientI		*r;
+		      LaunchInfo	*l = [LaunchInfo existing: key];
 
 		      m = [m stringByAppendingFormat: @"  %-32.32s ",
 			[key cString]];
 		      r = [self findIn: clients byName: key];
 		      if (r == nil)
 			{
-			  if ([[inf objectForKey: @"Disabled"] boolValue]==YES)
+			  if ([l disabled] == YES)
 			    {
 			      m = [m stringByAppendingString: 
 				@"disabled in config\n"];
 			    }
-			  else if ([[inf objectForKey: @"Auto"] boolValue]==NO)
+			  else if ([l autoLaunch] == NO)
 			    {
-			      date = [launches objectForKey: key];
+			      date = [[LaunchInfo existing: key] when];
 			      if (nil == date
 				|| [NSDate distantFuture] == date)
 				{
 				  m = [m stringByAppendingString: 
 				    @"may be launched manually\n"];
 				}
-			      else if ([now timeIntervalSinceDate: date] > DLY)
+			      else if ([now timeIntervalSinceDate: date] > 0.0)
 				{
 				  m = [m stringByAppendingString: 
 				    @"ready to autolaunch now\n"];
@@ -1112,11 +1273,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			    }
 			  else
 			    {
-			      date = [launches objectForKey: key];
+			      LaunchInfo	*l;
+
+			      l = [LaunchInfo existing: key];
+			      date = [l when];
 			      if (date == nil)
 				{
 				  date = now;
-				  [launches setObject: date forKey: key];
+				  [l setWhen: date];
 				}
 			      if ([NSDate distantFuture] == date)
 				{
@@ -1125,7 +1289,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 				}
 			      else
 				{
-				  if ([now timeIntervalSinceDate: date] > DLY)
+				  if ([now timeIntervalSinceDate: date] > 0.0)
 				    {
 				      m = [m stringByAppendingString: 
 					@"ready to autolaunch now\n"];
@@ -1238,8 +1402,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 		      NS_DURING
 			{
-			  [launches setObject: [NSDate distantFuture]
-				       forKey: [c name]];
+			  LaunchInfo	*l;
+
+			  l = [LaunchInfo existing: [c name]];
+			  if (nil != l)
+			    {
+			      [l setWhen: [NSDate distantFuture]];
+			    }
 			  m = [m stringByAppendingFormat: 
 			    @"Sent 'quit' to '%@'\n", [c name]];
 			  m = [m stringByAppendingString:
@@ -1255,7 +1424,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			}
 		      NS_ENDHANDLER
 		    } 
-		  if (launchInfo != nil)
+		  if ([launchInfo count] > 0)
 		    {
 		      NSEnumerator	*enumerator;
 		      NSString		*key;
@@ -1265,11 +1434,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			{
 			  if (comp(wd, key) >= 0)
 			    {
-			      NSDate	*when = [launches objectForKey: key];
+			      LaunchInfo	*l;
+			      NSDate		*when;
 
+			      l = [LaunchInfo existing: key];
+			      when = [l when];
+			      if (nil != l)
+				{
+				  [l setWhen: [NSDate distantFuture]];
+				}
 			      found = YES;
-			      [launches setObject: [NSDate distantFuture]
-					   forKey: key];
 			      if (when != [NSDate distantFuture])
 				{
 				  m = [m stringByAppendingFormat:
@@ -1349,14 +1523,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                   reason = [NSString stringWithFormat:
                     @"Console 'restart ...' from '%@'", f];
 
-                  when = [NSDate dateWithTimeIntervalSinceNow: 30.0 - DLY];
+                  when = [NSDate dateWithTimeIntervalSinceNow: 30.0];
 		  for (i = 0; i < [a count]; i++)
 		    {
 		      EcClientI	*c = [a objectAtIndex: i];
 
 		      NS_DURING
 			{
-			  [launches setObject: when forKey: [c name]];
+			  LaunchInfo	*l;
+
+			  l = [LaunchInfo existing: [c name]];
+			  [l resetDelay];
+			  [l setWhen: when];
 			  m = [m stringByAppendingFormat: 
 			    @"  The process '%@' should restart shortly.\n",
 			    [c name]];
@@ -1712,7 +1890,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [timer invalidate];
     }
   RELEASE(launching);
-  RELEASE(launches);
   DESTROY(control);
   RELEASE(host);
   RELEASE(clients);
@@ -1898,7 +2075,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	}
       host = RETAIN([[NSHost currentHost] wellKnownName]);
       clients = [[NSMutableArray alloc] initWithCapacity: 10];
-      launches = [[NSMutableDictionary alloc] initWithCapacity: 10];
       launching = [[NSMutableDictionary alloc] initWithCapacity: 10];
     }
   return self;
@@ -1934,12 +2110,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   EcClientI	*r = [self findIn: clients byName: name];
 
-  if (nil == r)
+  if (nil == r && nil == [launching objectForKey: name])
     {
-      NSDictionary	*taskInfo = [launchInfo objectForKey: name];
+      LaunchInfo	*l = [LaunchInfo existing: name];
       NSString          *m;
 
-      if (nil == taskInfo)
+      if (nil == l)
         {
           m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
             @"unrecognized name to launch %@"), name];
@@ -1949,11 +2125,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else
         {
           NSDictionary	*env = environment;
-          NSArray	*args = [taskInfo objectForKey: @"Args"];
-          NSString	*home = [taskInfo objectForKey: @"Home"];
-          NSString	*prog = [taskInfo objectForKey: @"Prog"];
-          NSDictionary	*addE = [taskInfo objectForKey: @"AddE"];
-          NSDictionary	*setE = [taskInfo objectForKey: @"SetE"];
+	  NSDictionary	*conf = [l configuration];
+          NSArray	*args = [conf objectForKey: @"Args"];
+          NSString	*home = [conf objectForKey: @"Home"];
+          NSString	*prog = [conf objectForKey: @"Prog"];
+          NSDictionary	*addE = [conf objectForKey: @"AddE"];
+          NSDictionary	*setE = [conf objectForKey: @"SetE"];
           NSString      *failed = nil;
           NSTask        *task = nil;
           NSString	*m;
@@ -1976,7 +2153,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
           /* Record time of launch start and the fact that this is launching.
            */
-          [launches setObject: [NSDate date] forKey: name];
+          [l setWhen: [NSDate date]];
           if (nil != [launching objectForKey: name])
             {
               NSString  *managedObject;
@@ -2037,19 +2214,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                     {
                       NSString  *s;
 
-                      s = [taskInfo objectForKey: @"KeepStandardInput"];
+                      s = [conf objectForKey: @"KeepStandardInput"];
                       if (NO == [s respondsToSelector: @selector(boolValue)]
                         || NO == [s boolValue])
                         {
                           [task setStandardInput: hdl];
                         }
-                      s = [taskInfo objectForKey: @"KeepStandardOutput"];
+                      s = [conf objectForKey: @"KeepStandardOutput"];
                       if (NO == [s respondsToSelector: @selector(boolValue)]
                         || NO == [s boolValue])
                         {
                           [task setStandardOutput: hdl];
                         }
-                      s = [taskInfo objectForKey: @"KeepStandardError"];
+                      s = [conf objectForKey: @"KeepStandardError"];
                       if (NO == [s respondsToSelector: @selector(boolValue)]
                         || NO == [s boolValue])
                         {
@@ -2104,7 +2281,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
  * as many as it can (by calling the -launch: method for each).  Tasks are
  * launched in the preferred order defined by the launchOrder array.
  */
-- (void) launch
+- (void) launchAny
 {
   NSAutoreleasePool     *arp;
   NSMutableArray        *toTry;
@@ -2134,17 +2311,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 	  if (nil == r)
 	    {
-	      NSDictionary	*taskInfo = [launchInfo objectForKey: key];
+	      LaunchInfo	*l = [LaunchInfo existing: key];
               NSDate		*date;
-	      BOOL		disabled;
-	      BOOL		autoLaunch;
-
-	      autoLaunch = [[taskInfo objectForKey: @"Auto"] boolValue];
-	      disabled = [[taskInfo objectForKey: @"Disabled"] boolValue];
+	      BOOL		disabled = [l disabled];
+	      BOOL		autoLaunch = [l autoLaunch];
 
 	      if (disabled == NO)
 		{
-		  date = [launches objectForKey: key];
+		  date = [l when];
 		  if (nil == date)
 		    {
 		      if (autoLaunch == YES)
@@ -2163,7 +2337,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    }
                   else
                     {
-                      if ([now timeIntervalSinceDate: date] < DLY)
+                      if ([now timeIntervalSinceDate: date] < 0.0)
                         {
                           /* This was already launched recently.
                            * Don't retry yet.
@@ -2283,12 +2457,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (launchInfo != nil)
     {
       NSEnumerator	*enumerator;
-      NSString	*key;
+      NSString		*name;
 
-      enumerator = [launchOrder objectEnumerator];
-      while ((key = [enumerator nextObject]) != nil)
+      enumerator = [[LaunchInfo names] objectEnumerator];
+      while ((name = [enumerator nextObject]) != nil)
 	{
-	  [launches setObject: [NSDate distantFuture] forKey: key];
+	  [[LaunchInfo existing: name] setWhen: [NSDate distantFuture]];
 	}
     }
 
@@ -2317,7 +2491,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    {
 	      NS_DURING
 		{
-		  [launches setObject: [NSDate distantFuture] forKey: n];
+		  LaunchInfo	*l = [LaunchInfo existing: n];
+
+		  [l setWhen: [NSDate distantFuture]];
                   [c setTerminating: YES];
 		  [[c obj] cmdQuit: 0];
 		}
@@ -2352,7 +2528,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  NS_DURING
 		    {
-		      [launches setObject: [NSDate distantFuture] forKey: n];
+		      LaunchInfo	*l = [LaunchInfo existing: n];
+
+		      [l setWhen: [NSDate distantFuture]];
                       [c setTerminating: YES];
 		      [[c obj] cmdQuit: 0];
 		    }
@@ -2429,7 +2607,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
   if ((old = [self findIn: clients byName: n]) == nil)
     {
-      NSData	*d;
+      LaunchInfo	*l = [LaunchInfo existing: n];
+      NSData		*d;
 
       [clients addObject: obj];
       RELEASE(obj);
@@ -2438,18 +2617,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [obj setProcessIdentifier: [c processIdentifier]];
 
       /* This client has launched ... remove it from the set of launching
-       * clients and the set of launchable clients.
+       * clients.
        */
       [launching removeObjectForKey: n];
-      [launches removeObjectForKey: n];
+      [l setWhen: [NSDate distantFuture]];
 
       /* If this client is in the list of clients launched automatically
        * add its launch timestamp so it will be restarted quickly if it
        * gets shut down.
        */
-      if ([[[launchInfo objectForKey: n] objectForKey: @"Auto"] boolValue])
+      if ([l autoLaunch])
         {
-          [launches setObject: [NSDate date] forKey: n];
+          [l setWhen: [NSDate date]];
         }
 
       m = [NSString stringWithFormat: 
@@ -2500,8 +2679,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     && [self findIn: clients byName: name] == nil
     && [launching objectForKey: name] == nil)
     {
-      [launches setObject: [NSDate distantPast]
-                   forKey: name];
+      LaunchInfo	*l;
+
+      l = [LaunchInfo existing: name];
+      [l setWhen: [NSDate date]];
       [self timeoutSoon];
     } 
 }
@@ -2545,14 +2726,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       unsigned	j;
       NSDate    *when;
 
-
       /* We tell all connected clients to quit ...
        * clients are allowed 30 seconds to terminate
        * (though we give them 35 to allow for delays).
        */
       a = [[clients mutableCopy] autorelease];
       i = [a count];
-      when = [NSDate dateWithTimeIntervalSinceNow: 35.0 - DLY];
+      when = [NSDate dateWithTimeIntervalSinceNow: 35.0];
       while (i-- > 0)
 	{
 	  EcClientI	*c = [a objectAtIndex: i];
@@ -2565,7 +2745,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    {
 	      NS_DURING
 		{
-		  [launches setObject: when forKey: [c name]];
+		  LaunchInfo	*l;
+
+		  l = [LaunchInfo existing: [c name]];
+		  [l resetDelay];
+		  [l setWhen: when];
                   [c setRestarting: YES];
                   [[c obj] ecRestart: reason];
 		}
@@ -2590,7 +2774,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 				       beforeDate: next];
 	    }
 	  i = [a count];
-          when = [NSDate dateWithTimeIntervalSinceNow: 30.0 - DLY];
+          when = [NSDate dateWithTimeIntervalSinceNow: 30.0];
           while (i-- > 0)
 	    {
               EcClientI	*c = [a objectAtIndex: i];
@@ -2603,7 +2787,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  NS_DURING
 		    {
-                      [launches setObject: when forKey: [c name]];
+		      LaunchInfo	*l;
+
+		      l = [LaunchInfo existing: [c name]];
+		      [l resetDelay];
+		      [l setWhen: when];
                       [c setRestarting: YES];
                       [[c obj] ecRestart: reason];
 		    }
@@ -3066,7 +3254,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      [self launch];
+
+      [self launchAny];
 
       a = AUTORELEASE([clients mutableCopy]);
       count = [a count];
@@ -3297,8 +3486,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [self update];
       if (YES == restarting)
         {
-          [launches setObject: [NSDate distantPast]
-                       forKey: name];
+	  LaunchInfo	*l;
+
+	  l = [LaunchInfo existing: name];
+          [l setWhen: [NSDate distantPast]];
           [self timeoutSoon];
         }
     }
@@ -3338,8 +3529,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [self update];
       if (YES == restarting)
         {
-          [launches setObject: [NSDate distantPast]
-                       forKey: name];
+	  LaunchInfo	*l;
+
+	  l = [LaunchInfo existing: name];
+          [l setWhen: [NSDate distantPast]];
           [self timeoutSoon];
         }
     }
