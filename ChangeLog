@@ -1,3 +1,7 @@
+2019-05-09  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Add status command for daiagnostics.
+
 2019-05-05  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

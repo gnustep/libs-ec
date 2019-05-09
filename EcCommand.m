@@ -1019,7 +1019,7 @@ static NSMutableDictionary	*launchInfo = nil;
 	    {
 	      m = @"Commands are -\n"
 	      @"Help\tArchive\tControl\tLaunch\tList\tMemory\t"
-              @"Quit\tRestart\tResume\tSuspend\tTell\n\n"
+              @"Quit\tRestart\tResume\tStatus\tSuspend\tTell\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"A command line consists of a sequence of words, "
 	      @"the first of which is the command to be executed. "
@@ -1097,6 +1097,10 @@ static NSMutableDictionary	*launchInfo = nil;
 		{
 		  m = @"Resumes the launching/relaunching of tasks.\n"
 		      @"Has no effect if launching has not been suspended.\n";
+		}
+	      else if (comp(wd, @"Status") >= 0)
+		{
+		  m = @"Reports the status of the Command server.\n";
 		}
 	      else if (comp(wd, @"Suspend") >= 0)
 		{
@@ -1283,8 +1287,8 @@ static NSMutableDictionary	*launchInfo = nil;
 				}
 			      else
 				{
-				  m = [m stringByAppendingString: 
-				    @"autolaunch in a few minutes\n"];
+				  m = [m stringByAppendingFormat: 
+				    @"autolaunch at %@\n", date];
 				}
 			    }
 			  else
@@ -1312,8 +1316,8 @@ static NSMutableDictionary	*launchInfo = nil;
 				    }
 				  else
 				    {
-				      m = [m stringByAppendingString: 
-					@"autolaunch in a few minutes\n"];
+				      m = [m stringByAppendingFormat: 
+					@"autolaunch at %@\n", date];
 				    }
 				}
 			    }
@@ -1588,6 +1592,10 @@ static NSMutableDictionary	*launchInfo = nil;
             {
 	      m = @"Launching was/is not suspended.\n";
             }
+        }
+      else if (comp(wd, @"status") >= 0)
+        {
+          m = [self description];
         }
       else if (comp(wd, @"suspend") >= 0)
 	{
@@ -1914,6 +1922,26 @@ static NSMutableDictionary	*launchInfo = nil;
   RELEASE(environment);
   RELEASE(lastUnanswered);
   [super dealloc];
+}
+
+- (NSString*) description
+{
+  NSMutableString	*m;
+
+  m = [NSMutableString stringWithFormat: @"%@ running since %@\n",
+    [super description], [self ecStarted]];
+  [m appendFormat: @"  Active clients: %u\n", (unsigned) [clients count]];
+  if (launchSuspended)
+    {
+      [m appendString: @"  Launching is currently suspended.\n"];
+    }
+  if ([launching count] > 0)
+    {
+      [m appendFormat: @"  Launching: %u of %u concurrently allowed.\n",
+	(unsigned)[launching count], (unsigned)launchLimit];
+      [m appendFormat: @"  Names: %@\n", [launching allKeys]];
+    }
+  return m;
 }
 
 - (NSArray*) findAll: (NSArray*)a
