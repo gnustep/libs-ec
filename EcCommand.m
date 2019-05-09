@@ -95,17 +95,21 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSDate		*when;	// The timestamp we want to launch at
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
+  BOOL			alive;	// The process is running
 }
++ (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
 + (LaunchInfo*) launchInfo: (NSString*)name;
 + (NSArray*) names;
 + (void) remove: (NSString*)name;
+- (BOOL) alive;
 - (BOOL) autoLaunch;
 - (NSDictionary*) configuration;
 - (NSTimeInterval) delay;
 - (BOOL) disabled;
 - (BOOL) mayCoreDump;
 - (void) resetDelay;
+- (void) setAlive: (BOOL)l;
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setWhen: (NSDate*)w;
 - (NSDate*) when;
@@ -114,6 +118,39 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 @implementation	LaunchInfo
 
 static NSMutableDictionary	*launchInfo = nil;
+
++ (NSString*) description
+{
+  NSEnumerator		*e = [launchInfo objectEnumerator];
+  LaunchInfo		*l;
+  unsigned		disabled = 0;
+  unsigned		launchable = 0;
+  unsigned		suspended = 0;
+  unsigned		alive = 0;
+
+  while (nil != (l = [e nextObject]))
+    {
+      if ([l alive])
+	{
+	  alive++;
+	}
+      else if ([l disabled])
+	{
+	  disabled++;
+	}
+      else if ([NSDate distantFuture] == l->when)
+	{
+	  suspended++;
+	}
+      else
+	{
+	  launchable++;
+	}
+    }
+  return [NSString stringWithFormat:
+    @"LaunchInfo alive:%u, disabled:%u, suspended:%u, launchable:%u\n",
+    alive, disabled, suspended, launchable];
+}
 
 + (LaunchInfo*) existing: (NSString*)name
 {
@@ -151,6 +188,11 @@ static NSMutableDictionary	*launchInfo = nil;
 + (void) remove: (NSString*)name
 {
   [launchInfo removeObjectForKey: name];
+}
+
+- (BOOL) alive
+{
+  return alive;
 }
 
 - (BOOL) autoLaunch
@@ -224,6 +266,11 @@ static NSMutableDictionary	*launchInfo = nil;
 - (void) resetDelay
 {
   fib0 = fib1 = 0.0;
+}
+
+- (void) setAlive: (BOOL)l
+{
+  alive = (NO == l) ? NO : YES;
 }
 
 - (void) setConfiguration: (NSDictionary*)c
@@ -476,8 +523,6 @@ static NSMutableDictionary	*launchInfo = nil;
       ASSIGN(config, newConfig);
       d = [config objectForKey: [self cmdName]];
       launchLimit = 0;
-      DESTROY(launchOrder);
-      DESTROY(environment);
       if ([d isKindOfClass: [NSDictionary class]] == YES)
 	{
 	  NSMutableArray	*missing;
@@ -638,9 +683,11 @@ static NSMutableDictionary	*launchInfo = nil;
 		  /* Now that we have validated the config, we update
 		   * (creating if necessary) the LaunchInfo object.
 		   */
-		  l = [LaunchInfo launchInfo: k];
-		  [l setConfiguration: d];
-		  [missing removeObject: k];
+		  if ((l = [LaunchInfo launchInfo: k]) != nil)
+		    {
+		      [l setConfiguration: d];
+		      [missing removeObject: k];
+		    }
 		}
 	    }
 
@@ -664,7 +711,7 @@ static NSMutableDictionary	*launchInfo = nil;
                */
               o = [[LaunchInfo names] sortedArrayUsingSelector:
                 @selector(compare:)];
-              launchOrder = RETAIN(o);
+              ASSIGN(launchOrder, o);
             }
           else
             {
@@ -711,16 +758,16 @@ static NSMutableDictionary	*launchInfo = nil;
                       [m addObject: k];
                     }
                 }
-              launchOrder = [m copy];
+              ASSIGNCOPY(launchOrder, m);
             }
 
-	  environment = [d objectForKey: @"Environment"];
-	  if ([environment isKindOfClass: [NSDictionary class]] == NO)
+	  o = [d objectForKey: @"Environment"];
+	  if ([o isKindOfClass: [NSDictionary class]] == NO)
 	    {
 	      NSLog(@"No 'Environment' information in latest config update");
-	      environment = nil;
+	      o = nil;
 	    }
-	  RETAIN(environment);
+	  ASSIGN(environment, o);
 
 	  k = [d objectForKey: @"NodesFree"];
 	  if (YES == [k isKindOfClass: [NSString class]])
@@ -849,7 +896,7 @@ static NSMutableDictionary	*launchInfo = nil;
             proposedRepairAction: @"Check system status"
             additionalText: @"removed (lost) server"];
           [self alarm: a];
-
+	  [l setAlive: NO];
 	  if (l != nil && [l autoLaunch] == YES && [l disabled] == NO)
 	    {
 	      NSTimeInterval	delay = [l delay];
@@ -1163,7 +1210,7 @@ static NSMutableDictionary	*launchInfo = nil;
                           found = YES;
 			  if (nil != l)
 			    {
-			      [l setWhen: [NSDate distantPast]];
+			      [l setWhen: [NSDate date]];
 			    }
                           [names addObject: key];
                         }
@@ -1192,7 +1239,7 @@ static NSMutableDictionary	*launchInfo = nil;
 				  l = [LaunchInfo existing: key];
 				  if (nil != l)
 				    {
-				      [l setWhen: [NSDate distantPast]];
+				      [l setWhen: [NSDate date]];
 				    }
                                   m = @"Ok - I will launch that program "
                                       @"when I get a chance.\n";
@@ -1930,11 +1977,12 @@ static NSMutableDictionary	*launchInfo = nil;
 
   m = [NSMutableString stringWithFormat: @"%@ running since %@\n",
     [super description], [self ecStarted]];
-  [m appendFormat: @"  Active clients: %u\n", (unsigned) [clients count]];
   if (launchSuspended)
     {
       [m appendString: @"  Launching is currently suspended.\n"];
     }
+  [m appendFormat: @"  %@\n", [LaunchInfo description]];
+  [m appendFormat: @"  LaunchOrder: %@\n", launchOrder];
   if ([launching count] > 0)
     {
       [m appendFormat: @"  Launching: %u of %u concurrently allowed.\n",
@@ -2668,6 +2716,7 @@ static NSMutableDictionary	*launchInfo = nil;
   if ((old = [self findIn: clients byName: n]) == nil)
     {
       LaunchInfo	*l = [LaunchInfo existing: n];
+      NSDate		*now = [NSDate date];
       NSData		*d;
 
       [clients addObject: obj];
@@ -2680,20 +2729,12 @@ static NSMutableDictionary	*launchInfo = nil;
        * clients.
        */
       [launching removeObjectForKey: n];
-      [l setWhen: [NSDate distantFuture]];
-
-      /* If this client is in the list of clients launched automatically
-       * add its launch timestamp so it will be restarted quickly if it
-       * gets shut down.
-       */
-      if ([l autoLaunch])
-        {
-          [l setWhen: [NSDate date]];
-        }
+      [l setWhen: now];
+      [l setAlive: YES];
 
       m = [NSString stringWithFormat: 
 	@"%@ registered new server with name '%@' on %@\n",
-	[NSDate date], n, host];
+	now, n, host];
       [[self cmdLogFile: logname] puts: m];
       if (t == YES)
 	{
@@ -3523,8 +3564,10 @@ static NSMutableDictionary	*launchInfo = nil;
       BOOL	        restarting = [o restarting];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
+      LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
+      [l setAlive: NO];
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
@@ -3546,10 +3589,7 @@ static NSMutableDictionary	*launchInfo = nil;
       [self update];
       if (YES == restarting)
         {
-	  LaunchInfo	*l;
-
-	  l = [LaunchInfo existing: name];
-          [l setWhen: [NSDate distantPast]];
+          [l setWhen: [NSDate date]];
           [self timeoutSoon];
         }
     }
@@ -3566,8 +3606,10 @@ static NSMutableDictionary	*launchInfo = nil;
       BOOL	        restarting = [o restarting];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
+      LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
+      [l setAlive: NO];
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
@@ -3589,10 +3631,7 @@ static NSMutableDictionary	*launchInfo = nil;
       [self update];
       if (YES == restarting)
         {
-	  LaunchInfo	*l;
-
-	  l = [LaunchInfo existing: name];
-          [l setWhen: [NSDate distantPast]];
+          [l setWhen: [NSDate date]];
           [self timeoutSoon];
         }
     }
