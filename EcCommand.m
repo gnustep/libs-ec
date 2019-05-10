@@ -104,7 +104,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 + (NSArray*) names;
 + (void) remove: (NSString*)name;
 - (BOOL) alive;
-- (BOOL) autoLaunch;
+- (BOOL) autolaunch;
 - (NSDictionary*) configuration;
 - (NSTimeInterval) delay;
 - (BOOL) disabled;
@@ -125,6 +125,7 @@ static NSMutableDictionary	*launchInfo = nil;
 {
   NSEnumerator		*e = [launchInfo objectEnumerator];
   LaunchInfo		*l;
+  unsigned		autolaunch = 0;
   unsigned		disabled = 0;
   unsigned		launchable = 0;
   unsigned		suspended = 0;
@@ -146,12 +147,16 @@ static NSMutableDictionary	*launchInfo = nil;
 	}
       else
 	{
+	  if ([l autolaunch])
+	    {
+	      autolaunch++;
+	    }
 	  launchable++;
 	}
     }
-  return [NSString stringWithFormat:
-    @"LaunchInfo alive:%u, disabled:%u, suspended:%u, launchable:%u\n",
-    alive, disabled, suspended, launchable];
+  return [NSString stringWithFormat: @"LaunchInfo alive:%u, disabled:%u,"
+    @" suspended:%u, launchable:%u (auto:%u)\n",
+    alive, disabled, suspended, launchable, autolaunch];
 }
 
 + (LaunchInfo*) existing: (NSString*)name
@@ -229,7 +234,7 @@ static NSMutableDictionary	*launchInfo = nil;
   return alive;
 }
 
-- (BOOL) autoLaunch
+- (BOOL) autolaunch
 {
   return [[conf objectForKey: @"Auto"] boolValue];
 }
@@ -958,7 +963,7 @@ static NSMutableDictionary	*launchInfo = nil;
             additionalText: @"removed (lost) server"];
           [self alarm: a];
 	  [l setAlive: NO];
-	  if (l != nil && [l autoLaunch] == YES && [l disabled] == NO)
+	  if (l != nil && [l autolaunch] == YES && [l disabled] == NO)
 	    {
 	      NSTimeInterval	delay = [l delay];
 
@@ -1262,7 +1267,7 @@ static NSMutableDictionary	*launchInfo = nil;
 
                           l = [LaunchInfo existing: key];
                           inf = [l configuration];
-			  if ([l autoLaunch] == NO)
+			  if ([l autolaunch] == NO)
                             {
                               continue;
                             }
@@ -1391,7 +1396,7 @@ static NSMutableDictionary	*launchInfo = nil;
 			      m = [m stringByAppendingString: 
 				@"disabled in config\n"];
 			    }
-			  else if ([l autoLaunch] == NO)
+			  else if ([l autolaunch] == NO)
 			    {
 			      date = [[LaunchInfo existing: key] when];
 			      if (nil == date
@@ -2530,14 +2535,14 @@ static NSMutableDictionary	*launchInfo = nil;
 	      LaunchInfo	*l = [LaunchInfo existing: key];
               NSDate		*date;
 	      BOOL		disabled = [l disabled];
-	      BOOL		autoLaunch = [l autoLaunch];
+	      BOOL		autolaunch = [l autolaunch];
 
 	      if (disabled == NO)
 		{
 		  date = [l when];
 		  if (nil == date)
 		    {
-		      if (autoLaunch == YES)
+		      if (autolaunch == YES)
 			{
                           /* This task needs to autolaunch so it is a
                            * candidate now.
