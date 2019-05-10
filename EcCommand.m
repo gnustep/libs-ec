@@ -99,6 +99,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 }
 + (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
++ (LaunchInfo*) find: (NSString*)abbreviation;
 + (LaunchInfo*) launchInfo: (NSString*)name;
 + (NSArray*) names;
 + (void) remove: (NSString*)name;
@@ -108,6 +109,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (NSTimeInterval) delay;
 - (BOOL) disabled;
 - (BOOL) mayCoreDump;
+- (NSString*) name;
 - (void) resetDelay;
 - (void) setAlive: (BOOL)l;
 - (void) setConfiguration: (NSDictionary*)c;
@@ -157,6 +159,38 @@ static NSMutableDictionary	*launchInfo = nil;
   LaunchInfo	*l = RETAIN([launchInfo objectForKey: name]);
 
   return AUTORELEASE(l);
+}
+
++ (LaunchInfo*) find: (NSString*)abbreviation
+{
+  LaunchInfo	*l = [launchInfo objectForKey: abbreviation];
+
+  if (nil == l)
+    {
+      NSEnumerator	*e = [launchInfo keyEnumerator];
+      NSString		*s;
+      NSUInteger	bestLength = 0;
+      NSString		*bestName = nil;
+
+      while (nil != (s = [e nextObject]))
+	{
+	  if (comp(s, abbreviation) == 0)
+	    {
+	      bestName = s;
+	      break;
+	    }
+	  if (comp_len > bestLength)
+	    {
+	      bestLength = comp_len;
+	      bestName = s;
+	    }
+	}
+      if (bestName != nil)
+	{
+	  l = [launchInfo objectForKey: bestName];
+	}
+    }
+  return l;
 }
 
 + (void) initialize
@@ -244,6 +278,28 @@ static NSMutableDictionary	*launchInfo = nil;
   return delay;
 }
 
+- (NSString*) description
+{
+  NSString	*next;
+
+  if (nil == when || [NSDate distantFuture] == when)
+    {
+      next = @"not scheduled";
+    }
+  else if ([when timeIntervalSinceNow] <= 0.0)
+    {
+      next = @"already passed";
+    }
+  else
+    {
+      next = [when description];
+    }
+  return [NSString stringWithFormat: @"%@ for process '%@'\n"
+    @"  Launch date %@ (re-launch delay %g)\n"
+    @"  Configuration %@\n",
+    [super description], name, next, fib1, conf];
+}
+
 - (BOOL) disabled
 {
   return [[conf objectForKey: @"Disabled"] boolValue];
@@ -261,6 +317,11 @@ static NSMutableDictionary	*launchInfo = nil;
       return NO;
     }
   return YES;
+}
+
+- (NSString*) name
+{
+  return name;
 }
 
 - (void) resetDelay
@@ -1115,7 +1176,9 @@ static NSMutableDictionary	*launchInfo = nil;
 	      else if (comp(wd, @"List") >= 0)
 		{
 		  m = @"List\nLists all the connected clients.\n"
-		      @"List launches\nLists the programs we can launch.\n";
+		      @"List launches\nLists the programs we can launch.\n"
+		      @"List limit\nReports concurrent launch attempt limit.\n"
+		      @"List order\nReports launch attempt order.\n";
 		}
 	      else if (comp(wd, @"Memory") >= 0)
 		{
@@ -1147,7 +1210,8 @@ static NSMutableDictionary	*launchInfo = nil;
 		}
 	      else if (comp(wd, @"Status") >= 0)
 		{
-		  m = @"Reports the status of the Command server.\n";
+		  m = @"Status\nReports the status of the Command server.\n"
+		      @"Status name\nReports launch status of the process.\n";
 		}
 	      else if (comp(wd, @"Suspend") >= 0)
 		{
@@ -1311,7 +1375,16 @@ static NSMutableDictionary	*launchInfo = nil;
 		      m = [m stringByAppendingFormat: @"  %-32.32s ",
 			[key cString]];
 		      r = [self findIn: clients byName: key];
-		      if (r == nil)
+		      if (nil != r)
+			{
+			  m = [m stringByAppendingString: @"running\n"];
+			}
+		      else if (nil != [launching objectForKey: key])
+			{
+			  m = [m stringByAppendingString: 
+			    @"launch attempt in progress\n"];
+			}
+		      else
 			{
 			  if ([l disabled] == YES)
 			    {
@@ -1330,12 +1403,12 @@ static NSMutableDictionary	*launchInfo = nil;
 			      else if ([now timeIntervalSinceDate: date] > 0.0)
 				{
 				  m = [m stringByAppendingString: 
-				    @"ready to autolaunch now\n"];
+				    @"will attempt launch ASAP\n"];
 				}
 			      else
 				{
 				  m = [m stringByAppendingFormat: 
-				    @"autolaunch at %@\n", date];
+				    @"will attempt launch at %@\n", date];
 				}
 			    }
 			  else
@@ -1359,19 +1432,16 @@ static NSMutableDictionary	*launchInfo = nil;
 				  if ([now timeIntervalSinceDate: date] > 0.0)
 				    {
 				      m = [m stringByAppendingString: 
-					@"ready to autolaunch now\n"];
+					@"will attept autolaunch ASAP\n"];
 				    }
 				  else
 				    {
 				      m = [m stringByAppendingFormat: 
-					@"autolaunch at %@\n", date];
+					@"will attempt autolaunch at %@\n",
+					date];
 				    }
 				}
 			    }
-			}
-		      else
-			{
-			  m = [m stringByAppendingString: @"running\n"];
 			}
 		    }
 		  if ([launchInfo count] == 0)
@@ -1389,6 +1459,17 @@ static NSMutableDictionary	*launchInfo = nil;
                   m = [m stringByAppendingString:
                     @"\nLaunching is suspended.\n"];
                 }
+	    }
+	  else if (comp(wd, @"limit") >= 0)
+	    {
+	      m = [NSString stringWithFormat:
+		@"Limit of concurrent launch attempts is: %u\n",
+		(unsigned)launchLimit]; 	
+	    }
+	  else if (comp(wd, @"order") >= 0)
+	    {
+	      m = [NSString stringWithFormat: @"Launch order is: %@\n",
+		launchOrder]; 	
 	    }
 	}
       else if (comp(wd, @"memory") >= 0)
@@ -1643,6 +1724,34 @@ static NSMutableDictionary	*launchInfo = nil;
       else if (comp(wd, @"status") >= 0)
         {
           m = [self description];
+	  if ([(wd = cmdWord(cmd, 1)) length] > 0)
+	    {
+	      LaunchInfo	*l = [LaunchInfo find: wd];
+
+	      if (nil == l)
+		{
+		  m = [m stringByAppendingFormat:
+		    @"\nUnable to find '%@' in the launchable processes.\n",
+		    wd];
+		}
+	      else
+		{
+		  NSString	*n = [l name];
+
+		  if ([self findIn: clients byName: n] != nil)
+		    {
+		      m = [m stringByAppendingFormat:
+			@"\nProcess '%@' is running.", n];
+		    }
+		  else if ([launching objectForKey: n] != nil)
+		    {
+		      m = [m stringByAppendingFormat:
+			@"\nProcess '%@' is launching since %@.",
+			n, [l when]];
+		    }
+		  m = [m stringByAppendingFormat: @"\n%@\n", l];
+		}
+	    }
         }
       else if (comp(wd, @"suspend") >= 0)
 	{
@@ -1982,7 +2091,6 @@ static NSMutableDictionary	*launchInfo = nil;
       [m appendString: @"  Launching is currently suspended.\n"];
     }
   [m appendFormat: @"  %@\n", [LaunchInfo description]];
-  [m appendFormat: @"  LaunchOrder: %@\n", launchOrder];
   if ([launching count] > 0)
     {
       [m appendFormat: @"  Launching: %u of %u concurrently allowed.\n",
