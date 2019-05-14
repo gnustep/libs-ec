@@ -474,6 +474,11 @@ static NSMutableDictionary	*launchInfo = nil;
 
 @implementation	EcCommand
 
+- (unsigned) activeCount
+{
+  return (unsigned)[clients count];
+}
+
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm
 {
   NS_DURING

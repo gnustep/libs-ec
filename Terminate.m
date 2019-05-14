@@ -65,6 +65,20 @@ main()
     }
   defs = [NSUserDefaults userDefaultsWithPrefix: pref
                                          strict: EC_DEFAULTS_STRICT];
+
+  if ([defs boolForKey: @"Help"] || [defs boolForKey: @"help"]
+    || [[[NSProcessInfo processInfo] arguments] containsObject: @"--Help"]
+    || [[[NSProcessInfo processInfo] arguments] containsObject: @"--help"])
+    {
+      printf("Terminate processes and Command server\n");
+      printf("  -CommandHost N\tuse alternative Command server host.\n");
+      printf("  -CommandName N\tuse alternative Command server name.\n");
+      printf("  -Wait YES\tWait until termination completes.\n");
+      printf("  -WellKnownHostNames '{...}'\tprovide a host name map.\n");
+      fflush(stdout);
+      exit(0);
+    }
+
   dict = [defs dictionaryForKey: @"WellKnownHostNames"];
   if (nil != dict)
     {
@@ -105,7 +119,45 @@ main()
     }
   else
     {
+      unsigned		active = [proxy activeCount];
+
       [(id<Command>)proxy terminate];
+      if ([defs boolForKey: @"Wait"])
+	{
+	  NS_DURING
+	    {
+	      NSConnection	*c = [proxy connectionForProxy];
+	      NSAutoreleasePool	*pool = [NSAutoreleasePool new];
+
+	      while ([c isValid])
+		{
+		  NSDate	*delay;
+
+		  [pool release];
+		  pool = [NSAutoreleasePool new];
+		  delay = [NSDate dateWithTimeIntervalSinceNow: 0.2];
+		  [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
+					   beforeDate: delay];
+		  if ([c isValid])
+		    {
+		      unsigned	remaining = [proxy activeCount];
+
+		      if (remaining != active)
+			{
+			  printf("clients remaining: %u\n", remaining);
+			  active = remaining;
+			  fflush(stdout);
+			}
+		    }
+		}
+	      [pool release];
+	    }
+	  NS_HANDLER
+	    {
+	      NSLog(@"%@", localException);
+	    }
+	  NS_ENDHANDLER
+	}
     }
   RELEASE(arp);
   return 0;

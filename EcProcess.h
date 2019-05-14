@@ -105,6 +105,10 @@ typedef enum    {
  */
 @protocol	Command <CmdLogger,CmdConfig,EcAlarmDestination>
 
+/** Request a count of the active clients of the Command server
+ */
+- (unsigned) activeCount;
+
 /** Pass an alarm to the Command server for forwarding to the Control
  * server for central handling to send alerts or SNMP integration.
  */
@@ -136,7 +140,7 @@ typedef enum    {
 
 /** Shut down the Command server and all its clients.<br />
  * Clients which fail to shut down gracefully within 30 seconds
- * make be killed.
+ * may be killed.
  */
 - (oneway void) terminate;
 
