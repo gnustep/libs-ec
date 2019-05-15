@@ -133,33 +133,41 @@ main()
   else
     {
       NSConnection	*c = [proxy connectionForProxy];
-      NSTimeInterval	seconds = [defs doubleForKey: @"Wait"];
       unsigned		active;
       NSDate		*by;
 
-      if (isnan(seconds) || 0.0 == seconds)
+      if (nil == [defs objectForKey: @"Wait"])
 	{
-	  by = nil;
+	  by = nil;		// No waiting, default grace period
 	}
-      else if (seconds < 0.5)
+      else
 	{
-	  seconds = 0.5;
-	} 
-      else if (seconds > 900.0)
-	{
-	  seconds = 900.0;
-	} 
-      by = [NSDate dateWithTimeIntervalSinceNow: seconds];
+	  NSTimeInterval	seconds = [defs doubleForKey: @"Wait"];
+
+	  if (isnan(seconds) || 0.0 == seconds)
+	    {
+	      by = nil;
+	    }
+	  else if (seconds < 0.5)
+	    {
+	      seconds = 0.5;
+	    } 
+	  else if (seconds > 900.0)
+	    {
+	      seconds = 900.0;
+	    } 
+	  by = [NSDate dateWithTimeIntervalSinceNow: seconds];
+	}
       if ([proxy respondsToSelector: @selector(activeCount)])
 	{
-	  active = [proxy activeCount];
+	  active = [(id<Command>)proxy activeCount];
 	  [(id<Command>)proxy terminate: by];
 	}
       else
 	{
+	  by = nil;		// Waiting not supported with this API.
 	  active = 0;
 	  [(id<EcCommandOld>)proxy terminate];
-	  by = nil;		// Waiting not supported with this API.
 	}
       if (nil == by)
 	{
