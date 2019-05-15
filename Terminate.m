@@ -43,6 +43,9 @@
 #import "EcUserDefaults.h"
 #import "EcHost.h"
 
+@protocol	EcCommandOld
+- (oneway void) terminate;
+@end
 
 int
 main()
@@ -130,8 +133,8 @@ main()
   else
     {
       NSConnection	*c = [proxy connectionForProxy];
-      unsigned		active = [proxy activeCount];
       NSTimeInterval	seconds = [defs doubleForKey: @"Wait"];
+      unsigned		active;
       NSDate		*by;
 
       if (isnan(seconds) || 0.0 == seconds)
@@ -147,8 +150,18 @@ main()
 	  seconds = 900.0;
 	} 
       by = [NSDate dateWithTimeIntervalSinceNow: seconds];
-      [(id<Command>)proxy terminate: by];
-      if (nil == [defs objectForKey: @"Wait"])
+      if ([proxy respondsToSelector: @selector(activeCount)])
+	{
+	  active = [proxy activeCount];
+	  [(id<Command>)proxy terminate: by];
+	}
+      else
+	{
+	  active = 0;
+	  [(id<EcCommandOld>)proxy terminate];
+	  by = nil;		// Waiting not supported with this API.
+	}
+      if (nil == by)
 	{
 	  [c invalidate];	// No waiting
 	}
