@@ -1,8 +1,15 @@
 2019-05-14  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:
+	* EcCommand.m: Replace -terminate with -terminate: method.
+	* Terminate.m: Extend termination to control the time allowed for the
+	graceful shutdown (default to 30 seconds).
+
+2019-05-14  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
 	* EcCommand.m: New method to return count of active clients.
-	* terminate.m: New help output and option to wait until Command
+	* Terminate.m: New help output and option to wait until Command
 	server shuts down (printing out number of active clients).
 
 2019-05-09  Richard Frith-Macdonald <rfm@gnu.org>

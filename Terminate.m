@@ -55,6 +55,7 @@ main()
   NSString		*name;
   id			proxy;
   BOOL                  any = NO;
+  int			res = 0;
 
   [EcProcess class];            // Force linker to provide library
 
@@ -70,13 +71,21 @@ main()
     || [[[NSProcessInfo processInfo] arguments] containsObject: @"--Help"]
     || [[[NSProcessInfo processInfo] arguments] containsObject: @"--help"])
     {
-      printf("Terminate processes and Command server\n");
+      printf("Terminate the Command server and its client processes.\n");
       printf("  -CommandHost N\tuse alternative Command server host.\n");
       printf("  -CommandName N\tuse alternative Command server name.\n");
-      printf("  -Wait YES\tWait until termination completes.\n");
+      printf("  -Wait seconds\tWait with completion time limit.\n");
       printf("  -WellKnownHostNames '{...}'\tprovide a host name map.\n");
+      printf("\n");
+      printf("  By default a 30 second shutdown is requested and the\n");
+      printf("  command finishes without waiting for it to complete.\n");
+      printf("  Possible exit statuses are:\n");
+      printf("  0 termination requested (completed if -Wait was used).\n");
+      printf("  1 termination had not completed by end of -Wait timeout.\n");
+      printf("  2 the Command server was not found (maybe not running).\n");
+      printf("  3 this help was provided and no termination was requested.\n");
       fflush(stdout);
-      exit(0);
+      exit(3);
     }
 
   dict = [defs dictionaryForKey: @"WellKnownHostNames"];
@@ -116,29 +125,53 @@ main()
   if (nil == proxy)
     {
       NSLog(@"Unable to contact %@ on %@", name, host);
+      res = 2;
     }
   else
     {
+      NSConnection	*c = [proxy connectionForProxy];
       unsigned		active = [proxy activeCount];
+      NSTimeInterval	seconds = [defs doubleForKey: @"Wait"];
+      NSDate		*by;
 
-      [(id<Command>)proxy terminate];
-      if ([defs boolForKey: @"Wait"])
+      if (isnan(seconds) || 0.0 == seconds)
 	{
-	  NS_DURING
+	  by = nil;
+	}
+      else if (seconds < 0.5)
+	{
+	  seconds = 0.5;
+	} 
+      else if (seconds > 900.0)
+	{
+	  seconds = 900.0;
+	} 
+      by = [NSDate dateWithTimeIntervalSinceNow: seconds];
+      [(id<Command>)proxy terminate: by];
+      if (nil == [defs objectForKey: @"Wait"])
+	{
+	  [c invalidate];	// No waiting
+	}
+      else
+	{
+	  NSAutoreleasePool	*pool = [NSAutoreleasePool new];
+
+	  /* Allow a second more than the requested shutdown time,
+	   * so minor timing differences do not cause us to report
+	   * the shutdown as having failed.
+	   */
+	  while ([c isValid] && [by timeIntervalSinceNow] > -1.0)
 	    {
-	      NSConnection	*c = [proxy connectionForProxy];
-	      NSAutoreleasePool	*pool = [NSAutoreleasePool new];
+	      NSDate	*delay;
 
-	      while ([c isValid])
+	      [pool release];
+	      pool = [NSAutoreleasePool new];
+	      delay = [NSDate dateWithTimeIntervalSinceNow: 0.2];
+	      [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
+				       beforeDate: delay];
+	      if ([c isValid])
 		{
-		  NSDate	*delay;
-
-		  [pool release];
-		  pool = [NSAutoreleasePool new];
-		  delay = [NSDate dateWithTimeIntervalSinceNow: 0.2];
-		  [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
-					   beforeDate: delay];
-		  if ([c isValid])
+		  NS_DURING
 		    {
 		      unsigned	remaining = [proxy activeCount];
 
@@ -149,17 +182,26 @@ main()
 			  fflush(stdout);
 			}
 		    }
+		  NS_HANDLER
+		    {
+		      /* An exception could occur if we lost the connection
+		       * while trying to check the active count.  In that
+		       * case we can assume the Command server terminated.
+		       */
+		      [c invalidate];
+		      active = 0;
+		    }
+		  NS_ENDHANDLER
 		}
-	      [pool release];
 	    }
-	  NS_HANDLER
-	    {
-	      NSLog(@"%@", localException);
-	    }
-	  NS_ENDHANDLER
+	  [pool release];
+	}
+      if (YES == [c isValid])
+	{
+	  res = 1;	// Command did not shut down in time.
 	}
     }
   RELEASE(arp);
-  return 0;
+  return res;
 }
 

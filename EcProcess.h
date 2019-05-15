@@ -139,10 +139,11 @@ typedef enum    {
 		 from: (NSString*)c;
 
 /** Shut down the Command server and all its clients.<br />
- * Clients which fail to shut down gracefully within 30 seconds
- * may be killed.
+ * Clients which fail to shut down gracefully before the specified timestamp
+ * will be forcibly killed. The timestamp is constrained to be at least half
+ * a second in the future and not more than 15 minutes in the future. 
  */
-- (oneway void) terminate;
+- (oneway void) terminate: (NSDate*)byDate;
 
 /** This is meant to be used remotely by all sorts of software running
  * on the machine and which is *not* a full Command client (ie, not a

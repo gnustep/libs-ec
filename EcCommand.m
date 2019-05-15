@@ -400,6 +400,7 @@ static NSMutableDictionary	*launchInfo = nil;
   NSMutableDictionary   *launching;
   unsigned		pingPosition;
   NSTimer		*terminating;
+  NSDate		*terminateBy;
   NSDate		*lastUnanswered;
   unsigned		fwdSequence;
   unsigned		revSequence;
@@ -462,7 +463,8 @@ static NSMutableDictionary	*launchInfo = nil;
 		 transient: (BOOL)t;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
 - (NSArray*) restartAll: (NSString*)from;
-- (void) terminate;
+- (void) terminate: (NSDate*)by;
+- (void) _terminate: (NSTimer*)t;
 - (void) timedOut: (NSTimer*)t;
 - (void) _timedOut: (NSTimer*)t;
 - (void) timeoutSoon;
@@ -2087,6 +2089,7 @@ static NSMutableDictionary	*launchInfo = nil;
   RELEASE(launchOrder);
   RELEASE(environment);
   RELEASE(lastUnanswered);
+  RELEASE(terminateBy);
   [super dealloc];
 }
 
@@ -3302,49 +3305,83 @@ static NSMutableDictionary	*launchInfo = nil;
  * Tell all our clients to quit, and wait for them to do so.
  * If called while already terminating ... force immediate shutdown.
  */
-- (void) terminate: (NSTimer*)t
+- (void) _terminate: (NSTimer*)t
 {
-  if (nil == terminating)
+  NSTimeInterval	ti = [terminateBy timeIntervalSinceNow];
+
+  if ([clients count] == 0 && [launching count] == 0)
     {
-      [self information: @"Handling shutdown.\n"
+      [self information: @"Final shutdown."
 		   from: nil
 		     to: nil
 		   type: LT_CONSOLE];
+      [terminating invalidate];
+      terminating = nil;
+      [self cmdQuit: tStatus];
     }
-
-  if (nil == terminating)
+  else if (ti <= 0.0)
     {
-      terminating = [NSTimer scheduledTimerWithTimeInterval: 10.0
-	target: self selector: @selector(terminate:)
-	userInfo: [NSDate new]
-	repeats: YES];
+      [[self cmdLogFile: logname] puts: @"Final shutdown.\n"];
+      [terminating invalidate];
+      terminating = nil;
+      [self killAll];
+      [self cmdQuit: tStatus];
     }
-
-  [self quitAll];
-
-  if (t != nil)
+  else
     {
-      NSDate	*when = (NSDate*)[t userInfo];
-
-      if ([when timeIntervalSinceNow] < -30.0)
-	{
-	  [[self cmdLogFile: logname]
-	    puts: @"Final shutdown.\n"];
-	  [terminating invalidate];
-	  terminating = nil;
-          [self killAll];
-	  [self cmdQuit: tStatus];
-	}
+      [self quitAll];
+      terminating = [NSTimer scheduledTimerWithTimeInterval: ti
+						     target: self
+						   selector: _cmd
+						   userInfo: nil
+						    repeats: NO];
     }
 }
 
-- (void) terminate
+- (void) terminate: (NSDate*)by
 {
+  NSTimeInterval	ti = 30.0;
+
+  if (nil != terminateBy)
+    {
+      NSString	*msg;
+
+      msg = [NSString stringWithFormat: @"Terminate requested,"
+	@" but already terminating by %@", terminateBy];
+      [self information: msg
+		   from: nil
+		     to: nil
+		   type: LT_CONSOLE];
+      return;
+    }
+  if (nil != by)
+    {
+      ti = [by timeIntervalSinceNow];
+      if (ti < 0.5)
+	{
+	  ti = 0.5;
+	  by = nil;
+	}
+      else if (ti > 900.0)
+	{
+	  ti = 900.0;
+	  by = nil;
+	}
+    }
+  if (nil == by)
+    {
+      by = [NSDate dateWithTimeIntervalSinceNow: ti];
+    }
+  ASSIGN(terminateBy, by);
   [self information: @"Terminate initiated.\n"
                from: nil
                  to: nil
                type: LT_CONSOLE];
-  [self terminate: nil];
+  terminating = [NSTimer scheduledTimerWithTimeInterval: 0.01
+						 target: self
+					       selector: @selector(_terminate:)
+					       userInfo: nil
+						repeats: NO];
 }
 
 - (void) timedOut: (NSTimer*)t
