@@ -1852,7 +1852,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         {
           NS_DURING
             {
-              [[c obj] terminate];
+              [[c obj] terminate: nil];
             }
           NS_HANDLER
             {

@@ -3384,6 +3384,11 @@ static NSMutableDictionary	*launchInfo = nil;
 						repeats: NO];
 }
 
+- (void) terminate
+{
+  [self terminate: nil];
+}
+
 - (void) timedOut: (NSTimer*)t
 {
   static BOOL	inTimeout = NO;
