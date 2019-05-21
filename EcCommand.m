@@ -454,6 +454,7 @@ static NSMutableDictionary	*launchInfo = nil;
 - (void) newConfig: (NSMutableDictionary*)newConfig;
 - (void) pingControl;
 - (void) quitAll;
+- (void) quitAll: (NSDate*)by;
 - (void) reLaunch: (NSTimer*)t;
 - (void) requestConfigFor: (id<CmdConfig>)c;
 - (NSData*) registerClient: (id<CmdClient>)c
@@ -2683,6 +2684,15 @@ static NSMutableDictionary	*launchInfo = nil;
 
 - (void) quitAll
 {
+  [self quitAll: nil];
+}
+
+- (void) quitAll: (NSDate*)by
+{
+  if (nil == by)
+    {
+      by = [NSDate dateWithTimeIntervalSinceNow: 35.0];
+    }
   /*
    * Suspend any task that might potentially be started.
    */
@@ -2702,7 +2712,6 @@ static NSMutableDictionary	*launchInfo = nil;
     {
       NSUInteger	i;
       NSMutableArray	*a;
-      NSDate		*when = [NSDate dateWithTimeIntervalSinceNow: 35.0];
 
       /* Now we tell all connected clients to quit.
        */
@@ -2739,7 +2748,7 @@ static NSMutableDictionary	*launchInfo = nil;
 
       /* Give the clients a short time to quit.
        */
-      while ([a count] > 0 && [when timeIntervalSinceNow] > 0.0)
+      while ([a count] > 0 && [by timeIntervalSinceNow] > 0.0)
 	{
 	  NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 2.0];
 
@@ -3329,8 +3338,8 @@ static NSMutableDictionary	*launchInfo = nil;
     }
   else
     {
-      [self quitAll];
-      terminating = [NSTimer scheduledTimerWithTimeInterval: ti
+      [self quitAll: terminateBy];
+      terminating = [NSTimer scheduledTimerWithTimeInterval: ti + 1.0
 						     target: self
 						   selector: _cmd
 						   userInfo: nil
