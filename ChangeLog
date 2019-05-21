@@ -1,3 +1,11 @@
+2019-05-21  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: For 'quit all' fix code to wait 35 seconds before
+	sending a second quit to recalcitrant processes.
+	For 'restart all', do not send a second restart to processes as
+	that would force a quit in the middle of shutting down cleanly,
+	instead wait up to 35 seconds for all processes to shut down.
+
 2019-05-14  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

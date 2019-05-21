@@ -1665,11 +1665,14 @@ static NSMutableDictionary	*launchInfo = nil;
 		    }
 		  else if ([a count] == 1)
 		    {
-		      m = @"One client did not shut down for restart.\n";
+		      m = [NSString stringWithFormat:
+			@"One client did not shut down for restart: %@.\n", a];
 		    }
 		  else
 		    {
-		      m = @"Some clients did not shut down for restart.\n";
+		      m = [NSString stringWithFormat:
+		        @"Some clients did not shut down for restart: %@.\n",
+			a];
 		    }
 		}
 	      else
@@ -2698,8 +2701,8 @@ static NSMutableDictionary	*launchInfo = nil;
   if ([clients count] > 0)
     {
       NSUInteger	i;
-      NSUInteger	j;
       NSMutableArray	*a;
+      NSDate		*when = [NSDate dateWithTimeIntervalSinceNow: 35.0];
 
       /* Now we tell all connected clients to quit.
        */
@@ -2734,10 +2737,9 @@ static NSMutableDictionary	*launchInfo = nil;
 	    }
 	}
 
-      /* Give the clients a short time to quit, and re-send
-       * the instruction to any which haven't budged.
+      /* Give the clients a short time to quit.
        */
-      for (j = 0; j < 15; j++)
+      while ([a count] > 0 && [when timeIntervalSinceNow] > 0.0)
 	{
 	  NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 2.0];
 
@@ -2746,29 +2748,40 @@ static NSMutableDictionary	*launchInfo = nil;
 	      [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
 				       beforeDate: next];
 	    }
-	  for (i = 0; i < [a count] && [clients count] > 0; i++)
+	  for (i = 0; i < [a count]; i++)
 	    {
-	      EcClientI	*c;
-	      NSString	*n;
+	      NSString	*n = [a objectAtIndex: i];
+	      EcClientI	*c = [self findIn: clients byName: n];
 
-	      n = [a objectAtIndex: i];
-	      c = [self findIn: clients byName: n];
-	      if (nil != c)
+	      if (nil == c)
 		{
-		  NS_DURING
-		    {
-		      LaunchInfo	*l = [LaunchInfo existing: n];
-
-		      [l setWhen: [NSDate distantFuture]];
-                      [c setTerminating: YES];
-		      [[c obj] cmdQuit: 0];
-		    }
-		  NS_HANDLER
-		    {
-		      NSLog(@"Caught exception: %@", localException);
-		    }
-		  NS_ENDHANDLER
+		  [a removeObjectAtIndex: i];
 		}
+	    }
+	}
+
+      /* Re-send quit to obstinate clients.
+       */
+      for (i = 0; i < [a count]; i++)
+	{
+	  NSString	*n = [a objectAtIndex: i];
+	  EcClientI	*c = [self findIn: clients byName: n];
+
+	  if (nil != c)
+	    {
+	      NS_DURING
+		{
+		  LaunchInfo	*l = [LaunchInfo existing: n];
+
+		  [l setWhen: [NSDate distantFuture]];
+		  [c setTerminating: YES];
+		  [[c obj] cmdQuit: 0];
+		}
+	      NS_HANDLER
+		{
+		  NSLog(@"Caught exception: %@", localException);
+		}
+	      NS_ENDHANDLER
 	    }
 	}
     }
@@ -2944,9 +2957,8 @@ static NSMutableDictionary	*launchInfo = nil;
    */
   if ([clients count] > 0)
     {
-      unsigned	i;
-      unsigned	j;
-      NSDate    *when;
+      NSUInteger	i;
+      NSDate    	*when;
 
       /* We tell all connected clients to quit ...
        * clients are allowed 30 seconds to terminate
@@ -2983,10 +2995,9 @@ static NSMutableDictionary	*launchInfo = nil;
 	    }
 	}
 
-      /* Give the clients a short time to quit, and re-send
-       * the instruction to any which haven't budged.
+      /* Allow the clients time to quit.
        */
-      for (j = 0; j < 15; j++)
+      while ([a count] > 0 && [when timeIntervalSinceNow] > 0.0)
 	{
 	  NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 2.0];
 
@@ -2996,7 +3007,6 @@ static NSMutableDictionary	*launchInfo = nil;
 				       beforeDate: next];
 	    }
 	  i = [a count];
-          when = [NSDate dateWithTimeIntervalSinceNow: 30.0];
           while (i-- > 0)
 	    {
               EcClientI	*c = [a objectAtIndex: i];
@@ -3005,26 +3015,16 @@ static NSMutableDictionary	*launchInfo = nil;
                 {
                   [a removeObjectAtIndex: i];
                 }
-              else
-		{
-		  NS_DURING
-		    {
-		      LaunchInfo	*l;
-
-		      l = [LaunchInfo existing: [c name]];
-		      [l resetDelay];
-		      [l setWhen: when];
-                      [c setRestarting: YES];
-                      [[c obj] ecRestart: reason];
-		    }
-		  NS_HANDLER
-		    {
-		      NSLog(@"Caught exception: %@", localException);
-		    }
-		  NS_ENDHANDLER
-		}
 	    }
 	}
+
+      i = [a count];
+      while (i-- > 0)
+	{
+	  EcClientI	*c = [a objectAtIndex: i];
+
+	  [a replaceObjectAtIndex: i withObject: [c name]];
+	} 
     }
   return a;
 }
