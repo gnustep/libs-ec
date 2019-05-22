@@ -42,6 +42,7 @@
 }
 - (id) initWithString: (NSString*)pattern;
 - (NSString*) match: (NSString*)string;
+- (NSArray*) matches: (NSString*)string;
 @end
 
 @implementation	Regex
@@ -74,6 +75,35 @@
 
   r = [regex rangeOfFirstMatchInString: string options: 0 range: r];
   return r.length != 0 ? [string substringWithRange: r] : nil;
+}
+
+- (NSArray*) matches: (NSString*)string
+{
+  NSRange 		r = NSMakeRange(0, [string length]);
+  NSTextCheckingResult	*match;
+  NSUInteger		numberOfRanges;
+  NSUInteger		index;
+  NSMutableArray	*matches;
+
+  match = [regex firstMatchInString: string options: 0 range: r];
+  if (0 == (numberOfRanges = [match numberOfRanges]))
+    {
+      return nil;
+    }
+  matches = [NSMutableArray arrayWithCapacity: numberOfRanges];
+  for (index = 0; index < numberOfRanges; index++)
+    {
+      r = [match rangeAtIndex: index];
+      if (0 == r.length)
+	{
+	  [matches addObject: @""];
+	}
+      else
+	{
+	  [matches addObject: [string substringWithRange: r]];
+	}
+    }
+  return matches;
 }
 @end
 
@@ -883,20 +913,48 @@ replaceFields(NSDictionary *fields, NSString *template)
       e = [d objectForKey: @"Extra1Regex"];
       if (nil != e)
         {
+	  NSArray	*matches = [e matches: event->text];
+	  int		i;
+
           [event->m removeObjectForKey: @"Extra1"];
-          if (nil == (match = [e match: event->text]))
-            {
-              [event->m setObject: match forKey: @"Extra1"];
+	  if (nil != matches)
+	    {
+              [event->m setObject: [matches objectAtIndex: 0]
+			   forKey: @"Extra1"];
+	    }
+	  for (i = 1; i <= 9; i++)
+	    {
+	      NSString	*key = [NSString stringWithFormat: @"Extra1_%d", i];
+
+	      [event->m removeObjectForKey: key];
+	      if (i < [matches count])
+		{
+		  [event->m setObject: [matches objectAtIndex: i] forKey: key];
+		}
             }
         }
 
       e = [d objectForKey: @"Extra2Regex"];
       if (nil != e)
         {
+	  NSArray	*matches = [e matches: event->text];
+	  int		i;
+
           [event->m removeObjectForKey: @"Extra2"];
-          if (nil != (match = [e match: event->text]))
-            {
-              [event->m setObject: match forKey: @"Extra2"];
+	  if (nil != matches)
+	    {
+              [event->m setObject: [matches objectAtIndex: 0]
+			   forKey: @"Extra2"];
+	    }
+	  for (i = 1; i <= 9; i++)
+	    {
+	      NSString	*key = [NSString stringWithFormat: @"Extra2_%d", i];
+
+	      [event->m removeObjectForKey: key];
+	      if (i < [matches count])
+		{
+		  [event->m setObject: [matches objectAtIndex: i] forKey: key];
+		}
             }
         }
 

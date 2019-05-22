@@ -1,3 +1,7 @@
+2019-05-22  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlerter.m: Add capture group support for Extra1 and Extra2
+
 2019-05-21  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: For 'quit all' fix code to wait 35 seconds before
