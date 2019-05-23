@@ -1,3 +1,8 @@
+2019-05-23  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlerter.m: Allow dot to match line separators so we can readily
+	work with multi-line text.
+
 2019-05-22  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcAlerter.m: Add capture group support for Extra1 and Extra2
