@@ -58,7 +58,7 @@
     {
       regex = [[NSRegularExpression alloc]
         initWithPattern: pattern
-                options: 0
+                options: NSRegularExpressionDotMatchesLineSeparators
                   error: NULL];
       if (regex == nil)
         {

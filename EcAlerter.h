@@ -197,7 +197,12 @@
  * <p>There are two additional fields <em>Extra1</em> and <em>Extra2</em>
  * which are matched against the message.  These patterns do not effect
  * whether the action of the rule is executed or not, but the text matched
- * is made available for substitution into replacement messages.
+ * is made available for substitution into replacement messages.<br />
+ * In addition to the full matched text being made available as Extra1/Extra2,
+ * any text matching capture groups within the patterns is made available
+ * (for up to nine capture groups) as Extra1_N/Extra2_N where N is the
+ * position of the capture group (from 1 to 9) within the pattern.<br />
+ * A capture group is a sequence starting with '\(' and ending with '\)'.
  * </p>
  * <p>When a match is found the full message is normally sent to all the
  * destinations listed in the <em>Email</em> and <em>Sms</em> arrays in
@@ -220,8 +225,12 @@
  * <deflist>
  *   <term>Extra1</term>
  *   <desc>The text in the message matched by the Extra1 pattern (if any)</desc>
+ *   <term>Extra1_1 to Extra1_9</term>
+ *   <desc>The text from up to nine capture groups within Extra1</desc>
  *   <term>Extra2</term>
  *   <desc>The text in the message matched by the Extra2 pattern (if any)</desc>
+ *   <term>Extra2_1 to Extra2_9</term>
+ *   <desc>The text from up to nine capture groups within Extra2</desc>
  *   <term>Host</term>
  *   <desc>The host name of the original message</desc>
  *   <term>Server</term>
