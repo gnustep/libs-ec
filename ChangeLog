@@ -10,6 +10,7 @@
 	Change 'defaults' command to support specific lifetime settings from
 	1 to 168 hours.  Add APIs for logging exceptions and other unexpected
 	software/data errors using alarms.
+	Add convenience macros for logging execptions or code/data errors.
 
 2019-05-23  Richard Frith-Macdonald <rfm@gnu.org>
 

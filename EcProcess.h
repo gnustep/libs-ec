@@ -35,6 +35,38 @@
 #import	"EcAlarm.h"
 #import	"EcAlarmDestination.h"
 
+/** Convenience macros to raise unique alarms (which do not clear automatically)
+ * for exceptions or unexpected code/data errors.  The unique specificProblem
+ * for each alarm is derived from the file and line at which it is raised.
+ * These macros should only be used when it's impossible/impractical to have
+ * the code automatically detect that a problem has gone away, and clear the
+ * alarm.
+ */
+#define EcExceptionCritical(cause, format, args...) \
+  [EcProc ecException: cause \
+      specificProblem: [NSString stringWithFormat: "%s at %@ line %d", \
+    (nil == cause ? "Code/Data Error" : "Exception"), \
+    [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
+    perceivedSeverity: EcAlarmSeverityClear \
+	      message: format, ##args ]
+
+#define EcExceptionMajor(cause, format, args...) \
+  [EcProc ecException: cause \
+      specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
+    (nil == cause ? "Code/Data Error" : "Exception"), \
+    [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
+    perceivedSeverity: EcAlarmSeverityMajor \
+	      message: format, ##args ]
+
+#define EcExceptionMinor(cause, format, args...) \
+  [EcProc ecException: cause \
+      specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
+    (nil == cause ? "Code/Data Error" : "Exception"), \
+    [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
+    perceivedSeverity: EcAlarmSeverityMinor \
+	      message: format, ##args ]
+
+
 @class	NSFileHandle;
 
 typedef enum    {
@@ -1197,12 +1229,6 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Returns the directory set as the root for files owned by the ECCL user
  */
 - (NSString*) ecUserDirectory;
-
-/** Convenience method to log an exception (or other unexpected error)
- * and raise an alarm about it.
- */
-- (void) ecException: (NSException*)cause
-             message: (NSString*)format, ... NS_FORMAT_FUNCTION(2,3);
 
 /** Method to log an exception (or other unexpected error) and raise an
  * alarm about it, providing a unique specificProblem value to identify

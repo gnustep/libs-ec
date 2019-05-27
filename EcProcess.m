@@ -2511,20 +2511,6 @@ static BOOL     ecDidAwaken = NO;
 }
 
 - (void) ecException: (NSException*)cause
-             message: (NSString*)format, ...
-{
-  va_list ap;
-
-  va_start (ap, format);
-  [self ecException: cause
-    specificProblem: nil
-  perceivedSeverity: EcAlarmSeverityMajor 
-            message: format
-          arguments: ap];
-  va_end (ap);
-}
-
-- (void) ecException: (NSException*)cause
      specificProblem: (NSString*)specificProblem
    perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
              message: (NSString*)format, ...
@@ -2533,7 +2519,7 @@ static BOOL     ecDidAwaken = NO;
 
   va_start (ap, format);
   [self ecException: cause
-    specificProblem: nil
+    specificProblem: specificProblem
   perceivedSeverity: EcAlarmSeverityMajor 
             message: format
           arguments: ap];
@@ -2553,10 +2539,20 @@ static BOOL     ecDidAwaken = NO;
   NSString              *msg;
   NSMutableString       *full;
 
-  if (nil == specificProblem)
+  if (nil == (msg = specificProblem))
     {
-      specificProblem = (nil == cause) ? @"Code/Data Error" : @"Exception";
+      msg = (nil == cause) ? @"Code/Data Error" : @"Exception";
     }
+  if ([msg length] > 255)
+    {
+      msg = [msg substringToIndex: 255];
+    }
+  while (strlen([msg UTF8String]) > 255)
+    {
+      msg = [msg substringToIndex: [msg length] - 1];
+    }
+  specificProblem = msg;
+
   msg = [NSString stringWithFormat: format arguments: args];
   full = [NSMutableString stringWithCapacity: 1000];
   [full appendFormat: @"%@: %@", specificProblem, msg];
@@ -2598,6 +2594,10 @@ static BOOL     ecDidAwaken = NO;
   if ([msg length] > 250)
     {
       msg = [[msg substringToIndex: 250] stringByAppendingString: @" ..."];
+    }
+  while (strlen([msg UTF8String]) > 255)
+    {
+      msg = [msg substringToIndex: [msg length] - 1];
     }
 
   alarm = [EcAlarm alarmForManagedObject: nil
