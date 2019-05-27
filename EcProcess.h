@@ -32,6 +32,7 @@
 
 #import	<Foundation/Foundation.h>
 
+#import	"EcAlarm.h"
 #import	"EcAlarmDestination.h"
 
 @class	NSFileHandle;
@@ -315,7 +316,7 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <desc>
  *     This may be used to specify the total process memory usage
  *     (in megabytes) before memory usage alerting may begin.<br />
- *     Memory usage 'error' reports are then generated every time
+ *     Memory usage warning logs are then generated every time
  *     the average (over ten minutes) memory usage (adjusted by the
  *     average memory known not leaked) exceeds a warning
  *     threshold (the threshold is then increased).<br />
@@ -675,12 +676,11 @@ extern NSString*	cmdVersion(NSString *ver);
 - (void) removeServerFromList: (NSString*)serverName;
 
 
-/** Send a SEVERE error message to the server.
+/** Deprecated; do not use.
  */
 - (void) cmdAlert: (NSString*)fmt arguments: (va_list)args;
 
-/** Send a SEVERE error message to the server by calling the
- * -cmdAlert:arguments: method.
+/** Deprecated; do not use.
  */
 - (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
@@ -745,12 +745,11 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) cmdDefaultsChanged: (NSNotification*)n;
 
-/** Send an error message to the server.
+/** Deprecated; do not use.
  */
 - (void) cmdError: (NSString*)fmt arguments: (va_list)args;
 
-/** Send an error message to the server by calling the
- * -cmdError:arguments: method.
+/** Deprecated; do not use.
  */
 - (void) cmdError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
@@ -1172,7 +1171,7 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Return heap memory known not to be leaked ... for use in internal
  * monitoring of memory usage.  You should override this to add in any
  * heap store you have used and know is not leaked.<br />
- * When generating error messages alerting about possible memory leaks,
+ * When generating warning messages about possible memory leaks,
  * this value is taken into consideration.
  */
 - (NSUInteger) ecNotLeaked;
@@ -1198,6 +1197,31 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Returns the directory set as the root for files owned by the ECCL user
  */
 - (NSString*) ecUserDirectory;
+
+/** Convenience method to log an exception (or other unexpected error)
+ * and raise an alarm about it.
+ */
+- (void) ecException: (NSException*)cause
+             message: (NSString*)format, ... NS_FORMAT_FUNCTION(2,3);
+
+/** Method to log an exception (or other unexpected error) and raise an
+ * alarm about it, providing a unique specificProblem value to identify
+ * the location in the code, and a perceivedSeverity to let people know
+ * how serious the problem is likely to be.  Use EcAlarmSeverityMajor
+ * if you really do not know.
+ */
+- (void) ecException: (NSException*)cause
+     specificProblem: (NSString*)specificProblem
+   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+             message: (NSString*)format, ... NS_FORMAT_FUNCTION(4,5);
+
+/** Supporting code called by the -ecException:message:... method.
+ */
+- (void) ecException: (NSException*)cause
+     specificProblem: (NSString*)specificProblem
+   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+             message: (NSString*)format
+           arguments: (va_list)args;
 
 @end
 

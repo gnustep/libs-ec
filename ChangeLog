@@ -5,9 +5,11 @@
 	Extend API to allow temporary defaults overrides to have a specific
 	limited life span (an interval after which they can be purged from
 	the defaults database).
+	* EcProcess.h:
 	* EcProcess.m: Change error about long lived defaults to be warning.
 	Change 'defaults' command to support specific lifetime settings from
-	1 to 168 hours.
+	1 to 168 hours.  Add APIs for logging exceptions and other unexpected
+	software/data errors using alarms.
 
 2019-05-23  Richard Frith-Macdonald <rfm@gnu.org>
 

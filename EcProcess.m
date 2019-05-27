@@ -2510,6 +2510,110 @@ static BOOL     ecDidAwaken = NO;
   exit(status);
 }
 
+- (void) ecException: (NSException*)cause
+             message: (NSString*)format, ...
+{
+  va_list ap;
+
+  va_start (ap, format);
+  [self ecException: cause
+    specificProblem: nil
+  perceivedSeverity: EcAlarmSeverityMajor 
+            message: format
+          arguments: ap];
+  va_end (ap);
+}
+
+- (void) ecException: (NSException*)cause
+     specificProblem: (NSString*)specificProblem
+   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+             message: (NSString*)format, ...
+{
+  va_list ap;
+
+  va_start (ap, format);
+  [self ecException: cause
+    specificProblem: nil
+  perceivedSeverity: EcAlarmSeverityMajor 
+            message: format
+          arguments: ap];
+  va_end (ap);
+}
+
+- (void) ecException: (NSException*)cause
+     specificProblem: (NSString*)specificProblem
+   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+             message: (NSString*)format
+           arguments: (va_list)args
+{
+  CREATE_AUTORELEASE_POOL(pool);
+  EcAlarm               *alarm;
+  NSArray               *stack;
+  NSCalendarDate        *now;
+  NSString              *msg;
+  NSMutableString       *full;
+
+  if (nil == specificProblem)
+    {
+      specificProblem = (nil == cause) ? @"Code/Data Error" : @"Exception";
+    }
+  msg = [NSString stringWithFormat: format arguments: args];
+  full = [NSMutableString stringWithCapacity: 1000];
+  [full appendFormat: @"%@: %@", specificProblem, msg];
+
+  if (nil == (stack = [cause callStackSymbols]))
+    {
+      stack = [NSThread callStackSymbols];
+    }
+
+  if (nil != cause)
+    {
+      NSDictionary      *info = [cause userInfo];
+
+      [full appendFormat: @" <NSException> NAME:%@ REASON:%@",
+        [cause name], [cause reason]];
+      if (nil != info)
+        {
+          [full appendFormat: @" INFO:%@", info];
+        }
+    }
+
+  if (nil != stack)
+    {
+      NSUInteger        count = [stack count];
+      NSUInteger        index;
+
+      [full appendString: @"\nCall Stack trace:\n"];
+      for (index = 0; index < count; index++)
+        {
+          NSString  *line = [stack objectAtIndex: index];
+
+          [full appendFormat: @"%3u: %@\n", (unsigned)index, line];
+        }
+    }
+
+  NSLog(@"%@", full);
+
+  now = [NSCalendarDate date];
+  if ([msg length] > 250)
+    {
+      msg = [[msg substringToIndex: 250] stringByAppendingString: @" ..."];
+    }
+
+  alarm = [EcAlarm alarmForManagedObject: nil
+    at: now
+    withEventType: EcAlarmEventTypeProcessingError
+    probableCause: EcAlarmSoftwareProgramError
+    specificProblem: specificProblem
+    perceivedSeverity: EcAlarmSeverityMajor
+    proposedRepairAction: @"Check debug log file for details,"
+      @" correct the problem, clear this alarm from the Console."
+    additionalText: msg];
+  [self alarm: alarm];
+
+  RELEASE(pool);
+}
+
 - (void) ecHandleQuit
 {
   return;
