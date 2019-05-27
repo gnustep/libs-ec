@@ -42,6 +42,11 @@
  */
 + (NSUserDefaults*) prefixedDefaults;
 
+/** Sets the default lifetime for command values set using the
+ * -setCommand:forKey: method.
+ */
++ (void) setDefaultLifetime: (NSTimeInterval)t;
+
 /** Returns a proxy to the shared user defaults instance, which will use
  * aPrefix at the start of every key.<br />
  * If aPrefix is nil, the string given by the EcUserDefaultsPrefix user
@@ -52,6 +57,18 @@
  */
 + (NSUserDefaults*) userDefaultsWithPrefix: (NSString*)aPrefix
 				    strict: (BOOL)enforcePrefix;
+
+/** Returns a dictionary listing all the command override keys for which
+ * values are currently set.  The values in the dictionary are the timestamps
+ * after which those values may be purged.
+ */
+- (NSDictionary*) commandExpiries;
+
+/** Returns the last value set for the specified key using the
+ * -setCommand:forKey: method.  This returns nil if no value is
+ * currently set.
+ */
+- (id) commandObjectForKey: (NSString*)aKey;
 
 /** Returns the current configuration settings dictionary (as set using
  * the -setConfiguration: method).
@@ -67,6 +84,11 @@
  */
 - (NSString*) key: (NSString*)aKey;
 
+/** Removes all settings whose lifetime has passed.  Those settings must
+ * previously have been set up using the -setCommand:forKey:lifetime: method.
+ */
+- (void) purgeSettings;
+
 /** Removes all settings previously set up using the -setCommand:forKey:
  * method.
  */
@@ -74,11 +96,21 @@
 
 /** Sets a value to take precedence over others (in the volatile domain
  * reserved for commands issued to the current process by an operator).<br />
- * Setting a nil value removes any previously set value so that behavior
- * reverts to the default.<br />
- * Returns YES if the configuration was changed, NO otherwise.
+ * Values set using this method will use the default lifetime.<br />
+ * This operates by using the -setCommand:forKey:lifetime: method.
  */
 - (BOOL) setCommand: (id)val forKey: (NSString*)key;
+
+/** Sets a value to take precedence over others (in the volatile domain
+ * reserved for commands issued to the current process by an operator).<br />
+ * Specifying a non-zero lifetime will adjust the lifetime of an existing
+ * setting irresepective of whether the value is changed or not.<br />
+ * Specifying a zero or negative lifetime will remove the value for the
+ * setting (as will setting a nil value).<br />
+ * Returns YES if the configuration (actual value set) was changed,
+ * NO otherwise (may have changed lifetime of setting).
+ */
+- (BOOL) setCommand: (id)val forKey: (NSString*)key lifetime: (NSTimeInterval)t;
 
 /** Replaces the system central configuration information for this process
  * with the contents of the dictionary. Values in this dictionary take

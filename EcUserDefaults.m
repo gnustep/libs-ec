@@ -28,6 +28,7 @@
    */
 
 #import	<Foundation/NSDictionary.h>
+#import	<Foundation/NSException.h>
 #import	<Foundation/NSInvocation.h>
 #import	<Foundation/NSLock.h>
 #import	<Foundation/NSMethodSignature.h>
@@ -37,8 +38,11 @@
 
 #import	"EcUserDefaults.h"
 
-static NSUserDefaults	*latest = nil;
-static NSLock 		*lock = nil;
+static NSUserDefaults		*latest = nil;
+static NSLock 			*lock = nil;
+static NSMutableDictionary	*lifetimes = nil;
+static NSMutableDictionary	*overrides = nil;
+static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
 
 @interface	EcUserDefaults : NSProxy
 {
@@ -57,8 +61,12 @@ static NSLock 		*lock = nil;
   if (nil == lock)
     {
       lock = [NSLock new];
+      lifetimes = [NSMutableDictionary new];
+      overrides = [NSMutableDictionary new];
       [[NSObject leakAt: &lock] release];
       [[NSObject leakAt: &latest] release];
+      [[NSObject leakAt: &lifetimes] release];
+      [[NSObject leakAt: &overrides] release];
     }
 }
 
@@ -70,6 +78,16 @@ static NSLock 		*lock = nil;
 - (BOOL) boolForKey: (NSString*)aKey
 {
   return [defs boolForKey: [self _getKey: aKey]];
+}
+
+- (NSDictionary*) commandExpiries
+{
+  return [defs commandExpiries];
+}
+
+- (id) commandObjectForKey: (NSString*)aKey
+{
+  return [defs commandObjectForKey: aKey];
 }
 
 - (NSData*) dataForKey: (NSString*)aKey
@@ -203,6 +221,11 @@ static NSLock 		*lock = nil;
   return [defs objectForKey: [self _getKey: aKey]];
 }
 
+- (void) purgeSettings
+{
+  [defs purgeSettings];
+}
+
 - (void) removeObjectForKey: (NSString*)aKey
 {
   return [defs removeObjectForKey: [self _getKey: aKey]];
@@ -221,6 +244,11 @@ static NSLock 		*lock = nil;
 - (BOOL) setCommand: (id)val forKey: (NSString*)key
 {
   return [defs setCommand: val forKey: [self key: key]];
+}
+
+- (BOOL) setCommand: (id)val forKey: (NSString*)key lifetime: (NSTimeInterval)t
+{
+  return [defs setCommand: val forKey: [self key: key] lifetime: t];
 }
 
 - (void) setDouble: (double)value forKey: (NSString*)aKey
@@ -276,11 +304,40 @@ static NSLock 		*lock = nil;
   return [defs autorelease];
 }
 
++ (void) setDefaultLifetime: (NSTimeInterval)t
+{
+  if (t != t || t <= 0)
+    {
+      t = 72.0 * 60.0 * 60.0;
+    }
+  defaultDuration = t;
+}
+
 + (NSUserDefaults*) userDefaultsWithPrefix: (NSString*)aPrefix
 				    strict: (BOOL)enforcePrefix
 {
   return (NSUserDefaults*)[[[EcUserDefaults alloc] initWithPrefix:
     aPrefix strict: enforcePrefix] autorelease];
+}
+
+- (NSDictionary*) commandExpiries
+{
+  NSDictionary	*d;
+
+  [lock lock];
+  d = [lifetimes copy];
+  [lock unlock];
+  return [d autorelease];
+}
+
+- (id) commandObjectForKey: (NSString*)aKey
+{
+  id	val;
+
+  [lock lock];
+  val = [[overrides objectForKey: aKey] retain];
+  [lock unlock];
+  return [val autorelease];
 }
 
 - (NSDictionary*) configuration
@@ -306,11 +363,57 @@ static NSLock 		*lock = nil;
   return aKey;
 }
 
+- (void) purgeSettings
+{
+  NSDictionary	*new = nil;
+  BOOL		changed = NO;
+  NSEnumerator	*enumerator;
+  NSString	*key;
+  NSDate	*now = [NSDate date];
+
+  [lock lock];
+  enumerator = [[lifetimes allKeys] objectEnumerator];
+  while (nil != (key = [enumerator nextObject]))
+    {
+      NSDate	*expires = [lifetimes objectForKey: key];
+
+      if ([expires laterDate: now] == now)
+	{
+	  [lifetimes removeObjectForKey: key];
+	  [overrides removeObjectForKey: key];
+	  changed = YES;
+	}
+    }
+  if (YES == changed && [overrides count] > 0)
+    {
+      new = [overrides copy];
+    }
+  [lock unlock];
+  if (YES == changed)
+    {
+      [self removeVolatileDomainForName: @"EcCommand"];
+      if (new != nil)
+	{
+	  [self setVolatileDomain: new forName: @"EcCommand"];
+          [new release];
+	}
+      [[NSNotificationCenter defaultCenter] postNotificationName:
+	NSUserDefaultsDidChangeNotification object: self];
+    }
+}
+
 - (void) revertSettings
 {
-  NSDictionary		*old = [self volatileDomainForName: @"EcCommand"];
+  BOOL		changed = NO;
 
-  if (nil != old)
+  [lock lock];
+  if (YES == (changed = [overrides count] > 0 ? YES : NO))
+    {
+      [lifetimes removeAllObjects];
+      [overrides removeAllObjects];
+    }
+  [lock unlock];
+  if (YES == changed)
     {
       [self removeVolatileDomainForName: @"EcCommand"];
       [[NSNotificationCenter defaultCenter] postNotificationName:
@@ -320,9 +423,15 @@ static NSLock 		*lock = nil;
 
 - (BOOL) setCommand: (id)val forKey: (NSString*)key
 {
-  NSDictionary		*old = [self volatileDomainForName: @"EcCommand"];
-  NSMutableDictionary	*new = nil;
-  NSString		*pre = [self defaultsPrefix];
+  return [self setCommand: val forKey: key lifetime: defaultDuration];
+}
+
+- (BOOL) setCommand: (id)val forKey: (NSString*)key lifetime: (NSTimeInterval)t
+{
+  NSDictionary	*new = nil;
+  NSString	*pre = [self defaultsPrefix];
+  BOOL		changed = NO;
+  id		old;
   
   /* Make sure prefix is used if we have one set.
    */
@@ -333,43 +442,49 @@ static NSLock 		*lock = nil;
 	  key = [pre stringByAppendingString: key];
 	}
     }
-  if (nil == val)
+
+  [lock lock];
+  old = [overrides objectForKey: key];
+  if (old != val && NO == [old isEqual: val])
     {
-      if (nil != [old objectForKey: key])
+      if (nil == val)
 	{
-	  new = [old mutableCopy];
-	  [new removeObjectForKey: key];
+	  [overrides removeObjectForKey: key];
+	  [lifetimes removeObjectForKey: key];
 	}
-    }
-  else
-    {
-      if (NO == [val isEqual: [old objectForKey: key]])
+      else
 	{
-	  new = [old mutableCopy];
-	  if (nil == new)
-	    {
-	      new = [NSMutableDictionary new];
-	    }
-	  [new setObject: val forKey: key];
+	  [overrides setObject: val forKey: key];
+	  [lifetimes setObject: [NSDate dateWithTimeIntervalSinceNow: t]
+		        forKey: key];
 	}
+      if ([overrides count] > 0)
+	{
+	  new = [overrides copy];
+	}
+      changed = YES;
     }
-  if (nil != new)
+  else if (old != nil)
     {
-      if (NO == [new isEqual: old])
-        {
-          if (nil != old)
-            {
-              [self removeVolatileDomainForName: @"EcCommand"];
-            }
-          [self setVolatileDomain: new forName: @"EcCommand"];
+      /* No change to the value, only to its expiry time.
+       */
+      [lifetimes setObject: [NSDate dateWithTimeIntervalSinceNow: t]
+		   forKey: key];
+    }
+  [lock unlock];
+
+  if (YES == changed)
+    {
+      [self removeVolatileDomainForName: @"EcCommand"];
+      if (nil != new)
+	{
+	  [self setVolatileDomain: new forName: @"EcCommand"];
           [new release];
-          [[NSNotificationCenter defaultCenter] postNotificationName:
-            NSUserDefaultsDidChangeNotification object: self];
-          return YES;
-        }
-      [new release];
+	}
+      [[NSNotificationCenter defaultCenter] postNotificationName:
+	NSUserDefaultsDidChangeNotification object: self];
     }
-  return NO;
+  return changed;
 }
 
 - (BOOL) setConfiguration: (NSDictionary*)config
