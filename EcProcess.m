@@ -3278,7 +3278,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
               if ([v isEqual: [defs objectForKey: k]])
                 {
-                  [self cmdError: @"The Console defaults override for '%@'"
+                  [self cmdWarn: @"The Console defaults override for '%@'"
                     @" has been left at '%@' for more than a day."
                     @" Please reset it ('tell %@ defaults delete %@') after"
                     @" updating Control.plist as required.",
@@ -3355,6 +3355,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   /* We want to be sure we work with reasonably up to date information.
    */
   [NSHost flushHostCache];
+
+  [cmdDefs purgeSettings];
 
   [self _memCheck];
 }
@@ -4013,6 +4015,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	  [self cmdPrintf: @" used to list the current defaults overrides.\n"];
 	  [self cmdPrintf: @"With the 'delete' parameter followed by a name,"];
 	  [self cmdPrintf: @"\n  removes an override.\n"];
+	  [self cmdPrintf: @"With the 'life' parameter followed by a number\n"];
+	  [self cmdPrintf: @" of hours (1 to 168), a name, and a value,\n"];
+	  [self cmdPrintf: @" sets an override of the default.\n"];
 	  [self cmdPrintf: @"With the 'write' parameter followed by a name "];
 	  [self cmdPrintf: @"and value,\n  sets an override of the default.\n"];
 	  [self cmdPrintf: @"With the 'read' parameter followed by a name,\n"];
@@ -4043,8 +4048,17 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	{
 	  NSString	*mode = (NSString*)[msg objectAtIndex: 1];
 	  NSString	*key = (NSString*)[msg objectAtIndex: 2];
+	  unsigned	hours = 0;	
           id            old;
           id            val;
+
+	  /* Lifetime may be from 1 to 168 hours
+	   */
+	  if ([msg count] > 3 && [key length] > 0
+	    && (hours = [key intValue]) > 0 && hours <= 168)
+	    {
+	      key = (NSString*)[msg objectAtIndex: 3];
+	    }
 
           old = [cmdDefs objectForKey: key];
           if ([mode caseInsensitiveCompare: @"delete"] == NSOrderedSame)
@@ -4065,6 +4079,40 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                   val = [cmdDefs objectForKey: key];
                 }
             }
+          else if (hours > 0
+	    && [mode caseInsensitiveCompare: @"life"] == NSOrderedSame)
+	    {
+              if ([key isEqualToString: ecControlKey])
+                {
+                  [self cmdPrintf: @"%@ can only be set on startup.\n", key];
+                  return;
+                }
+              else if ([key isEqualToString: @"KillDebugOutput"])
+                {
+                  [self cmdPrintf: @"%@ can not be overridden.\n", key];
+                  return;
+                }
+              else if ([msg count] == 5)
+                {
+		  NSTimeInterval	t = hours * 60.0 * 60.0;
+
+                  val = [msg objectAtIndex: 4];
+                  [cmdDefs setCommand: val forKey: key lifetime: t];
+                  val = [cmdDefs objectForKey: key];
+                }
+              else if ([msg count] == 4)
+                {
+                  [self cmdPrintf: @"Missing value for '%@ %@' (no effect).\n",
+                    mode, key];
+                  val = old;
+                }
+              else
+                {
+                  [self cmdPrintf: @"Too many values for '%@ %@' (ignored).\n",
+                    mode, key];
+                  val = old;
+                }
+	    }
           else if ([mode caseInsensitiveCompare: @"write"] == NSOrderedSame
             || [mode caseInsensitiveCompare: @"set"] == NSOrderedSame)
 	    {
