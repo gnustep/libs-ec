@@ -4028,6 +4028,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	  [self cmdPrintf: @" registered (not all) defaults names.\n"];
 	  [self cmdPrintf: @"With the 'list' parameter followed by a name,\n"];
 	  [self cmdPrintf: @" shows the help for the specified default.\n"];
+	  [self cmdPrintf: @"With the 'show' parameter,\n"];
+	  [self cmdPrintf: @" shows all current names and lifes.\n"];
 	}
       else if ([msg count] > 1 && [[msg objectAtIndex: 1] isEqual: @"list"])
 	{
@@ -4043,6 +4045,21 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	{
           [cmdDefs revertSettings];
           [self cmdPrintf: @"All override settings are removed.\n"];
+        }
+      else if ([msg count] > 1 && [[msg objectAtIndex: 1] isEqual: @"show"])
+	{
+	  NSDictionary	*d = [cmdDefs commandExpiries];
+
+          if ([d count] == 0)
+	    {
+	      [self cmdPrintf: @"There are currently no default overrides.\n"];
+ 	    }
+	  else
+	    {
+	      [self cmdPrintf: @"Current default overrides: %@\n",
+		[d descriptionWithLocale: [NSLocale autoupdatingCurrentLocale]
+		  indent: 0]];
+	    }
         }
       else if ([msg count] > 2)
 	{
