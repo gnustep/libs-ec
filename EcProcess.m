@@ -2609,7 +2609,8 @@ static BOOL     ecDidAwaken = NO;
     specificProblem: specificProblem
     perceivedSeverity: EcAlarmSeverityMajor
     proposedRepairAction: @"Check debug log file for details,"
-      @" correct the problem, clear this alarm from the Console."
+      @" correct the problem, use the Console to clear the alarm"
+      @" in the originating process."
     additionalText: msg];
   [self alarm: alarm];
   RETAIN(alarm);
@@ -3964,6 +3965,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	  [self cmdPrintf: @"This differs from the Control server which"];
 	  [self cmdPrintf: @" uses a unique notification ID intended\n"];
 	  [self cmdPrintf: @"for working with external SNMP systems.\n"];
+	  [self cmdPrintf: @"Clearing an alarm in this process will also"];
+	  [self cmdPrintf: @"clear it in the Control server.\n"];
 	}
       else
 	{
