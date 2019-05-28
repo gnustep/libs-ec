@@ -43,28 +43,28 @@
  * alarm.
  */
 #define EcExceptionCritical(cause, format, args...) \
-  [EcProc ecException: cause \
+  [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: "%s at %@ line %d", \
-    (nil == cause ? "Code/Data Error" : "Exception"), \
+    (nil == (cause) ? "Code/Data Error" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityClear \
-	      message: format, ##args ]
+	      message: (format), ##args ]
 
 #define EcExceptionMajor(cause, format, args...) \
-  [EcProc ecException: cause \
+  [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
-    (nil == cause ? "Code/Data Error" : "Exception"), \
+    (nil == (cause) ? "Code/Data Error" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityMajor \
-	      message: format, ##args ]
+	      message: (format), ##args ]
 
 #define EcExceptionMinor(cause, format, args...) \
-  [EcProc ecException: cause \
+  [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
-    (nil == cause ? "Code/Data Error" : "Exception"), \
+    (nil == (cause) ? "Code/Data Error" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityMinor \
-	      message: format, ##args ]
+	      message: (format), ##args ]
 
 
 @class	NSFileHandle;
@@ -454,7 +454,23 @@ extern NSString*	cmdVersion(NSString *ver);
  *   shutdown you should therefore do so by creating a different managed
  *   object for which to raise those alarms.
  * </p>
-*/
+ * <p>As a convenience, the class provides various methods to raise different
+ * kinds of alarms for specific common purposes:
+ * </p>
+ * <deflist>
+ *   <term>Configuration problems</term>
+ *   <desc>-alarmConfigurationFor:specificProblem:additionalText:critical:
+ *   </desc>
+ *   <term>Exceptions and unexpected errors</term>
+ *   <desc>-ecException:specificProblem:perceivedSeverity:message:,...
+ *   </desc>
+ * </deflist>
+ * <p>
+ *   To further aid with logging/alarming about unexpected code and data
+ *   problems, there are macros to provide detailed logs as well as
+ *   specific alarms of different severity.
+ * </p>
+ */
 @interface EcProcess : NSObject <CmdClient,EcAlarmDestination>
 {
   /** Any method which is executing in the main thread (and needs to
@@ -1234,20 +1250,24 @@ extern NSString*	cmdVersion(NSString *ver);
  * alarm about it, providing a unique specificProblem value to identify
  * the location in the code, and a perceivedSeverity to let people know
  * how serious the problem is likely to be.  Use EcAlarmSeverityMajor
- * if you really do not know.
+ * if you really do not know.<br />
+ * This method serves a dual purpose, as it generates an alarm to alert
+ * people about an unexpected problem, but it also logs detailed information
+ * about that problem (including a stack trace) as an aid to debugging and
+ * analysis.
  */
-- (void) ecException: (NSException*)cause
-     specificProblem: (NSString*)specificProblem
-   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
-             message: (NSString*)format, ... NS_FORMAT_FUNCTION(4,5);
+- (EcAlarm*) ecException: (NSException*)cause
+	 specificProblem: (NSString*)specificProblem
+       perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+		 message: (NSString*)format, ... NS_FORMAT_FUNCTION(4,5);
 
 /** Supporting code called by the -ecException:message:... method.
  */
-- (void) ecException: (NSException*)cause
-     specificProblem: (NSString*)specificProblem
-   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
-             message: (NSString*)format
-           arguments: (va_list)args;
+- (EcAlarm*) ecException: (NSException*)cause
+	 specificProblem: (NSString*)specificProblem
+       perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+		 message: (NSString*)format
+	       arguments: (va_list)args;
 
 @end
 

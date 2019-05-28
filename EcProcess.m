@@ -2510,27 +2510,29 @@ static BOOL     ecDidAwaken = NO;
   exit(status);
 }
 
-- (void) ecException: (NSException*)cause
-     specificProblem: (NSString*)specificProblem
-   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
-             message: (NSString*)format, ...
+- (EcAlarm*) ecException: (NSException*)cause
+	 specificProblem: (NSString*)specificProblem
+       perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+		 message: (NSString*)format, ...
 {
-  va_list ap;
+  va_list 	ap;
+  EcAlarm	*a;
 
   va_start (ap, format);
-  [self ecException: cause
-    specificProblem: specificProblem
-  perceivedSeverity: EcAlarmSeverityMajor 
-            message: format
-          arguments: ap];
+  a = [self ecException: cause
+	specificProblem: specificProblem
+      perceivedSeverity: EcAlarmSeverityMajor 
+		message: format
+	      arguments: ap];
   va_end (ap);
+  return a;
 }
 
-- (void) ecException: (NSException*)cause
-     specificProblem: (NSString*)specificProblem
-   perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
-             message: (NSString*)format
-           arguments: (va_list)args
+- (EcAlarm*) ecException: (NSException*)cause
+	 specificProblem: (NSString*)specificProblem
+       perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
+		 message: (NSString*)format
+	       arguments: (va_list)args
 {
   CREATE_AUTORELEASE_POOL(pool);
   EcAlarm               *alarm;
@@ -2610,8 +2612,9 @@ static BOOL     ecDidAwaken = NO;
       @" correct the problem, clear this alarm from the Console."
     additionalText: msg];
   [self alarm: alarm];
-
+  RETAIN(alarm);
   RELEASE(pool);
+  return AUTORELEASE(alarm);
 }
 
 - (void) ecHandleQuit
@@ -2740,6 +2743,29 @@ static BOOL     ecDidAwaken = NO;
   EcAlarmSeverity       severity;
   NSString              *action;
   EcAlarm               *a;
+  NSString		*s;
+
+  s = specificProblem;
+  if ([s length] > 255)
+    {
+      s = [s substringToIndex: 255];
+    }
+  while (strlen([s UTF8String]) > 255)
+    {
+      s = [s substringToIndex: [s length] - 1];
+    }
+  specificProblem = s;
+
+  s = additionalText;
+  if ([s length] > 255)
+    {
+      s = [s substringToIndex: 255];
+    }
+  while (strlen([s UTF8String]) > 255)
+    {
+      s = [s substringToIndex: [s length] - 1];
+    }
+  additionalText = s;
 
   if (YES == isCritical)
     {
