@@ -44,10 +44,10 @@
  */
 #define EcExceptionCritical(cause, format, args...) \
   [EcProc ecException: (cause) \
-      specificProblem: [NSString stringWithFormat: "%s at %@ line %d", \
+      specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
-    perceivedSeverity: EcAlarmSeverityClear \
+    perceivedSeverity: EcAlarmSeverityCritical \
 	      message: (format), ##args ]
 
 #define EcExceptionMajor(cause, format, args...) \
