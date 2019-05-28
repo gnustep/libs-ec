@@ -399,12 +399,55 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm
 {
-  EcAlarmSeverity	severity;
+  EcAlarmSeverity	severity = [alarm perceivedSeverity];
+  NSString		*desc = [alarm description];
 
-  /* Now, for critical and major alarms, generate a corresponding old style
-   * alert.
-   */
-  severity = [alarm perceivedSeverity];
+  if (EcAlarmSeverityCleared != severity
+    && EcAlarmSeverityIndeterminate != severity) 
+    {
+      NSArray		*a = [NSArray arrayWithArray: consoles];
+      NSUInteger	i = [a count];
+
+      /*
+       * Work with a copy of the consoles array in case one goes away
+       * or is added while we are doing this!
+       */
+      while (i-- > 0)
+	{
+	  ConsoleInfo	*c = [a objectAtIndex: i];
+
+	  if ([consoles indexOfObjectIdenticalTo: c] == NSNotFound)
+	    {
+	      continue;
+	    }
+	  if (EcAlarmSeverityWarning == severity && [c getWarnings] == NO)
+	    {
+	      continue;
+	    }
+	  if ((EcAlarmSeverityMajor == severity
+	    || EcAlarmSeverityMinor == severity) && [c getErrors] == NO)
+	    {
+	      continue;
+	    }
+	  if (EcAlarmSeverityCritical == severity && [c getAlerts] == NO)
+	    {
+	      continue;
+	    }
+
+	  NS_DURING
+	    {
+	      [[c obj] information: [c promptAfter: desc]];
+	    }
+	  NS_HANDLER
+	    {
+	      NSLog(@"Caught: %@", localException);
+	    }
+	  NS_ENDHANDLER
+	}
+    }
+
+  [[self cmdLogFile: logname] puts: desc];
+
   if (EcAlarmSeverityCleared == severity)
     {
       NSArray           *a = [sink alarms];

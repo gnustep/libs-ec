@@ -1,3 +1,7 @@
+2019-05-28  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.m: Stream alarm information to Console for Wolfgang.
+
 2019-05-27  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcUserDefaults.h:
