@@ -110,6 +110,7 @@ typedef enum    {
 - (oneway void) cmdMesgData: (in bycopy NSData*)dat from: (NSString*)name;
 - (oneway void) cmdQuit: (NSInteger)status;
 - (int) processIdentifier;
+- (oneway void) ecReconnect;
 @end
 
 /** Messages a Command logging process can be expected to handle.
@@ -644,6 +645,11 @@ extern NSString*	cmdVersion(NSString *ver);
  * method.
  */
 - (NSInteger) ecQuitStatus;
+
+/** This method may be called to prompt the process to connect to the
+ * Command server if it is not already connected.
+ */
+- (oneway void) ecReconnect;
 
 /** This method is designed for handling an orderly restart.<br />
  * The default implementation calls -ecQuitFor:status: with minus one as

@@ -1,3 +1,13 @@
+2019-05-31  Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.h:
+	* EcControl.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Tweaks to allow a new Command process to ask running clients to
+	reconnect to it immediately, so that it doesn;t try to launch
+	client processes unnecessarily.
+
 2019-05-28  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcControl.m: Stream alarm information to Console for Wolfgang.

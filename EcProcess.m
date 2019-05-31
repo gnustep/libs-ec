@@ -3207,16 +3207,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
        */
       if (cmdLast == nil || [cmdLast timeIntervalSinceNow] < -10.0)
 	{
-          int   mayRetry;
-
 	  connecting = YES;
-
-          /* The first time we try to connect to the Command server
-           * (on startup) we should retry for several seconds in case
-           * the whole system is coming up and the Command server has
-           * not yet been started.
-           */
-          mayRetry = (nil == cmdLast ? 10 : 0);
 
 	  ASSIGN(cmdLast, [dateClass date]);
 	  if (cmdFirst == nil)
@@ -3224,7 +3215,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      ASSIGN(cmdFirst, cmdLast);
 	    }
 
-	  if (cmdServer == nil && YES == [self cmdIsClient])
+	  if (nil == cmdServer && YES == [self cmdIsClient])
 	    {
 	      NSString	*name = nil;
 	      NSString	*host = nil;
@@ -3242,14 +3233,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		    rootProxyForConnectionWithRegisteredName: name
 							host: host
                                              usingNameServer: ns];
-                  while (nil == proxy && mayRetry-- > 0)
-                    {
-                      [NSThread sleepForTimeInterval: 1.0];
-                      proxy = [NSConnection
-                        rootProxyForConnectionWithRegisteredName: name
-                                                            host: host
-                                                 usingNameServer: ns];
-                    }
 		}
 	      NS_HANDLER
 		{
@@ -3291,17 +3274,24 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		  /* We could be rejected or told to back off,
 		   * otherwise we continue as normal.
 		   */
-		  if (r != nil && [r objectForKey: @"rejected"] != nil)
+		  if ([r objectForKey: @"rejected"] != nil)
 		    {
 		      NSString  *shutdown;
 
                       shutdown = [NSString stringWithFormat:
                         @" rejected by Command - %@",
 			[r objectForKey: @"rejected"]];
+		      NSLog(@"Unable to connect to Command server ... %@",
+			shutdown);
 		      /* Rejected by server.	*/
                       [self ecQuitFor: shutdown with: 0];
 		    }
-		  else if (nil == r || nil == [r objectForKey: @"back-off"])
+		  else if ([r objectForKey: @"back-off"] != nil)
+		    {
+		      NSLog(@"Unable to connect to Command server ..."
+			@" back-off");
+		    }
+		  else
 		    {
 		      NSConnection	*connection;
 
@@ -3331,13 +3321,28 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                         }
 		    }
 		}
+	      else
+		{
+		  NSLog(@"Unable to connect to Command server ... not found");
+		}
 	    }
 	  connecting = NO;
+	  if (nil == cmdLast && nil == cmdServer && YES == [self cmdIsClient])
+	    {
+	      /* If cmdLast is nil, a reconnect must have been requested
+	       * while we were attempting a connect ... so try again.
+	       */ 
+	      cmdServer = [self cmdNewServer];
+	    }
 	}
-      else if (cmdServer == nil && YES == [self cmdIsClient])
+      else
 	{
 	  NSLog(@"Unable to connect to Command server ... not retry time yet");
 	}
+    }
+  else
+    {
+      NSLog(@"Unable to connect to Command server ... attempt in progress");
     }
 
   return cmdServer;
@@ -3646,6 +3651,39 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   cmdIsRunning = NO;
   DESTROY(EcProcConnection);
   return 0;
+}
+
+- (void) ecReconnect
+{
+  if (NO == [NSThread isMainThread]
+    || NO == [[[NSRunLoop currentRunLoop] currentMode]
+      isEqual: NSDefaultRunLoopMode])
+    {
+      NSArray	*modes = [NSArray arrayWithObject: NSDefaultRunLoopMode];
+
+NSLog(@"Want reconnect");
+      [self performSelectorOnMainThread: _cmd
+                             withObject: nil
+                          waitUntilDone: NO
+				  modes: modes];
+    }
+  else
+    {
+NSLog(@"Try reconnect");
+      NS_DURING
+	[cmdServer registerClient: self
+			     name: cmdLogName()
+			transient: cmdIsTransient];
+      NS_HANDLER
+	DESTROY(cmdServer);
+      NS_ENDHANDLER
+      if (nil == cmdServer)
+	{
+	  DESTROY(cmdLast);		// Allow immediate retry
+NSLog(@"Try newServer");
+	  [self cmdNewServer];
+	}
+    }
 }
 
 - (void) ecTestLog: (NSString*)fmt arguments: (va_list)args

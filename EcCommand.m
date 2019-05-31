@@ -495,6 +495,53 @@ static NSMutableDictionary	*launchInfo = nil;
   NS_ENDHANDLER
 }
 
+- (EcClientI*) alive: (NSString*)name
+{
+  EcClientI		*found = nil;
+
+  found = [self findIn: clients byName: name];
+  if (nil == found)
+    {
+      CREATE_AUTORELEASE_POOL(pool);
+      id<CmdClient>	proxy = nil;
+
+      NS_DURING
+	{
+	  proxy = (id<CmdClient>)[NSConnection
+	    rootProxyForConnectionWithRegisteredName: name
+	    host: @""
+	    usingNameServer: [NSSocketPortNameServer sharedInstance]];
+	  if (nil != proxy)
+	    {
+	      [proxy ecReconnect];
+	      [[self cmdLogFile: logname]
+		printf: @"%@ requested reconnect %@\n", [NSDate date], name];
+	    }
+	}
+      NS_HANDLER
+	{
+NSLog(@"Problem %@", localException);
+	  proxy = nil;
+	}
+      NS_ENDHANDLER
+
+      if (nil != proxy)
+	{
+	  NSDate	*when = [NSDate dateWithTimeIntervalSinceNow: 1.0];
+
+	  while (nil == (found = [self findIn: clients byName: name])
+	    && [when timeIntervalSinceNow] > 0.0)
+	    {
+	      NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 0.1];
+	      [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
+				       beforeDate: next];
+	    }
+	}
+      DESTROY(pool);
+    }
+  return found;
+}
+
 - (oneway void) domanage: (in bycopy NSString*)managedObject
 {
   NS_DURING
@@ -2325,7 +2372,7 @@ static NSMutableDictionary	*launchInfo = nil;
 
 - (BOOL) launch: (NSString*)name
 {
-  EcClientI	*r = [self findIn: clients byName: name];
+  EcClientI	*r = [self alive: name];
 
   if (nil == r && nil == [launching objectForKey: name])
     {
