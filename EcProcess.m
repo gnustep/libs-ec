@@ -5555,6 +5555,10 @@ With two parameters ('maximum' and a number),\n\
         " %"PRIu64" %"PRIu64,
         &mTotal, &mResident, &mShared, &mText, &mLib, &mData, &mDirty) != 7)
         {
+	  memLast = 1;
+	}
+      else
+	{
 	  if ([memType caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
 	    {
 	      memLast = mResident;
@@ -5567,9 +5571,6 @@ With two parameters ('maximum' and a number),\n\
 	    {
 	      memLast = mTotal;
 	    }
-        }
-      else
-        {
           memLast *= (4 * 1024);
           if (memLast <= 0) memLast = 1;
         }
