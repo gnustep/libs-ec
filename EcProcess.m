@@ -763,6 +763,7 @@ ecHostName()
   return [name autorelease];
 }
 
+static NSString	*memType = nil;
 static uint64_t memMaximum = 0;
 static uint64_t	memAllowed = 0;
 static uint64_t	excAvge = 0;    // current period average
@@ -4913,9 +4914,9 @@ With two parameters ('maximum' and a number),\n\
 	    }
 	}
 
-      [self cmdPrintf: @"Memory usage: %"PRIu64"KB (current),"
+      [self cmdPrintf: @"%@ memory usage: %"PRIu64"KB (current),"
         @" %"PRIu64"KB (peak)\n",
-        memLast/1024, memPeak/1024];
+        memType, memLast/1024, memPeak/1024];
       [self cmdPrintf: @"              %"PRIu64"KB (average),"
         @" %"PRIu64"KB (start)\n",
         memAvge/1024, memStrt/1024];
@@ -5531,7 +5532,6 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) _memCheck
 {
-  static NSString       *memType = nil;
   BOOL                  memDebug = [cmdDefs boolForKey: @"Memory"];
   FILE          	*fptr;
   int	        	i;
@@ -5732,9 +5732,10 @@ With two parameters ('maximum' and a number),\n\
           memTime = [NSDate new];
           if (nil == when)
             {
-              [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
+              [self cmdError: @"Average %@ memory usage %luKB (grown by %ldKB)"
                 @" with %luKB (grown by %ldKB) accounted for;"
                 @" possible leak of %ldKB (%u%%)",
+		memType,
                 (unsigned long)memAvge/1024,
                 (long)(memAvge - mPrev)/1024,
                 (unsigned long)excAvge/1024,
@@ -5744,9 +5745,10 @@ With two parameters ('maximum' and a number),\n\
             }
           else
             {
-              [self cmdError: @"Average memory usage %luKB (grown by %ldKB)"
+              [self cmdError: @"Average %@ memory usage %luKB (grown by %ldKB)"
                 @" with %luKB (grown by %ldKB) accounted for;"
                 @" possible leak of %ldKB (%u%%) since %@",
+		memType,
                 (unsigned long)memAvge/1024,
                 (long)(memAvge - mPrev)/1024,
                 (unsigned long)excAvge/1024,
@@ -5761,8 +5763,8 @@ With two parameters ('maximum' and a number),\n\
   if (YES == memDebug)
     {
       [self cmdDbg: cmdDetailDbg
-	       msg: @"Memory usage %"PRIu64"KB (reserved: %"PRIu64"KB)",
-        memLast/1024, excLast/1024];
+	       msg: @"%@ memory usage %"PRIu64"KB (reserved: %"PRIu64"KB)",
+        memType, memLast/1024, excLast/1024];
     }
 }
 
