@@ -5537,8 +5537,11 @@ With two parameters ('maximum' and a number),\n\
   NSString		*str;
   int	        	i;
 
-  str = [cmdDefs stringForKey: @"MemoryType"];
-  if ([str caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
+  if (nil == (str = [cmdDefs stringForKey: @"MemoryType"]))
+    {
+      str = @"Total";
+    }
+  else if ([str caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
     {
       str = @"Resident";
     }
