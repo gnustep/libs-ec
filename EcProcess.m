@@ -5534,11 +5534,25 @@ With two parameters ('maximum' and a number),\n\
 {
   BOOL                  memDebug = [cmdDefs boolForKey: @"Memory"];
   FILE          	*fptr;
+  NSString		*str;
   int	        	i;
 
-  if (NO == [memType isEqual: [cmdDefs stringForKey: @"MemoryType"]])
+  str = [cmdDefs stringForKey: @"MemoryType"];
+  if ([str caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
     {
-      ASSIGNCOPY(memType, [cmdDefs stringForKey: @"MemoryType"]);
+      str = @"Resident";
+    }
+  else if ([str caseInsensitiveCompare: @"Data"] == NSOrderedSame)
+    {
+      str = @"Data";
+    }
+  else
+    {
+      str = @"Total";
+    }
+  if (NO == [memType isEqual: str])
+    {
+      ASSIGNCOPY(memType, str);
       memSlot = 0;
     }
 
@@ -5559,11 +5573,11 @@ With two parameters ('maximum' and a number),\n\
 	}
       else
 	{
-	  if ([memType caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
+	  if ([memType isEqualToString: @"Resident"] == NSOrderedSame)
 	    {
 	      memLast = mResident;
 	    }
-	  else if ([memType caseInsensitiveCompare: @"Data"] == NSOrderedSame)
+	  else if ([memType isEqualToString: @"Data"] == NSOrderedSame)
 	    {
 	      memLast = mData;
 	    }
