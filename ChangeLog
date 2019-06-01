@@ -1,5 +1,12 @@
 2019-05-31  Richard Frith-Macdonald <rfm@gnu.org>
 
+	* EcProcess.h:
+	* EcProcess.m:
+	Add EcMemoryTypeto control what type of memory usage we track:
+	Total, Resident, or Data (stack and heap).
+
+2019-05-31  Richard Frith-Macdonald <rfm@gnu.org>
+
 	* EcControl.h:
 	* EcControl.m:
 	* EcProcess.h:

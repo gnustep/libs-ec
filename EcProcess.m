@@ -5113,9 +5113,11 @@ With two parameters ('maximum' and a number),\n\
 	    @"-%@MemoryIncrement [KB]   Absolute increase in alert threshold\n"
 	    @"-%@MemoryMaximum [MB]     Maximum memory usage (before restart)\n"
 	    @"-%@MemoryPercentage [N]   Percent increase in alert threshold\n"
+	    @"-%@MemoryType [aName]     Type of memory to measure. One of\n"
+	    @"                          Total, Resident or Data.\n"
 	    @"-%@ProgramName [aName]    Name to use for this program\n"
 	    @"\n--version to get version information and quit\n\n",
-	    prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf);
+	    prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf);
 
           [EcDefaultRegistration showHelp];
 
@@ -5529,9 +5531,16 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) _memCheck
 {
-  BOOL          memDebug = [cmdDefs boolForKey: @"Memory"];
-  FILE          *fptr;
-  int	        i;
+  static NSString       *memType = nil;
+  BOOL                  memDebug = [cmdDefs boolForKey: @"Memory"];
+  FILE          	*fptr;
+  int	        	i;
+
+  if (NO == [memType isEqual: [cmdDefs stringForKey: @"MemoryType"]])
+    {
+      ASSIGNCOPY(memType, [cmdDefs stringForKey: @"MemoryType"]);
+      memSlot = 0;
+    }
 
   /* /proc/pid/statm reports the process memory size in 4KB pages
    */
@@ -5540,9 +5549,24 @@ With two parameters ('maximum' and a number),\n\
   memLast = 1;
   if (NULL != fptr)
     {
-      if (fscanf(fptr, "%"PRIu64, &memLast) != 1)
+      uint64_t  mTotal, mResident, mShared, mText, mLib, mData, mDirty;
+
+      if (fscanf(fptr, "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64
+        " %"PRIu64" %"PRIu64,
+        &mTotal, &mResident, &mShared, &mText, &mLib, &mData, &mDirty) != 7)
         {
-          memLast = 1;
+	  if ([memType caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
+	    {
+	      memLast = mResident;
+	    }
+	  else if ([memType caseInsensitiveCompare: @"Data"] == NSOrderedSame)
+	    {
+	      memLast = mData;
+	    }
+	  else
+	    {
+	      memLast = mTotal;
+	    }
         }
       else
         {
