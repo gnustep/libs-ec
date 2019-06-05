@@ -3662,7 +3662,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     {
       NSArray	*modes = [NSArray arrayWithObject: NSDefaultRunLoopMode];
 
-NSLog(@"Want reconnect");
       [self performSelectorOnMainThread: _cmd
                              withObject: nil
                           waitUntilDone: NO
@@ -3670,7 +3669,6 @@ NSLog(@"Want reconnect");
     }
   else
     {
-NSLog(@"Try reconnect");
       NS_DURING
 	[cmdServer registerClient: self
 			     name: cmdLogName()
@@ -3681,7 +3679,6 @@ NSLog(@"Try reconnect");
       if (nil == cmdServer)
 	{
 	  DESTROY(cmdLast);		// Allow immediate retry
-NSLog(@"Try newServer");
 	  [self cmdNewServer];
 	}
     }
