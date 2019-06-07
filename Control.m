@@ -69,6 +69,8 @@ main(int argc, char *argv[])
     {
       NSMutableArray	*args = AUTORELEASE([pArgs mutableCopy]);
       NSString          *path = [[NSBundle mainBundle] executablePath];
+      NSEnumerator      *dbg;
+      NSString          *key;
       NSAutoreleasePool *inner = nil;
       BOOL              done = NO;
       NSUInteger        index = NSNotFound;
@@ -76,6 +78,16 @@ main(int argc, char *argv[])
       NSTask	        *t;
 
       [args removeObjectAtIndex: 0];
+
+      /* Pass debug settings to child
+       */
+      dbg = [[[NSProcessInfo processInfo] debugSet] objectEnumerator];
+      while (nil != (key = [dbg nextObject]))
+        {
+          NSString      *arg = [@"--GNU-Debug=" stringByAppendingString: key];
+
+          [args addObject: arg];
+        }
 
       if ([pArgs containsObject: @"--Watcher"] == NO)
         {
