@@ -1492,7 +1492,7 @@ NSLog(@"Problem %@", localException);
 				  if ([now timeIntervalSinceDate: date] > 0.0)
 				    {
 				      m = [m stringByAppendingString: 
-					@"will attept autolaunch ASAP\n"];
+					@"will attempt autolaunch ASAP\n"];
 				    }
 				  else
 				    {
@@ -3746,7 +3746,7 @@ NSLog(@"Problem %@", localException);
     NSLog(@"Problem in timeout: %@", localException);
   NS_ENDHANDLER
 
-  if (nil == timer && NO == [self ecIsQuitting])
+  if (NO == [timer isValid] && NO == [self ecIsQuitting])
     {
       timer = [NSTimer scheduledTimerWithTimeInterval: 5.0
 					       target: self
@@ -3758,7 +3758,7 @@ NSLog(@"Problem %@", localException);
 
 - (void) timeoutSoon
 {
-  if (nil == timer || [[timer fireDate] timeIntervalSinceNow] > 0.1)
+  if (NO == [timer isValid] || [[timer fireDate] timeIntervalSinceNow] > 0.1)
     {
       [timer invalidate];
       timer = [NSTimer scheduledTimerWithTimeInterval: 0.1
