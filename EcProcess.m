@@ -3338,7 +3338,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else
 	{
-	  NSLog(@"Unable to connect to Command server ... not retry time yet");
+//	  NSLog(@"Unable to connect to Command server ... not retry time yet");
 	}
     }
   else
