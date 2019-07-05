@@ -1942,7 +1942,7 @@ static NSString	*noFiles = @"No log files to archive";
   configError = nil;
   /* NB. if err is nil this will clear any currently raised alarm
    */
-  [self ecConfigurationError: @"%@", err];
+  [self ecConfigurationError: @"%@", (nil == err) ? @"" : err];
 }
 
 /* This method is called when the defaults database is updated for any
