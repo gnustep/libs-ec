@@ -347,7 +347,7 @@ extern NSString*	cmdVersion(NSString *ver);
  *   </desc>
  *   <term>EcMemoryAllowed</term>
  *   <desc>
- *     This may be used to specify the total process memory usage
+ *     This may be used to specify the process memory usage
  *     (in megabytes) before memory usage alerting may begin.<br />
  *     Memory usage warning logs are then generated every time
  *     the average (over ten minutes) memory usage (adjusted by the
@@ -381,7 +381,7 @@ extern NSString*	cmdVersion(NSString *ver);
  *   </desc>
  *   <term>EcMemoryMaximum</term>
  *   <desc>
- *     This may be used to specify the total process memory allowed
+ *     This may be used to specify the maximum process memory allowed
  *     (in megabytes) before the process is forced to quit due to
  *     excessive memory usage.<br />
  *     If the total memory usage of the process reaches this threshold,
@@ -408,6 +408,20 @@ extern NSString*	cmdVersion(NSString *ver);
  *     This may be set in the NSUserDefaults system or in Control.plist,
  *     but may be overridden by using the 'memory' command in the
  *     Console program.
+ *   </desc>
+ *   <term>EcMemoryType</term>
+ *   <desc>
+ *    This controls the type of memory considered by the EcMemoryAllowed,
+ *    EcMemoryIncrement, EcMemoryMaximum and EcMemoryPercentage options.<br />
+ *    Total (the default), considers the total process memory usage.<br />
+ *    Resident, considers current resident memory used.<br />
+ *    Data, considers only dynamically allocated and stack memory.<br />
+ *    While using Total and Resident are easy to relate to the output of
+ *    system tools such as <code>ps</code> and <code>top</code>, the Data
+ *    memory type is probably of most use for tracking memory leaks on a
+ *    system with many processes running, since it excludes memory shared
+ *    between multiple processes (used for the program code and for shared
+ *    libraries).
  *   </desc>
  *   <term>EcRelease</term>
  *   <desc>
@@ -1181,7 +1195,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * This method is called automatically with the result of -cmdUpdated when
  * process configuration changes.
  */
-- (void) ecConfigurationError: (NSString*)err;
+- (void) ecConfigurationError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
 /** Returns YES if the base implementation of -ecAwaken has been called,
  * NO otherwise.  You may use this in conjunction with -ecDoLock and

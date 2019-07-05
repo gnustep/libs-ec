@@ -1942,7 +1942,7 @@ static NSString	*noFiles = @"No log files to archive";
   configError = nil;
   /* NB. if err is nil this will clear any currently raised alarm
    */
-  [self ecConfigurationError: err];
+  [self ecConfigurationError: @"%@", err];
 }
 
 /* This method is called when the defaults database is updated for any
@@ -2385,8 +2385,15 @@ static BOOL     ecDidAwaken = NO;
   ecDidAwaken = YES;
 }
 
-- (void) ecConfigurationError: (NSString*)err
+- (void) ecConfigurationError: (NSString*)fmt, ...
 {
+  NSString	*err;
+  va_list 	ap;
+
+  va_start (ap, fmt);
+  err = [NSString stringWithFormat: fmt arguments: ap];
+  va_end (ap);
+
   if ([err length] > 0)
     {
       EcAlarm       *a;
