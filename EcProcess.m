@@ -267,11 +267,12 @@ static NSTimeInterval   initAt = 0.0;
 /* Internal value for use only by quitting mechanism.
  */
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
+static BOOL		ecQuitHandled = NO;	// Has ecHandleQuit run?
 static NSInteger        ecQuitStatus = -1;      // Status for the quit
 static NSString         *ecQuitReason = nil;    // Reason for the quit
 static BOOL             ecWillAbort = NO;       // Abort on next quit
 
-/* Test to see if the process is tryiung to quit gracefully.
+/* Test to see if the process is trying to quit gracefully.
  * If quitting has taken over three minutes, abort immediately.
  */
 static BOOL
@@ -1996,7 +1997,6 @@ static NSString	*noFiles = @"No log files to archive";
   else
     {
       [self ecHandleQuit];
-      [self ecDidQuit];
     }
 }
 
@@ -2628,7 +2628,14 @@ static BOOL     ecDidAwaken = NO;
 
 - (void) ecHandleQuit
 {
-  return;
+  if (NO == ecIsQuitting())
+    {
+      [self ecWillQuit];
+    }
+  ecQuitHandled = YES;
+  [self performSelectorOnMainThread: @selector(ecDidQuit)
+			 withObject: nil
+		      waitUntilDone: NO];
 }
 
 - (BOOL) ecIsQuitting

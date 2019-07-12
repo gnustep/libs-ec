@@ -1,3 +1,11 @@
+2019-07-12 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Have ecHandleQuit call ecDidQuit in the main thread.  That way an
+	application can make the handling run in one thread, and still
+	have the final shutdown done in the main thread.
+
 2019-05-31  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

@@ -618,8 +618,9 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Called once other stages of a graceful shutdown has completed in
  * order to perform final cleanup and have the process exit with the
  * expected status.<br />
- * Called automatically but subclasses overriding -ecHandleQuit may
- * call it explicitly at the end of the handling process.
+ * Called automatically in the main thread by the -ecHandleQuit method.
+ * Subclasses overriding -ecHandleQuit must call the superclass
+ * implementation at the end of their handling code.
  */
 - (oneway void) ecDidQuit;
 
@@ -647,7 +648,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * Subclasses should not normally override this method. Instead override
  * the -ecHandleQuit method.<br />
  * For backward compatibility, this will call the -cmdQuit: method if a
- * subclass has overriden it.
+ * subclass has overridden it.
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
