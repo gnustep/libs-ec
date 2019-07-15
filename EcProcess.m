@@ -268,6 +268,7 @@ static NSTimeInterval   initAt = 0.0;
  */
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
 static BOOL		ecQuitHandled = NO;	// Has ecHandleQuit run?
+static NSTimeInterval	ecQuitLimit = 180.0;	// Time allowed for quit
 static NSInteger        ecQuitStatus = -1;      // Status for the quit
 static NSString         *ecQuitReason = nil;    // Reason for the quit
 
@@ -282,7 +283,7 @@ ecIsQuitting()
       return NO;
     }
   NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-  if (now - beganQuitting >= 180.0)
+  if (now - beganQuitting >= ecQuitLimit)
     {
       NSLog(@"abort: quitting took too long (after %g sec)\n",
         (now - beganQuitting));
@@ -2642,6 +2643,15 @@ static BOOL     ecDidAwaken = NO;
   return ecIsQuitting();
 }
 
+- (NSTimeInterval) ecQuitDuration
+{
+  if (ecIsQuitting())
+    {
+      return [NSDate timeIntervalSinceReferenceDate] - beganQuitting;
+    }
+  return 0.0;
+}
+
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status
 {
   [ecLock lock];
@@ -2667,6 +2677,15 @@ static BOOL     ecDidAwaken = NO;
                           waitUntilDone: NO];
     }
 }
+
+- (NSTimeInterval) ecQuitLimit: (NSTimeInterval)seconds
+{
+  NSTimeInterval	old = ecQuitLimit;
+
+  ecQuitLimit = seconds;
+  return old;
+}
+
 
 - (NSString*) ecQuitReason
 {

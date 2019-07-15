@@ -8,6 +8,8 @@
 	crash) is greater than any utility in having quit force an abort (the
 	OS 'kill' command is adequate for that) of any process still capable
 	of responding to the request over Distributed Objects.
+	Added method to see how long we have been quitting, and method to
+	set how long we are allowed to quit.
 
 2019-07-12 Richard Frith-Macdonald <rfm@gnu.org>
 

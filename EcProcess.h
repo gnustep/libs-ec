@@ -637,10 +637,16 @@ extern NSString*	cmdVersion(NSString *ver);
 /** Returns YES if the process is attempting a graceful shutdown,
  * NO otherwise.  This also checks to see if the process has been
  * attempting to shut down for too long, and if it has been going
- * on for over three minutes, aborts the process.<br />
+ * on for over three minutes (or the value set by -ecQuitLimit:),
+ * aborts the process.<br />
  * Subclasses must not override this method.
  */
 - (BOOL) ecIsQuitting;
+
+/** Returns the interval since the process started quitting, or zero
+ * if it is not quitting (as determined by calling -ecIsQuitting).
+ */
+- (NSTimeInterval) ecQuitDuration;
 
 /** This method is designed for handling an orderly shutdown by calling
  * -ecWillQuit: with the supplied reason, then -ecHandleQuit, and finally
@@ -651,6 +657,13 @@ extern NSString*	cmdVersion(NSString *ver);
  * subclass has overridden it.
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
+
+/** Sets the number of seconds the graceful shutdown process is permitted
+ * to take before the process will attempt to abort on the next check to
+ * see if it quitting (-ecIsQuitting).  The default is 180.0 seconds.<br />
+ * This method returns the previous value of the setting.
+ */
+- (NSTimeInterval) ecQuitLimit: (NSTimeInterval)seconds;
 
 /** Returns the quit reason supplied to the -ecQuitFor:with method.
  */
