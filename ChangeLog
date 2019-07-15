@@ -1,3 +1,14 @@
+2019-07-15 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Change -ecWillQuit: behavior so that repeated calls are ignored rather
+	than causing the process to abort;  the risk of accidentally aborting
+	during a clean shutdown (effectively turning the shutdown into a
+	crash) is greater than any utility in having quit force an abort (the
+	OS 'kill' command is adequate for that) of any process still capable
+	of responding to the request over Distributed Objects.
+
 2019-07-12 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

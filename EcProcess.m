@@ -270,7 +270,6 @@ static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
 static BOOL		ecQuitHandled = NO;	// Has ecHandleQuit run?
 static NSInteger        ecQuitStatus = -1;      // Status for the quit
 static NSString         *ecQuitReason = nil;    // Reason for the quit
-static BOOL             ecWillAbort = NO;       // Abort on next quit
 
 /* Test to see if the process is trying to quit gracefully.
  * If quitting has taken over three minutes, abort immediately.
@@ -2657,10 +2656,8 @@ static BOOL     ecDidAwaken = NO;
     != class_getMethodImplementation([self class], @selector(cmdQuit:)))
     {
       /* The -cmdQuit: method was overridden by a subclass, so we must call
-       * it but first set the flag so that will not cause an abort when it
-       * causes -ecWillQuit: to be called again.
+       * it for backward compatibility.
        */
-      ecWillAbort = NO;
       [self cmdQuit: status];
     }
   else
@@ -2728,22 +2725,19 @@ static BOOL     ecDidAwaken = NO;
           NSLog(@"will quit: %@", ecQuitReason);
         }
     }
-  else if (YES == ecWillAbort)
+  else
     {
       if ([ecQuitReason length] > 0)
         {
-          NSLog(@"abort: quit requested (%@) while quitting after %g sec.\n",
+          NSLog(@"ignored: quit requested (%@) while quitting after %g sec.\n",
             ecQuitReason, (now - beganQuitting));
         }
       else
         {
-          NSLog(@"abort: quit requested while quitting after %g sec.\n",
+          NSLog(@"ignored: quit requested while quitting after %g sec.\n",
             (now - beganQuitting));
         }
-      signal(SIGABRT, SIG_DFL);
-      abort();
     }
-  ecWillAbort = YES;
 }
 
 - (oneway void) alarm: (in bycopy EcAlarm*)event

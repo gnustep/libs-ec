@@ -687,7 +687,7 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (void) ecUnLock;
 
-/** This aborts immediately if the process is already quitting,
+/** This is ignored if the process is already quitting,
  * otherwise it returns after setting the start time used by the
  * -ecIsQuitting method and (if -ecQuitReason is not nil/empty)
  * generating a log of why quitting was started.<br />
