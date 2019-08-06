@@ -96,6 +96,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
   BOOL			alive;	// The process is running
+  BOOL			stable;	// The process has been running for a while
 }
 + (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
@@ -113,7 +114,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) resetDelay;
 - (void) setAlive: (BOOL)l;
 - (void) setConfiguration: (NSDictionary*)c;
+- (void) setAlive: (BOOL)l;
 - (void) setWhen: (NSDate*)w;
+- (BOOL) stable;
 - (NSDate*) when;
 @end
 
@@ -347,6 +350,14 @@ static NSMutableDictionary	*launchInfo = nil;
 - (void) setWhen: (NSDate*)w
 {
   ASSIGNCOPY(when, w);
+}
+
+- (BOOL) stable
+{
+  BOOL	wasStable = stable;
+
+  stable = YES;
+  return wasStable;
 }
 
 - (NSDate*) when
@@ -1069,52 +1080,59 @@ NSLog(@"Problem %@", localException);
       EcClientI	*r;
 
       /* See if we have a fitting client - and update records.
+       * A client is considered to be stable one it has been up for 
+       * at least three pings.  The -stable method sets the client
+       * as being stable and returns a boolean to let us know if it
+       * was already stable.
        */
       r = [self findIn: clients byObject: (id)from];
       [r gnip: num];
       if (r != nil && num > 2)
 	{
-          NSString	*managedObject;
           NSString      *n = [r name];
 	  LaunchInfo	*l = [LaunchInfo existing: n];
-          EcAlarm	*a;
 
 	  /* This was a successful launch so we don't need to impose
 	   * a delay between launch attempts.
 	   */
 	  [l resetDelay];
+	  if (NO == [l stable])
+	    {
+	      NSString	*managedObject;
+	      EcAlarm	*a;
 
-          /* After the first few ping responses from a client we assume
-           * that client has completed startup and is running OK.
-           * We can therefore clear any loss of client alarm, any
-           * alarm for being unable to register, and launch failure
-           * or fatal configuration alarms.
-           */
-          managedObject = EcMakeManagedObject(host, n, nil);
-          a = [EcAlarm alarmForManagedObject: managedObject
-            at: nil
-            withEventType: EcAlarmEventTypeProcessingError
-            probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
-            specificProblem: @"Process availability"
-            perceivedSeverity: EcAlarmSeverityCleared
-            proposedRepairAction: nil
-            additionalText: nil];
-          [self alarm: a];
-          a = [EcAlarm alarmForManagedObject: managedObject
-            at: nil
-            withEventType: EcAlarmEventTypeProcessingError
-            probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
-            specificProblem: @"Unable to register"
-            perceivedSeverity: EcAlarmSeverityCleared
-            proposedRepairAction: nil
-            additionalText: nil];
-          [self alarm: a];
-          [self clearConfigurationFor: managedObject
-                      specificProblem: @"Process launch"
-                       additionalText: @"Process is now running"];
-          [self clearConfigurationFor: managedObject
-                      specificProblem: @"Fatal configuration error"
-                       additionalText: @"Process is now running"];
+	      /* After the first few ping responses from a client we assume
+	       * that client has completed startup and is running OK.
+	       * We can therefore clear any loss of client alarm, any
+	       * alarm for being unable to register, and launch failure
+	       * or fatal configuration alarms.
+	       */
+	      managedObject = EcMakeManagedObject(host, n, nil);
+	      a = [EcAlarm alarmForManagedObject: managedObject
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
+		specificProblem: @"Process availability"
+		perceivedSeverity: EcAlarmSeverityCleared
+		proposedRepairAction: nil
+		additionalText: nil];
+	      [self alarm: a];
+	      a = [EcAlarm alarmForManagedObject: managedObject
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmSoftwareProgramAbnormallyTerminated
+		specificProblem: @"Unable to register"
+		perceivedSeverity: EcAlarmSeverityCleared
+		proposedRepairAction: nil
+		additionalText: nil];
+	      [self alarm: a];
+	      [self clearConfigurationFor: managedObject
+			  specificProblem: @"Process launch"
+			   additionalText: @"Process is now running"];
+	      [self clearConfigurationFor: managedObject
+			  specificProblem: @"Fatal configuration error"
+			   additionalText: @"Process is now running"];
+	    }
 	}
     }
 }
