@@ -4916,6 +4916,8 @@ With two parameters ('maximum' and a number),\n\
     }
   else
     {
+      NSTimeInterval	ti = [self ecQuitDuration];
+
       [self cmdPrintf: @"\n%@ on %@ running since %@\n",
 	cmdLogName(), ecHostName(), [self ecStarted]];
       if (lastIP > 0.0)
@@ -4925,6 +4927,19 @@ With two parameters ('maximum' and a number),\n\
       if (lastOP > 0.0)
 	{
 	  [self cmdPrintf: @"Last OP at %@\n", [self cmdLastOP]];
+	}
+      if (ti > 0)
+	{
+	  NSString	*s = [self ecQuitReason];
+
+	  if (nil == s)
+	    {
+	      [self cmdPrintf: @"Quitting for %g seconds\n", ti];
+	    }
+	  else
+	    {
+	      [self cmdPrintf: @"Quitting for %g seconds: %@\n", ti, s];
+	    }
 	}
       if (servers != nil)
 	{
