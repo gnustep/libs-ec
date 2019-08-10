@@ -41,8 +41,13 @@
  * This callback is issued once per minute, with totalUsage representing
  * the memory usage of the process and notLeaked the amount of memory 
  * accounted for as active by -ecNotLeaked. All values are in bytes.
+ * The residentUsage reports the current resident (real memory rather
+ * than virtual memory) while the dataUsage is the amount of memory in
+ * the data segment (stack and heap).  
  */
-- (void)process: (EcProcess*)process
-   didUseMemory: (uint64_t)totalUsage
-      notLeaked: (uint64_t)notLeaked;
+- (void) process: (EcProcess*)process
+    didUseMemory: (uint64_t)totalUsage
+       notLeaked: (uint64_t)notLeaked
+        resident: (uint64_t)residentUsage
+	    data: (uint64_t)dataUsage;
 @end

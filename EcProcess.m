@@ -777,13 +777,53 @@ static uint64_t	excPrev = 0;    // excluded usage at previous warning
 static uint64_t	memPrev = 0;    // total usage at previous warning
 static uint64_t	excPeak = 0;    // excluded peak usage
 static uint64_t	memPeak = 0;    // total peak usage
-static uint64_t	memWarn = 0;    // next warning interval
+static uint64_t	memBase = 0;    // base memory threshold
+static uint64_t	memWarn = 0;	// warning alarm threshold
+static uint64_t	memMinr = 0;	// minor alarm threshold
+static uint64_t	memMajr = 0;	// major alarm threshold
+static uint64_t	memCrit = 0;	// critical aarm threshold
 static uint64_t	memSlot = 0;    // minute counter
 static uint64_t	excRoll[10];    // last N values
 static uint64_t	memRoll[10];    // last N values
 #define	MEMCOUNT (sizeof(memRoll)/sizeof(*memRoll))
-static NSDate   *memTime = nil; // Time of last alert
 
+static void
+setMemBase()
+{
+  if (0 == memAllowed)
+    {
+      if (0 == memBase || memSlot < MEMCOUNT)
+	{
+	  memBase = (memAvge * 120) / 100;
+	}
+    }
+  else
+    {
+      memBase = memAllowed * 1024 * 1024;
+    }
+  if (memMaximum > 0)
+    {
+      uint64_t	max = memMaximum * 1024 * 1024;
+
+      if (max >= memBase + 1024)
+	{
+	  uint64_t	band = (max - memBase) / 4;
+
+	  memWarn = memBase;
+	  memMinr = memWarn + band;
+	  memMajr = memMinr + band;
+	  memCrit = memMajr + band;
+	}
+      else
+	{
+	  memWarn = memMinr = memMajr = memCrit = memBase;
+	}
+    }
+  else
+    {
+      memWarn = memMinr = memMajr = memCrit = 0;
+    }
+}
 
 static NSString*
 findAction(NSString *cmd)
@@ -2083,7 +2123,7 @@ static NSString	*noFiles = @"No log files to archive";
   if (memMaximum >= 4*1024)
     {
       [self cmdError: @"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memAllowed];
+        @" using 0", memMaximum];
       memMaximum = 0;	                // Disabled
     }
 #endif
@@ -4678,12 +4718,9 @@ With two parameters ('list' and a class),\n\
 With two parameters ('allowed' and a number),\n\
   the threshold for warnings about process size is set (in MB).\n\
   Set to 'default' to revert to the default.\n\
-With two parameters ('increment' and a number),\n\
-  the size increment between warnings about process size is set (in KB\n\
-  from 10 to 1048576).  Set to 'default' to revert to the default.\n\
-With two parameters ('percentage' and a number),\n\
-  the percentage increment between warnings about process memory size is\n\
-  set (from 1 to 1000).  Set to 'default' to revert to the default.\n\
+With two parameters ('idle' and a number),\n\
+  the hour of the day when the process is considered idle is set.\n\
+  Set to 'default' to revert to the default.\n\
 With two parameters ('maximum' and a number),\n\
   the maximum process size (in MB) is set.  On reaching the limit, the\n\
   process restarts unless the limit is zero (meaning no maximum).\n\
@@ -4788,37 +4825,26 @@ With two parameters ('maximum' and a number),\n\
                   [cmdDefs setCommand: arg forKey: @"MemoryAllowed"];
 		  [self cmdPrintf: @"MemoryAllowed set to %@MB.\n", arg];
                 }
-              memWarn = memAllowed * 1024 * 1024;
-              DESTROY(memTime);
               [self _memCheck];
             }
-          else if ([op caseInsensitiveCompare: @"increment"] == NSOrderedSame)
+          else if ([op caseInsensitiveCompare: @"idle"] == NSOrderedSame)
             {
-              if (val <= 100 || val > 1048576)
+	      if (!isdigit([arg characterAtIndex: 0]))
+		{
+		  val = -1;
+		}
+              if (val >= 0 && val < 24)
                 {
-                  [cmdDefs setCommand: nil forKey: @"MemoryIncrement"];
-                  [self cmdPrintf: @"MemoryIncrement using default value.\n"];
+                  arg = [NSString stringWithFormat: @"%d", (int)val];
+                  [cmdDefs setCommand: arg forKey: @"MemoryIdle"];
+		  [self cmdPrintf: @"MemoryIdle set to %@.\n", arg];
                 }
               else
                 {
-                  arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg forKey: @"MemoryIncrement"];
-		  [self cmdPrintf: @"MemoryIncrement set to %@KB.\n", arg];
+                  [cmdDefs setCommand: nil forKey: @"MemoryIdle"];
+		  [self cmdPrintf: @"MemoryIdle using default value.\n"];
                 }
-            }
-          else if ([op caseInsensitiveCompare: @"percentage"] == NSOrderedSame)
-            {
-              if (val <= 0 || val > 1000)
-                {
-                  [cmdDefs setCommand: nil forKey: @"MemoryPercentage"];
-                  [self cmdPrintf: @"MemoryPercentage using default value.\n"];
-                }
-              else
-                {
-                  arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg forKey: @"MemoryPercentage"];
-		  [self cmdPrintf: @"MemoryPercentage set to %@.\n", arg];
-                }
+              [self _memCheck];
             }
           else if ([op caseInsensitiveCompare: @"maximum"] == NSOrderedSame)
             {
@@ -4841,6 +4867,7 @@ With two parameters ('maximum' and a number),\n\
                   [cmdDefs setCommand: arg forKey: @"MemoryMaximum"];
 		  [self cmdPrintf: @"MemoryMaximum set to %@MB.\n", arg];
                 }
+              [self _memCheck];
             }
           else
             {
@@ -4953,30 +4980,51 @@ With two parameters ('maximum' and a number),\n\
 	    }
 	}
 
-      [self cmdPrintf: @"%@ memory usage: %"PRIu64"KB (current),"
+      [self cmdPrintf: @"%@ memory usage:\n  %"PRIu64"KB (current),"
         @" %"PRIu64"KB (peak)\n",
         memType, memLast/1024, memPeak/1024];
-      [self cmdPrintf: @"              %"PRIu64"KB (average),"
+      [self cmdPrintf: @"  %"PRIu64"KB (average),"
         @" %"PRIu64"KB (start)\n",
         memAvge/1024, memStrt/1024];
-      [self cmdPrintf: @"              %"PRIu64"KB (reserved)\n",
-        excLast/1024];
+
+      setMemBase();
       if (memSlot < MEMCOUNT)
         {
-          [self cmdPrintf: @"Memory error reporting disabled (for %d min"
-            @" of baseline stats collection).\n", (int)(MEMCOUNT - memSlot)];
+          [self cmdPrintf: @"Waiting (for %d min"
+            @" of baseline stats collection).\n",
+	    (int)(MEMCOUNT - memSlot)];
         }
-      else
-        {
-          [self cmdPrintf:
-            @"Memory error reporting after average usage: %"PRIu64"KB\n",
-            memWarn/1024];
-        }
+
+      if (memAllowed > 0)
+	{
+          [self cmdPrintf: @"MemoryAllowed: %"PRIu64
+	    @"KB\n  the process is expected to use up to this much memory.\n",
+            memAllowed * 1024];
+	}
       if (memMaximum > 0)
         {
-          [self cmdPrintf:
-            @"Memory exceeded shutdown after peak usage: %"PRIu64"KB\n",
-            memMaximum * 1024];
+	  NSString	*idle;
+	  int		hour;
+
+	  if (0 == memAllowed)
+	    {
+	      [self cmdPrintf: @"Estimated base: %"PRIu64
+		@"KB\n  the process is expected to use up to"
+		@" this much memory.\n",
+		memAllowed * 1024];
+	    }
+          [self cmdPrintf: @"MemoryMaximum: %"PRIu64
+	    @"KB\n  the process is restarted when peak memory usage"
+	    @" is above this limit.\n", memMaximum * 1024];
+	  idle = [cmdDefs stringForKey: @"MemoryIdle"];
+	  if ([idle length] > 0 && (hour = [idle intValue]) >= 0 && hour < 24)
+	    {
+	      [self cmdPrintf: @"  The process is also restarted if memory"
+		@" is above %"PRIu64"KB\n  during the hour from %02d:00.\n",
+		memCrit/1024, hour];
+	    }
+	  [self cmdPrintf: @"Alarms are raised when memory usage"
+	    @" is above: %"PRIu64"KB.\n", memWarn / 1024];
         }
     }
 }
@@ -5149,10 +5197,9 @@ With two parameters ('maximum' and a number),\n\
 	    @"-%@HomeDirectory [relDir] Relative home within user directory\n"
 	    @"-%@UserDirectory [dir]    Override home directory for user\n"
 	    @"-%@Instance [aNumber]     Instance number for multiple copies\n"
-	    @"-%@MemoryAllowed [MB]     Expected memory usage (before alerts)\n"
-	    @"-%@MemoryIncrement [KB]   Absolute increase in alert threshold\n"
+	    @"-%@MemoryAllowed [MB]     Expected memory usage (base size)\n"
+	    @"-%@MemoryIdle [0-23]      Hour of day preferred for restart\n"
 	    @"-%@MemoryMaximum [MB]     Maximum memory usage (before restart)\n"
-	    @"-%@MemoryPercentage [N]   Percent increase in alert threshold\n"
 	    @"-%@MemoryType [aName]     Type of memory to measure. One of\n"
 	    @"                          Total, Resident or Data.\n"
 	    @"-%@ProgramName [aName]    Name to use for this program\n"
@@ -5571,7 +5618,13 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) _memCheck
 {
+  static BOOL       	memRestart = NO;
+  static EcAlarm	*alarm = nil;
+  static char		buf[64] = {0};
+  EcAlarmSeverity	severity = EcAlarmSeverityCleared;
+  uint64_t  		mTotal, mResident, mShared, mText, mLib, mData, mDirty;
   BOOL                  memDebug = [cmdDefs boolForKey: @"Memory"];
+  int			pageSize = 4096;
   FILE          	*fptr;
   NSString		*str;
   int	        	i;
@@ -5600,13 +5653,16 @@ With two parameters ('maximum' and a number),\n\
 
   /* /proc/pid/statm reports the process memory size in 4KB pages
    */
-  fptr = fopen([[NSString stringWithFormat: @"/proc/%d/statm",
-    [[NSProcessInfo processInfo] processIdentifier]] UTF8String], "r");
+  if ('\0' == *buf)
+    {
+      sprintf(buf, "/proc/%d/statm",
+	[[NSProcessInfo processInfo] processIdentifier]);
+    }
+  fptr = fopen(buf, "r");
   memLast = 1;
+  mTotal = mResident = mShared = mText = mLib = mData = mDirty = 0;
   if (NULL != fptr)
     {
-      uint64_t  mTotal, mResident, mShared, mText, mLib, mData, mDirty;
-
       if (fscanf(fptr, "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64
         " %"PRIu64" %"PRIu64,
         &mTotal, &mResident, &mShared, &mText, &mLib, &mData, &mDirty) != 7)
@@ -5627,7 +5683,7 @@ With two parameters ('maximum' and a number),\n\
 	    {
 	      memLast = mTotal;
 	    }
-          memLast *= (4 * 1024);
+          memLast *= pageSize;
           if (memLast <= 0) memLast = 1;
         }
       fclose(fptr);
@@ -5640,8 +5696,10 @@ With two parameters ('maximum' and a number),\n\
       NS_DURING
         {
           [cmdMemoryLogger process: self
-                      didUseMemory: memLast
-                         notLeaked: excLast];
+                      didUseMemory: mTotal * pageSize
+                         notLeaked: excLast
+			  resident: mResident * pageSize
+			      data: mData * pageSize];
         }
       NS_HANDLER
         {
@@ -5708,112 +5766,102 @@ With two parameters ('maximum' and a number),\n\
    */
   if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
     {
-      static BOOL       memRestart = NO;
-
       if (NO == memRestart)
         {
           memRestart = YES;
-          [self cmdAlert: @"MemoryMaximum exceeded ... initiating restart"];
+          NSLog(@"MemoryMaximum exceeded ... initiating restart");
           [self ecRestart: @"memory usage limit reached"];
         }
       return;
     }
 
-  /* If the average memory usage is above the threshold (adjusted by any
-   * change in known unleaked memory), we alert and reset the threshold.
-   * During the first ten minutes though, we always adjust the threshold and
-   * we suppress any warnings. This gives us a more stable starting point.
-   */
-  if (memAvge + excPrev - excAvge > memWarn || memSlot < MEMCOUNT)
+  setMemBase();
+  if (memWarn > 0 && memAvge > memWarn)
     {
-      NSInteger     inc;
-      NSInteger     pct;
-      uint64_t      iMax = 0;
-      uint64_t      pMax = 0;
+      if (memAvge > memCrit)
+	{
+	  severity = EcAlarmSeverityCritical;
+	}
+      else if (memAvge > memMajr)
+	{
+	  severity = EcAlarmSeverityMajor;
+	}
+      else if (memAvge > memMinr)
+	{
+	  severity = EcAlarmSeverityMinor;
+	}
+      else
+	{
+	  severity = EcAlarmSeverityWarning;
+	}
+    }
 
-      /* We increase the threshold for the next alert by a percentage
-       * of the existing usage or by a fixed increment, whichever is
-       * the larger.
+  if (EcAlarmSeverityCleared == severity)
+    {
+      if (nil != alarm)
+	{
+	  EcAlarm	*clear = [alarm clear];
+
+	  DESTROY(alarm);
+	  [self alarm: clear];
+	}
+    }
+  else
+    {
+      NSString	*additional;
+
+      additional = [NSString stringWithFormat:
+	@"Average %@ memory usage %luKB (base %luKB, max %luKB)",
+	memType,
+	(unsigned long)memAvge/1024,
+	(unsigned long)memBase/1024,
+	(unsigned long)memMaximum*1024];
+
+      NSLog(@"%@", additional);
+
+      /* When we are critically close to reaching our memory limit
+       * AND it's the time of day when the process is idle, we need
+       * to restart.
        */
-      pct = [cmdDefs integerForKey: @"MemoryPercentage"];
-      if (pct < 1 || pct > 100)
-        {
-          /* Set the next alerting threshold 5%
-           * the current peak usage,
-           * ensuring that only serious increases
-           * in usage will generate an alert.
-           */
-          pct = 5;
-        }
-      pMax = (memPeak * (100 + pct)) / 100;
+      if (EcAlarmSeverityCritical == severity)
+	{
+	  NSString	*idle;
+	  int		hour;
 
-      inc = [cmdDefs integerForKey: @"MemoryIncrement"];
-      if (inc < 100 || inc > 1048576)
-        {
-          /* Set the next alerting threshold from
-           * 50MB above the current peak usage,
-           * ensuring that only serious increases
-           * in usage will generate an alert.
-           */
-          inc = 50 * 1024;
-        }
-      iMax = memPeak + (inc * 1024);
+	  /* Idle period is hour of the day and number of hours from 1 to 10
+	   */
+	  idle = [cmdDefs stringForKey: @"MemoryIdle"];
+	  if ([idle length] > 0 && (hour = [idle intValue]) >= 0 && hour < 24)
+	    {
+	      if ([[NSCalendarDate date] hourOfDay] == hour)
+		{
+		  if (NO == memRestart)
+		    {
+		      memRestart = YES;
+		      NSLog(@"MemoryMaximum near in idle time; restart");
+		      [self ecRestart: @"memory usage limit when idle"];
+		    }
+		  return;
+		}
+	    }
+	}
 
-      memWarn = (iMax > pMax) ? iMax : pMax;
-      if (memWarn % 1024)
-        {
-          memWarn = (memWarn/1024 + 1) * 1024;
-        }
-      if (memWarn < memAllowed * 1024 * 1024)
-        {
-          /* Never warn at less than the allowed memory.
-           */
-          memWarn = memAllowed * 1024 * 1024;
-        }
+      if ([alarm perceivedSeverity] != severity)
+	{
+	  EcAlarm	*a;
 
-      /* If not in the initial period, we need to generate an alert
-       * because the average has risen above the allowed size.
-       */
-      if (memSlot >= MEMCOUNT)
-        {
-          uint64_t      ePrev;
-          uint64_t      mPrev;
-          NSDate        *when;
-
-          ePrev = excPrev;
-          mPrev = memPrev;
-          when = AUTORELEASE(memTime);
-          excPrev = excAvge;
-          memPrev = memAvge;
-          memTime = [NSDate new];
-          if (nil == when)
-            {
-              [self cmdError: @"Average %@ memory usage %luKB (grown by %ldKB)"
-                @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB (%u%%)",
-		memType,
-                (unsigned long)memAvge/1024,
-                (long)(memAvge - mPrev)/1024,
-                (unsigned long)excAvge/1024,
-                (long)(excAvge - ePrev)/1024,
-                (long)(memAvge - mPrev + ePrev - excAvge)/1024,
-                (unsigned)(((memAvge - mPrev + ePrev - excAvge)*100)/mPrev)];
-            }
-          else
-            {
-              [self cmdError: @"Average %@ memory usage %luKB (grown by %ldKB)"
-                @" with %luKB (grown by %ldKB) accounted for;"
-                @" possible leak of %ldKB (%u%%) since %@",
-		memType,
-                (unsigned long)memAvge/1024,
-                (long)(memAvge - mPrev)/1024,
-                (unsigned long)excAvge/1024,
-                (long)(excAvge - ePrev)/1024,
-                (long)(memAvge - mPrev + ePrev - excAvge)/1024,
-                (unsigned)(((memAvge - mPrev + ePrev - excAvge)*100)/mPrev),
-                when];
-            }
-        }
+	  a = [EcAlarm alarmForManagedObject: nil
+	    at: nil
+	    withEventType: EcAlarmEventTypeProcessingError
+	    probableCause: EcAlarmOutOfMemory
+	    specificProblem: @"MemoryAllowed exceeded"
+	    perceivedSeverity: severity
+	    proposedRepairAction: @"Investigate possible leak, monitor usage,"
+	      @" restart process when necessary."
+	    additionalText: additional];
+	  ASSIGN(alarm, a);
+	  [self alarm: alarm];
+	}
     }
 
   if (YES == memDebug)

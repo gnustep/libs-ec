@@ -1,3 +1,19 @@
+2019-08-10 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcMemoryLogger.h: Change protocol to pass more information.
+	* EcProcess.h: Update comments/documentation.
+	* EcProcess.m: Revise memory usage code to
+	Provide resident and data memory stats to the memory logger
+	Refrain from generating alerts (remove MemoryIncrement and
+	MemoryPercent settings) having a base memory calculated
+	simply as the average usage after ten minutes, plus 20 percent.
+	Generate alarms for memory usage between the base/allowed value
+	and the maximum allowed value.
+	Add MemoryIdle setting to specify an 'idle' hour during the day
+	in which the process will restart if it's near maximum allowed
+	memory (in the critical alarm range).
+	Change the status reporting to improve readability.
+
 2019-08-06 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Prevent repeated clears of alarms for newly connected

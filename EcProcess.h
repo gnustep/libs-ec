@@ -348,33 +348,24 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <term>EcMemoryAllowed</term>
  *   <desc>
  *     This may be used to specify the process memory usage
- *     (in megabytes) before memory usage alerting may begin.<br />
- *     Memory usage warning logs are then generated every time
- *     the average (over ten minutes) memory usage (adjusted by the
- *     average memory known not leaked) exceeds a warning
- *     threshold (the threshold is then increased).<br />
+ *     (in megabytes) before memory usage alarms may begin.<br />
  *     If this setting is not specified (or a negative or excessive value
  *     is specified) then memory is monitored for ten minutes and
- *     the threshold is set at the peak during that period plus a
- *     margin to allow further memory growth before warning.<br />
- *     The minimum margin is determined by the EcMemoryIncrement and
- *     EcMemoryPercentage settings.<br />
+ *     the threshold is set at the peak during that period plus a 20%
+ *     margin to allow further memory growth.<br />
  *     This may be set in the NSUserDefaults system or in Control.plist,
  *     but may be overridden by using the 'memory' command in the
  *     Console program.
  *   </desc>
- *   <term>EcMemoryIncrement</term>
+ *   <term>EcMemoryIdle</term>
  *   <desc>
- *     This integer value controls the (KBytes) increment (from
- *     current peak value) in process memory usage (adjusted by the
- *     average memory known not leaked) after which
- *     an alert is generated.<br />
- *     If this is not set (or is set to a value less than 100KB or
- *     greater than 1GB) then a value of 50MB is used.<br />
- *     Setting a higher value makes memory leak detection less
- *     sensitive (but reduces unnecessary alerts).<br />
- *     If used in conjunction with EcMemoryPercentage, the greater
- *     of the two allowed memory values is used.<br />
+ *     This optional integer value (0 to 23) may be used to specify the hour
+ *     of the day in which restarts are preferred to take place (some time
+ *     when the process is likely to be idle).  If a process is near a
+ *     maximum permitted memory usage at this time of day,
+ *     the -ecRestart: method will be called.<br />
+ *     Near means over three quarters of the way between the base/allowed
+ *     memory usage (as determined by MemoryAllowed) and MemoryMaximum.<br />
  *     This may be set in the NSUserDefaults system or in Control.plist,
  *     but may be overridden by using the 'memory' command in the
  *     Console program.
@@ -382,29 +373,14 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <term>EcMemoryMaximum</term>
  *   <desc>
  *     This may be used to specify the maximum process memory allowed
- *     (in megabytes) before the process is forced to quit due to
+ *     (in megabytes) before the process is forced to restart due to
  *     excessive memory usage.<br />
  *     If the total memory usage of the process reaches this threshold,
- *     the -cmdQuit: method will be called with an argument of -1.<br />
- *     If this is not specified (or a negative value is specified)
- *     the process will never shut down due to excessive memory usage.<br />
- *     This may be set in the NSUserDefaults system or in Control.plist,
- *     but may be overridden by using the 'memory' command in the
- *     Console program.
- *   </desc>
- *   <term>EcMemoryPercentage</term>
- *   <desc>
- *     This integer value controls the increase in the alerting
- *     threshold (adjusted by the average memory known not leaked)
- *     after which a memory usage alert is generated.<br />
- *     The increase is calculated as a percentage of the current
- *     peak memory usage value when an alert is generated.<br />
- *     If this is not set (or is set to a value less than 1 or
- *     greater than 100) then a value of 5 is used.<br />
- *     Setting a higher value make memory leak detection less
- *     sensitive (but reduces unnecessary alerts).<br />
- *     If used in conjunction with EcMemoryIncrement, the greater
- *     of the two allowed memory values is used.<br />
+ *     the -ecRestart: method will be called<br />
+ *     The process will also generate alarms depending on the memory usage
+ *     once the bas/allowed memory usge has been passed.  The severity of
+ *     the alarms depends on how far from the base/allowed memory to the
+ *     maximum memory the current ten minute average of the usage is.<br />
  *     This may be set in the NSUserDefaults system or in Control.plist,
  *     but may be overridden by using the 'memory' command in the
  *     Console program.
@@ -412,7 +388,7 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <term>EcMemoryType</term>
  *   <desc>
  *    This controls the type of memory considered by the EcMemoryAllowed,
- *    EcMemoryIncrement, EcMemoryMaximum and EcMemoryPercentage options.<br />
+ *    EcMemoryIdle and EcMemoryMaximum options.<br />
  *    Total (the default), considers the total process memory usage.<br />
  *    Resident, considers current resident memory used.<br />
  *    Data, considers only dynamically allocated and stack memory.<br />
@@ -648,9 +624,9 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSTimeInterval) ecQuitDuration;
 
-/** This method is designed for handling an orderly shutdown by calling
- * -ecWillQuit: with the supplied reason, then -ecHandleQuit, and finally
- * calling -ecDidQuit: passing the supplied status.<br />
+/** This method is designed for handling an orderly shutdown by noting
+ * the supplied reason and status, and then calling -ecWillQuit,
+ * -ecHandleQuit, and finally calling -ecDidQuit.<br />
  * Subclasses should not normally override this method. Instead override
  * the -ecHandleQuit method.<br />
  * For backward compatibility, this will call the -cmdQuit: method if a
@@ -665,11 +641,11 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSTimeInterval) ecQuitLimit: (NSTimeInterval)seconds;
 
-/** Returns the quit reason supplied to the -ecQuitFor:with method.
+/** Returns the quit reason supplied to the -ecQuitFor:with: method.
  */
 - (NSString*) ecQuitReason;
 
-/** Returns the quit status supplied to the -ecQuitFor:with or -cmdQuit:
+/** Returns the quit status supplied to the -ecQuitFor:with: or -cmdQuit:
  * method.
  */
 - (NSInteger) ecQuitStatus;
@@ -680,7 +656,7 @@ extern NSString*	cmdVersion(NSString *ver);
 - (oneway void) ecReconnect;
 
 /** This method is designed for handling an orderly restart.<br />
- * The default implementation calls -ecQuitFor:status: with minus one as
+ * The default implementation calls -ecQuitFor:with: with minus one as
  * the status code so that the Command server will start the process
  * again.<br />
  * The method is called automatically when the MemoryMaximum limit is
@@ -911,9 +887,9 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (NSMutableDictionary*)cmdOperator: (NSString*)name password: (NSString*)pass;
 
-/** This method calls -ecWillQuit: with a nil argument, then -ecHandleQuit,
- * and finally calls -ecDidQuit: with the supplied value for the process
- * exit status.<br />
+/** This method notes the supplied status and sets a nil quit reason, it
+ * then calls -ecWillQuit, -ecHandleQuit, and finally calls
+ * -ecDidQuit at process termination.<br />
  * Subclasses should override -ecHandleQuit rather than this method.
  */
 - (oneway void) cmdQuit: (NSInteger)status;
@@ -978,7 +954,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * after any code dealing with the notifications has run.<br />
  * The return value of this method is used to control automatic generation
  * of alarms for fatal configuration errors by passing it to the
- * -ecConfigurationError: method.<br />
+ * -ecConfigurationError:,... method.<br />
  * When you implement this method, you must ensure that your implementation
  * calls the superclass implementation, and if that returns a non-nil
  * result, you should pass that on as the return value from your own
@@ -1295,7 +1271,8 @@ extern NSString*	cmdVersion(NSString *ver);
        perceivedSeverity: (EcAlarmSeverity)perceivedSeverity
 		 message: (NSString*)format, ... NS_FORMAT_FUNCTION(4,5);
 
-/** Supporting code called by the -ecException:message:... method.
+/** Supporting code called by the 
+ *  -ecException:specificProblem:perceivedSeverity:message:,... method.
  */
 - (EcAlarm*) ecException: (NSException*)cause
 	 specificProblem: (NSString*)specificProblem
