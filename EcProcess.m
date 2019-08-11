@@ -4858,8 +4858,8 @@ With two parameters ('maximum' and a number),\n\
 	      else
 		{
 		  arg = setMemAlarm(arg);
-                  [cmdDefs setCommand: arg forKey: @"MemoryAllowed"];
-		  [self cmdPrintf: @"MemoryAllowed set to %@.\n", arg];
+                  [cmdDefs setCommand: arg forKey: @"MemoryAlarm"];
+		  [self cmdPrintf: @"MemoryAlarm set to %@.\n", arg];
 		}
 	    }
           else if ([op caseInsensitiveCompare: @"allowed"] == NSOrderedSame)
