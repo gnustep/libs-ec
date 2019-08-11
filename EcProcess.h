@@ -345,14 +345,28 @@ extern NSString*	cmdVersion(NSString *ver);
  *     but may be overridden by using the 'memory' command in the
  *     Console program.
  *   </desc>
+ *   <term>EcMemoryAlarm</term>
+ *   <desc>
+ *     This may be used to control the alarm severity level at which the
+ *     system starts raising alarms about memory usage.  Setting it to Warning
+ *     means that alarms are raised as soon as the base/allowed memory limit
+ *     is passed, while setting it to Critical only causes an alarm to be
+ *     raised when the MemoryMaximum limit is close.<br />
+ *     The default value is Major (the possible values are Warning, Minor,
+ *     Major, and Critical).<br />
+ *     This may be set in the NSUserDefaults system or in Control.plist,
+ *     but may be overridden by using the 'memory' command in the
+ *     Console program.
+ *   </desc>
  *   <term>EcMemoryAllowed</term>
  *   <desc>
  *     This may be used to specify the process memory usage
  *     (in megabytes) before memory usage alarms may begin.<br />
  *     If this setting is not specified (or a negative or excessive value
- *     is specified) then memory is monitored for ten minutes and
- *     the threshold is set at the peak during that period plus a 20%
- *     margin to allow further memory growth.<br />
+ *     is specified) then memory is monitored for ten minutes and the
+ *     base/allowed threshold is set at either the peak during that period
+ *     (plus a twenty percent margin to allow further memory growth) or at
+ *     half the MemoryMaximum value, whichever is the greater.<br />
  *     This may be set in the NSUserDefaults system or in Control.plist,
  *     but may be overridden by using the 'memory' command in the
  *     Console program.

@@ -1,3 +1,10 @@
+2019-08-11 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Add MemoryAlarm config to control at whaich level of 'severity'
+	a process actually starts raising alarms about memory usage.
+
 2019-08-10 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcMemoryLogger.h: Change protocol to pass more information.

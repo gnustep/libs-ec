@@ -764,6 +764,7 @@ ecHostName()
   return [name autorelease];
 }
 
+static EcAlarmSeverity memAlarm = EcAlarmSeverityMajor;
 static NSString	*memType = nil;
 static uint64_t memMaximum = 0;
 static uint64_t	memAllowed = 0;
@@ -787,6 +788,33 @@ static uint64_t	excRoll[10];    // last N values
 static uint64_t	memRoll[10];    // last N values
 #define	MEMCOUNT (sizeof(memRoll)/sizeof(*memRoll))
 
+static NSString*
+setMemAlarm(NSString *str)
+{
+  if (nil == str) str = @"Major";
+  if ([str caseInsensitiveCompare: @"critical"] == NSOrderedSame)
+    {
+      memAlarm = EcAlarmSeverityCritical;
+    } 
+  else if ([str caseInsensitiveCompare: @"major"] == NSOrderedSame)
+    {
+      memAlarm = EcAlarmSeverityMajor;
+    } 
+  else if ([str caseInsensitiveCompare: @"minor"] == NSOrderedSame)
+    {
+      memAlarm = EcAlarmSeverityMinor;
+    } 
+  else if ([str caseInsensitiveCompare: @"warning"] == NSOrderedSame)
+    {
+      memAlarm = EcAlarmSeverityWarning;
+    } 
+  else
+    {
+      memAlarm = EcAlarmSeverityMajor;
+    }
+  return [EcAlarm stringFromSeverity: memAlarm];
+}
+
 static void
 setMemBase()
 {
@@ -794,7 +822,16 @@ setMemBase()
     {
       if (0 == memBase || memSlot < MEMCOUNT)
 	{
-	  memBase = (memAvge * 120) / 100;
+	  /* Base must be 20% larger than peak over first ten minutes.
+	   */
+	  memBase = (memPeak * 120) / 100;
+
+	  /* The base memory must be at least half the maximum memory.
+	   */
+	  if (memMaximum > 0 && memBase < memMaximum * 1024 * 512)
+	    {
+	      memBase = memMaximum * 1024 * 512;
+	    }
 	}
     }
   else
@@ -2107,6 +2144,8 @@ static NSString	*noFiles = @"No log files to archive";
 #ifndef __MINGW__
   descriptorsMaximum = [cmdDefs integerForKey: @"DescriptorsMaximum"];
 #endif
+
+  setMemAlarm([cmdDefs stringForKey: @"MemoryAlarm"]);
 
   memAllowed = (uint64_t)[cmdDefs integerForKey: @"MemoryAllowed"];
 #if     SIZEOF_VOIDP == 4
@@ -4715,8 +4754,11 @@ With two parameters ('class' and a class name),\n\
   new instances of the class are recorded.\n\
 With two parameters ('list' and a class),\n\
   recorded instances of the class are reported.\n\
+With two parameters ('alarm' and a severity name),\n\
+  the threshold for severity of alarms (warning, minor, major, critical).\n\
+  Set to 'default' to revert to the default.\n\
 With two parameters ('allowed' and a number),\n\
-  the threshold for warnings about process size is set (in MB).\n\
+  the base/allowed process memory size is set (in MB).\n\
   Set to 'default' to revert to the default.\n\
 With two parameters ('idle' and a number),\n\
   the hour of the day when the process is considered idle is set.\n\
@@ -4805,7 +4847,22 @@ With two parameters ('maximum' and a number),\n\
           NSString      *arg = [msg objectAtIndex: 2];
           NSInteger     val = [arg integerValue];
        
-          if ([op caseInsensitiveCompare: @"allowed"] == NSOrderedSame)
+          if ([op caseInsensitiveCompare: @"alarm"] == NSOrderedSame)
+            {
+	      arg = [arg stringByTrimmingSpaces];
+	      if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
+		{
+                  [cmdDefs setCommand: nil forKey: @"MemoryAlarm"];
+		  [self cmdPrintf: @"MemoryAlarm using default value.\n"];
+		}
+	      else
+		{
+		  arg = setMemAlarm(arg);
+                  [cmdDefs setCommand: arg forKey: @"MemoryAllowed"];
+		  [self cmdPrintf: @"MemoryAllowed set to %@.\n", arg];
+		}
+	    }
+          else if ([op caseInsensitiveCompare: @"allowed"] == NSOrderedSame)
             {
               if (val <= 0)
                 {
@@ -5005,6 +5062,7 @@ With two parameters ('maximum' and a number),\n\
         {
 	  NSString	*idle;
 	  int		hour;
+	  uint64_t	limit;
 
 	  if (0 == memAllowed)
 	    {
@@ -5023,8 +5081,16 @@ With two parameters ('maximum' and a number),\n\
 		@" is above %"PRIu64"KB\n  during the hour from %02d:00.\n",
 		memCrit/1024, hour];
 	    }
+	  limit = memWarn;
+	  switch (memAlarm)
+	    {
+	      case EcAlarmSeverityCritical:	limit = memCrit; break;
+	      case EcAlarmSeverityMajor:	limit = memMajr; break;
+	      case EcAlarmSeverityMinor:	limit = memMinr; break;
+	      default:				limit = memWarn; break;
+	    }
 	  [self cmdPrintf: @"Alarms are raised when memory usage"
-	    @" is above: %"PRIu64"KB.\n", memWarn / 1024];
+	    @" is above: %"PRIu64"KB.\n", limit / 1024];
         }
     }
 }
@@ -5197,6 +5263,7 @@ With two parameters ('maximum' and a number),\n\
 	    @"-%@HomeDirectory [relDir] Relative home within user directory\n"
 	    @"-%@UserDirectory [dir]    Override home directory for user\n"
 	    @"-%@Instance [aNumber]     Instance number for multiple copies\n"
+	    @"-%@MemoryAlarm [severity] When to start raising alarms\n"
 	    @"-%@MemoryAllowed [MB]     Expected memory usage (base size)\n"
 	    @"-%@MemoryIdle [0-23]      Hour of day preferred for restart\n"
 	    @"-%@MemoryMaximum [MB]     Maximum memory usage (before restart)\n"
@@ -5784,15 +5851,27 @@ With two parameters ('maximum' and a number),\n\
 	}
       else if (memAvge > memMajr)
 	{
-	  severity = EcAlarmSeverityMajor;
+	  if (memAlarm != EcAlarmSeverityCritical)
+	    {
+	      severity = EcAlarmSeverityMajor;
+	    }
 	}
       else if (memAvge > memMinr)
 	{
-	  severity = EcAlarmSeverityMinor;
+	  if (memAlarm != EcAlarmSeverityCritical
+	    && memAlarm != EcAlarmSeverityMajor)
+	    {
+	      severity = EcAlarmSeverityMinor;
+	    }
 	}
       else
 	{
-	  severity = EcAlarmSeverityWarning;
+	  if (memAlarm != EcAlarmSeverityCritical
+	    && memAlarm != EcAlarmSeverityMajor
+	    && memAlarm != EcAlarmSeverityMinor)
+	    {
+	      severity = EcAlarmSeverityWarning;
+	    }
 	}
     }
 
