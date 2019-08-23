@@ -528,8 +528,8 @@ static NSMutableDictionary	*launchInfo = nil;
 	    {
 	      /* Do not hang waiting for the other end to respond.
 	       */
-	      [c setRequestTimeout: 5.0];
-	      [c setReplyTimeout: 5.0];
+	      [c setRequestTimeout: 120.0];
+	      [c setReplyTimeout: 120.0];
 	      proxy = (id<CmdClient>)[c rootProxy];
 	      [c setRequestTimeout: 0.0];
 	      [c setReplyTimeout: 0.0];
