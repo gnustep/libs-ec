@@ -1,3 +1,10 @@
+2019-08-23 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	When checking to see if a process is alive/responding, set a short
+	timeout for the DO request to get a proxy to the process so that
+	we don't hang waiting for a response that never comes.
+
 2019-08-11 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

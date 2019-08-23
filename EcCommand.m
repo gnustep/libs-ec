@@ -518,10 +518,26 @@ static NSMutableDictionary	*launchInfo = nil;
 
       NS_DURING
 	{
-	  proxy = (id<CmdClient>)[NSConnection
-	    rootProxyForConnectionWithRegisteredName: name
+	  NSConnection	*c;
+
+	  c = [NSConnection
+	    connectionWithRegisteredName: name
 	    host: @""
 	    usingNameServer: [NSSocketPortNameServer sharedInstance]];
+	  NS_DURING
+	    {
+	      /* Do not hang waiting for the other end to respond.
+	       */
+	      [c setRequestTimeout: 5.0];
+	      [c setReplyTimeout: 5.0];
+	      proxy = (id<CmdClient>)[c rootProxy];
+	    }
+	  NS_HANDLER
+	    {
+	      [c setRequestTimeout: 0.0];
+	      [c setReplyTimeout: 0.0];
+	    }
+	  NS_ENDHANDLER
 	  if (nil != proxy)
 	    {
 	      [proxy ecReconnect];
