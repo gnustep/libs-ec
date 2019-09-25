@@ -477,9 +477,9 @@ static NSMutableDictionary	*launchInfo = nil;
 - (NSArray*) restartAll: (NSString*)from;
 - (void) terminate: (NSDate*)by;
 - (void) _terminate: (NSTimer*)t;
-- (void) timedOut: (NSTimer*)t;
-- (void) _timedOut: (NSTimer*)t;
-- (void) timeoutSoon;
+- (void) tryLaunch: (NSTimer*)t;
+- (void) _tryLaunch: (NSTimer*)t;
+- (void) tryLaunchSoon;
 - (void) unregisterByObject: (id)obj;
 - (void) unregisterByName: (NSString*)n;
 - (void) update;
@@ -589,7 +589,7 @@ NSLog(@"Problem %@", localException);
   [super ecAwaken];
   [[self ecAlarmDestination] setCoalesce: NO];
   launchSuspended = [[self cmdDefaults] boolForKey: @"LaunchStartSuspended"];
-  [self _timedOut: nil];    // Simulate timeout to set timer going
+  [self _tryLaunch: nil];    // Simulate timeout to set timer going
 }
 
 - (oneway void) unmanage: (in bycopy NSString*)managedObject
@@ -1813,7 +1813,7 @@ NSLog(@"Problem %@", localException);
             {
               launchSuspended = NO;
 	      m = @"Launching is now resumed.\n";
-              [self timeoutSoon];
+              [self tryLaunchSoon];
             }
           else
             {
@@ -2332,7 +2332,7 @@ NSLog(@"Problem %@", localException);
     {
       if (control == nil)
 	{
-	  [self timedOut: nil];
+	  [self tryLaunch: nil];
 	}
       if (control == nil)
 	{
@@ -2977,7 +2977,7 @@ NSLog(@"Problem %@", localException);
 	{
 	  [obj setConfig: d];
 	}
-      [self timeoutSoon];
+      [self tryLaunchSoon];
       return [obj config];
     }
   else
@@ -3010,7 +3010,7 @@ NSLog(@"Problem %@", localException);
 
       l = [LaunchInfo existing: name];
       [l setWhen: [NSDate date]];
-      [self timeoutSoon];
+      [self tryLaunchSoon];
     } 
 }
 
@@ -3018,7 +3018,7 @@ NSLog(@"Problem %@", localException);
 {
   if (control == nil)
     {
-      [self timedOut: nil];
+      [self tryLaunch: nil];
     }
   if (control != nil)
     {
@@ -3481,7 +3481,7 @@ NSLog(@"Problem %@", localException);
   [self terminate: nil];
 }
 
-- (void) timedOut: (NSTimer*)t
+- (void) tryLaunch: (NSTimer*)t
 {
   static BOOL	inTimeout = NO;
   NSDate	*now = [t fireDate];
@@ -3774,10 +3774,10 @@ NSLog(@"Problem %@", localException);
   inTimeout = NO;
 }
 
-- (void) _timedOut: (NSTimer*)t
+- (void) _tryLaunch: (NSTimer*)t
 {
   NS_DURING
-    [self timedOut: t];
+    [self tryLaunch: t];
   NS_HANDLER
     NSLog(@"Problem in timeout: %@", localException);
   NS_ENDHANDLER
@@ -3786,20 +3786,20 @@ NSLog(@"Problem %@", localException);
     {
       timer = [NSTimer scheduledTimerWithTimeInterval: 5.0
 					       target: self
-					     selector: @selector(_timedOut:)
+					     selector: @selector(_tryLaunch:)
 					     userInfo: nil
 					      repeats: NO];
     }
 }
 
-- (void) timeoutSoon
+- (void) tryLaunchSoon
 {
   if (NO == [timer isValid] || [[timer fireDate] timeIntervalSinceNow] > 0.1)
     {
       [timer invalidate];
       timer = [NSTimer scheduledTimerWithTimeInterval: 0.1
         target: self
-        selector: @selector(_timedOut:)
+        selector: @selector(_tryLaunch:)
         userInfo: nil
         repeats: NO];
     }
@@ -3842,7 +3842,7 @@ NSLog(@"Problem %@", localException);
       if (YES == restarting)
         {
           [l setWhen: [NSDate date]];
-          [self timeoutSoon];
+          [self tryLaunchSoon];
         }
     }
 }
@@ -3884,7 +3884,7 @@ NSLog(@"Problem %@", localException);
       if (YES == restarting)
         {
           [l setWhen: [NSDate date]];
-          [self timeoutSoon];
+          [self tryLaunchSoon];
         }
     }
 }

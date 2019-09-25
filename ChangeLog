@@ -1,3 +1,9 @@
+2019-09-25 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	Rename launch timeout methods to avoid conflict with EcProcess
+	timeouts and make code clearer.
+
 2019-09-25  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	* EcCommand.m:
