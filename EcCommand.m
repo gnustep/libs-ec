@@ -177,12 +177,12 @@ static NSMutableDictionary	*launchInfo = nil;
     {
       NSEnumerator	*e = [launchInfo keyEnumerator];
       NSString		*s;
-      NSUInteger	bestLength = 0;
+      NSInteger 	bestLength = 0;
       NSString		*bestName = nil;
 
       while (nil != (s = [e nextObject]))
 	{
-	  if (comp(s, abbreviation) == 0)
+	  if (comp(abbreviation, s) == 0)
 	    {
 	      bestName = s;
 	      break;
