@@ -1,3 +1,10 @@
+2019-10-03 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	When processes shut themselves down gracefully, don't relaunch them
+	unless they are either configured to autolaunch or are being
+	restarted.
+
 2019-09-25 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

@@ -114,7 +114,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) resetDelay;
 - (void) setAlive: (BOOL)l;
 - (void) setConfiguration: (NSDictionary*)c;
-- (void) setAlive: (BOOL)l;
 - (void) setWhen: (NSDate*)w;
 - (BOOL) stable;
 - (NSDate*) when;
@@ -3820,6 +3819,7 @@ NSLog(@"Problem %@", localException);
 
       [o setUnregistered: YES];
       [l setAlive: NO];
+      [l setWhen: nil];
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
@@ -3862,6 +3862,7 @@ NSLog(@"Problem %@", localException);
 
       [o setUnregistered: YES];
       [l setAlive: NO];
+      [l setWhen: nil];
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
