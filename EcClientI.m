@@ -213,6 +213,7 @@
       terminating = flag ? YES : NO;
       if (YES == terminating)
         {
+	  restarting = NO;
           NSLog(@"Terminating %@", name);
         }
       else

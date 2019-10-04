@@ -1,3 +1,10 @@
+2019-10-04 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcClientI.m:
+	When we ask a client to terminate, turn off restarting flag.
+	When a client has restarted, turn off restarting flag.
+
 2019-10-03 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:
