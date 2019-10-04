@@ -2956,7 +2956,6 @@ NSLog(@"Problem %@", localException);
       [launching removeObjectForKey: n];
       [l setWhen: now];
       [l setAlive: YES];
-      [obj setRestarting: NO];
 
       m = [NSString stringWithFormat: 
 	@"%@ registered new server with name '%@' on %@\n",
@@ -3814,13 +3813,21 @@ NSLog(@"Problem %@", localException);
       NSString	        *m;
       NSUInteger	i;
       BOOL	        restarting = [o restarting];
+      BOOL		terminating = [o terminating];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      [l setWhen: nil];
+      if (terminating)
+	{
+	  [l setWhen: [NSDate distantFuture]];
+	}
+      else
+	{
+	  [l setWhen: nil];
+	}
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
@@ -3857,13 +3864,21 @@ NSLog(@"Problem %@", localException);
       NSString	        *m;
       NSUInteger       	i;
       BOOL	        restarting = [o restarting];
+      BOOL		terminating = [o terminating];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      [l setWhen: nil];
+      if (terminating)
+	{
+	  [l setWhen: [NSDate distantFuture]];
+	}
+      else
+	{
+	  [l setWhen: nil];
+	}
       [launching removeObjectForKey: name];
       m = [NSString stringWithFormat: 
 	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
