@@ -3813,14 +3813,14 @@ NSLog(@"Problem %@", localException);
       NSString	        *m;
       NSUInteger	i;
       BOOL	        restarting = [o restarting];
-      BOOL		terminating = [o terminating];
+      BOOL		shutdown = [o terminating];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      if (terminating)
+      if (shutdown)
 	{
 	  [l setWhen: [NSDate distantFuture]];
 	}
@@ -3864,14 +3864,14 @@ NSLog(@"Problem %@", localException);
       NSString	        *m;
       NSUInteger       	i;
       BOOL	        restarting = [o restarting];
-      BOOL		terminating = [o terminating];
+      BOOL		shutdown = [o terminating];
       BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      if (terminating)
+      if (shutdown)
 	{
 	  [l setWhen: [NSDate distantFuture]];
 	}
