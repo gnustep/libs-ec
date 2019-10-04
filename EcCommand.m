@@ -2956,7 +2956,7 @@ NSLog(@"Problem %@", localException);
       [launching removeObjectForKey: n];
       [l setWhen: now];
       [l setAlive: YES];
-      [l setRestarting: NO];
+      [obj setRestarting: NO];
 
       m = [NSString stringWithFormat: 
 	@"%@ registered new server with name '%@' on %@\n",
