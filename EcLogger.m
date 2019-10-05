@@ -187,7 +187,7 @@ static NSArray          *modes;
   [lock lock];
   if (NO == shouldForward)
     {
-      [s appendFormat: @"%@ output via NSLog only.\n", key];
+      [s appendFormat: @"%@ output to file only.\n", key];
     }
   else if (size == 0)
     {

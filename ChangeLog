@@ -1,3 +1,10 @@
+2019-10-05 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcLogger.m:
+	* EcProcess.m:
+	The debug command at the Console should report when debug (STDERR)
+	is suppressed.
+
 2019-10-04 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

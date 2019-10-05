@@ -4208,6 +4208,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
 	  [self cmdPrintf: @"%@\n", cmdDebugKnown];
 	}
+      else if (YES == cmdKillDebug)
+	{
+	  [self cmdPrintf:
+	    @"All output to STDERR suppressed by KillDebugOutput=YES\n"];
+	}
       else if ([msg count] > 1)
 	{
 	  NSString	*mode = (NSString*)[msg objectAtIndex: 1];
