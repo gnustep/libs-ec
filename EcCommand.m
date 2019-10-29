@@ -76,7 +76,8 @@ static int	comp(NSString *s0, NSString *s1)
     }
 }
 
-static NSString*	cmdWord(NSArray* a, unsigned int pos)
+static NSString*
+cmdWord(NSArray* a, unsigned int pos)
 {
   if (a != nil && [a count] > pos)
     {
@@ -93,10 +94,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSString		*name;	// The name of this process
   NSDictionary		*conf;	// The configuration from Control.plist
   NSDate		*when;	// The timestamp we want to launch at
+  NSTask		*task;	// The current task
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
   BOOL			alive;	// The process is running
   BOOL			stable;	// The process has been running for a while
+  BOOL			restarting;
+  BOOL			terminating;
+  NSTimer		*relaunchAt;
 }
 + (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
@@ -111,12 +116,21 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (BOOL) disabled;
 - (BOOL) mayCoreDump;
 - (NSString*) name;
+- (BOOL) relaunchable;
 - (void) resetDelay;
+- (BOOL) restarting;
 - (void) setAlive: (BOOL)l;
 - (void) setConfiguration: (NSDictionary*)c;
+- (void) setRelaunch: (NSTimer*)t;
+- (void) setRestarting: (BOOL)t;
+- (void) setTask: (NSTask*)t;
+- (void) setTerminating: (BOOL)t;
 - (void) setWhen: (NSDate*)w;
 - (BOOL) stable;
+- (NSTask*) task;
+- (BOOL) terminating;
 - (NSDate*) when;
+- (BOOL) terminating;
 @end
 
 @implementation	LaunchInfo
@@ -200,6 +214,21 @@ static NSMutableDictionary	*launchInfo = nil;
   return l;
 }
 
++ (LaunchInfo*) findTask: (NSTask*)t
+{
+  LaunchInfo	*l = nil;
+  NSEnumerator	*e = [launchInfo objectEnumerator];
+
+  while (nil != (l = [e nextObject]))
+    {
+      if (l->task == t)
+	{
+	  return l;
+	}
+    }
+  return nil;
+}
+
 + (void) initialize
 {
   if (nil == launchInfo)
@@ -248,13 +277,15 @@ static NSMutableDictionary	*launchInfo = nil;
 
 - (void) dealloc
 {
+  [self setRelaunch: nil];
   RELEASE(name);
   RELEASE(conf);
   RELEASE(when);
+  RELEASE(task);
   [super dealloc];
 }
 
-/* The next delay for launchng this process.  If Time is configured,
+/* The next delay for launching this process.  If Time is configured,
  * we use it (a value in seconds), otherwise we generate a fibonacci
  * sequence of increasingly larger delays each time a launch attempt
  * needs to be made.
@@ -331,9 +362,26 @@ static NSMutableDictionary	*launchInfo = nil;
   return name;
 }
 
+- (BOOL) relaunchable
+{
+  if (NO == [self disabled]
+    && YES == [self autolaunch]
+    && NO == terminating
+    && [when isEqual: [NSDate distantFuture]] == NO)
+    {
+      return YES;
+    }
+  return NO;
+}
+
 - (void) resetDelay
 {
   fib0 = fib1 = 0.0;
+}
+
+- (BOOL) restarting
+{
+  return restarting;
 }
 
 - (void) setAlive: (BOOL)l
@@ -346,9 +394,58 @@ static NSMutableDictionary	*launchInfo = nil;
   ASSIGNCOPY(conf, c);
 }
 
+- (void) setRelaunch: (NSTimer*)t
+{
+  [relaunchAt invalidate];
+  ASSIGN(relaunchAt, t);
+}
+
+- (void) setRestarting: (BOOL)flag
+{
+  if (YES == terminating)
+    {
+      flag = NO;	// Can't restart if we are already termnating
+    }
+  if (flag != restarting)
+    {
+      restarting = flag ? YES : NO;
+      if (YES == restarting)
+        {
+          NSLog(@"Restarting %@", name);
+        }
+    }
+}
+
+- (void) setTask: (NSTask*)t
+{
+  ASSIGN(task, t);
+}
+
+- (void) setTerminating: (BOOL)flag
+{
+  if (flag != terminating)
+    {
+      terminating = flag ? YES : NO;
+      if (YES == terminating)
+        {
+	  restarting = NO;	// Must not restart if we are terminating
+          NSLog(@"Terminating %@", name);
+        }
+      else
+        {
+	  [self setRelaunch: nil];	// Don't relaunch if we are terminating
+          NSLog(@"Unregistered %@", name);
+        }
+    }
+}
+
 - (void) setWhen: (NSDate*)w
 {
   ASSIGNCOPY(when, w);
+  if ([when isEqual: [NSDate distantFuture]])
+    {
+      [self setRelaunch: nil];	// Don't relaunch if we are suspended
+    }
 }
 
 - (BOOL) stable
@@ -357,6 +454,16 @@ static NSMutableDictionary	*launchInfo = nil;
 
   stable = YES;
   return wasStable;
+}
+
+- (NSTask*) task
+{
+  return AUTORELEASE(RETAIN(task));
+}
+
+- (BOOL) terminating
+{
+  return terminating;
 }
 
 - (NSDate*) when
@@ -1019,8 +1126,8 @@ NSLog(@"Problem %@", localException);
 
 - (void) clientLost: (EcClientI*)o 
 {
-  BOOL  	wasTerminating = [o terminating];
   NSString	*name = [o name];
+  LaunchInfo	*l = [LaunchInfo existing: name];
 
   [o setUnregistered: YES];
   [clients removeObjectIdenticalTo: o];
@@ -1029,9 +1136,8 @@ NSLog(@"Problem %@", localException);
   if ([o transient] == NO)
     {
       [[[[o obj] connectionForProxy] sendPort] invalidate];
-      if (NO == wasTerminating)
+      if (NO == [l terminating])
         {
-	  LaunchInfo		*l = [LaunchInfo existing: name];
           NSString		*s;
           EcAlarm		*a;
 
@@ -1046,19 +1152,21 @@ NSLog(@"Problem %@", localException);
             additionalText: @"removed (lost) server"];
           [self alarm: a];
 	  [l setAlive: NO];
-	  if (l != nil && [l autolaunch] == YES && [l disabled] == NO)
+	  if (YES == [l relaunchable])
 	    {
 	      NSTimeInterval	delay = [l delay];
+	      NSTimer		*t;
 
 	      s = [NSString stringWithFormat: 
 		@"%@ removed (lost) server with name '%@' on %@."
 		@" Relaunch in %g seconds.\n",
 		[NSDate date], name, host, delay];
-	      [NSTimer scheduledTimerWithTimeInterval: delay
-					       target: self
-					     selector: @selector(reLaunch:)
-					     userInfo: name
-					      repeats: NO];
+	      t = [NSTimer scheduledTimerWithTimeInterval: delay
+						   target: self
+						 selector: @selector(reLaunch:)
+						 userInfo: name
+						  repeats: NO];
+	      [l setRelaunch: t];
 	    }
 	  else
 	    {
@@ -1370,6 +1478,7 @@ NSLog(@"Problem %@", localException);
 			  if (nil != l)
 			    {
 			      [l setWhen: [NSDate date]];
+			      [l setTerminating: NO];
 			    }
                           [names addObject: key];
                         }
@@ -1399,6 +1508,7 @@ NSLog(@"Problem %@", localException);
 				  if (nil != l)
 				    {
 				      [l setWhen: [NSDate date]];
+				      [l setTerminating: NO];
 				    }
                                   m = @"Ok - I will launch that program "
                                       @"when I get a chance.\n";
@@ -1648,16 +1758,13 @@ NSLog(@"Problem %@", localException);
 			  LaunchInfo	*l;
 
 			  l = [LaunchInfo existing: [c name]];
-			  if (nil != l)
-			    {
-			      [l setWhen: [NSDate distantFuture]];
-			    }
+			  [l setWhen: [NSDate distantFuture]];
 			  m = [m stringByAppendingFormat: 
 			    @"Sent 'quit' to '%@'\n", [c name]];
 			  m = [m stringByAppendingString:
 			    @"  Please wait for this to be 'removed' before "
 			    @"proceeding.\n"];
-                          [c setTerminating: YES];
+                          [l setTerminating: YES];
 			  [[c obj] cmdQuit: 0];
 			  found = YES;
 			}
@@ -1666,7 +1773,7 @@ NSLog(@"Problem %@", localException);
 			  NSLog(@"Caught exception: %@", localException);
 			}
 		      NS_ENDHANDLER
-		    } 
+		    }
 		  if ([launchInfo count] > 0)
 		    {
 		      NSEnumerator	*enumerator;
@@ -1681,16 +1788,19 @@ NSLog(@"Problem %@", localException);
 			      NSDate		*when;
 
 			      l = [LaunchInfo existing: key];
+			      [l setTerminating: YES];
 			      when = [l when];
-			      if (nil != l)
-				{
-				  [l setWhen: [NSDate distantFuture]];
-				}
+			      [l setWhen: [NSDate distantFuture]];
 			      found = YES;
 			      if (when != [NSDate distantFuture])
 				{
 				  m = [m stringByAppendingFormat:
 				    @"Suspended %@\n", key];
+				}
+			      else
+				{
+				  m = [m stringByAppendingFormat:
+				    @"Suspended %@ already\n", key];
 				}
 			    }
 			}
@@ -1784,7 +1894,7 @@ NSLog(@"Problem %@", localException);
 			  m = [m stringByAppendingFormat: 
 			    @"  The process '%@' should restart shortly.\n",
 			    [c name]];
-                          [c setRestarting: YES];
+                          [l setRestarting: YES];
                           [[c obj] ecRestart: reason];
 			  found = YES;
 			}
@@ -2375,6 +2485,11 @@ NSLog(@"Problem %@", localException);
       host = RETAIN([[NSHost currentHost] wellKnownName]);
       clients = [[NSMutableArray alloc] initWithCapacity: 10];
       launching = [[NSMutableDictionary alloc] initWithCapacity: 10];
+      [[NSNotificationCenter defaultCenter]
+	addObserver: self
+	   selector: @selector(taskTerminated:)
+	       name: NSTaskDidTerminateNotification
+	     object: nil];
     }
   return self;
 }
@@ -2489,8 +2604,9 @@ NSLog(@"Problem %@", localException);
               [self alarm: a];
             }
           task = [NSTask new];
-          [launching setObject: task forKey: name];
+	  [l setTask: task];
           RELEASE(task);
+          [launching setObject: l forKey: name];
 
           if (prog != nil && [prog length] > 0)
             {
@@ -2706,8 +2822,8 @@ NSLog(@"Problem %@", localException);
 	       type: (EcLogType)t
 		for: (id<CmdClient>)o
 {
-  EcClientI*		r = [self findIn: clients byObject: o];
-  NSString		*c;
+  EcClientI	*r = [self findIn: clients byObject: o];
+  NSString	*c;
 
   if (r == nil)
     {
@@ -2817,7 +2933,7 @@ NSLog(@"Problem %@", localException);
 		  LaunchInfo	*l = [LaunchInfo existing: n];
 
 		  [l setWhen: [NSDate distantFuture]];
-                  [c setTerminating: YES];
+                  [l setTerminating: YES];
 		  [[c obj] cmdQuit: 0];
 		}
 	      NS_HANDLER
@@ -2865,7 +2981,7 @@ NSLog(@"Problem %@", localException);
 		  LaunchInfo	*l = [LaunchInfo existing: n];
 
 		  [l setWhen: [NSDate distantFuture]];
-		  [c setTerminating: YES];
+		  [l setTerminating: YES];
 		  [[c obj] cmdQuit: 0];
 		}
 	      NS_HANDLER
@@ -3075,7 +3191,7 @@ NSLog(@"Problem %@", localException);
 		  l = [LaunchInfo existing: [c name]];
 		  [l resetDelay];
 		  [l setWhen: when];
-                  [c setRestarting: YES];
+                  [l setRestarting: YES];
                   [[c obj] ecRestart: reason];
 		}
 	      NS_HANDLER
@@ -3118,6 +3234,21 @@ NSLog(@"Problem %@", localException);
 	} 
     }
   return a;
+}
+
+- (void) taskTerminated: (NSNotification*)n
+{
+  LaunchInfo	*l = [LaunchInfo findTask: (NSTask*)[n object]];
+
+  if (nil != l)
+    {
+      [l setTask: nil];
+      [launching removeObjectForKey: [l name]];
+      if (YES == [l relaunchable])
+	{
+	  [self tryLaunchSoon];
+	}
+    }
 }
 
 - (NSString*) makeSpace
@@ -3371,7 +3502,7 @@ NSLog(@"Problem %@", localException);
 {
   if (nil == when)
     {
-      when = [NSDate date];
+      when = [NSCalendarDate date];
     }
   [self _sweep: YES at: when];
   [self _sweep: NO at: when];
@@ -3812,15 +3943,14 @@ NSLog(@"Problem %@", localException);
     {
       NSString	        *m;
       NSUInteger	i;
-      BOOL	        restarting = [o restarting];
-      BOOL		shutdown = [o terminating];
-      BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
+      BOOL	        restarting = [l restarting];
+      BOOL	        transient = [o transient];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      if (shutdown)
+      if ([l terminating])
 	{
 	  [l setWhen: [NSDate distantFuture]];
 	}
@@ -3863,15 +3993,14 @@ NSLog(@"Problem %@", localException);
     {
       NSString	        *m;
       NSUInteger       	i;
-      BOOL	        restarting = [o restarting];
-      BOOL		shutdown = [o terminating];
-      BOOL	        transient = [o transient];
       NSString	        *name = [[[o name] retain] autorelease];
       LaunchInfo	*l = [LaunchInfo existing: name];
+      BOOL	        restarting = [l restarting];
+      BOOL	        transient = [o transient];
 
       [o setUnregistered: YES];
       [l setAlive: NO];
-      if (shutdown)
+      if ([l terminating])
 	{
 	  [l setWhen: [NSDate distantFuture]];
 	}

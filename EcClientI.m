@@ -169,11 +169,6 @@
   return processIdentifier;
 }
 
-- (BOOL) restarting
-{
-  return restarting;
-}
-
 - (void) setConfig: (NSData*)c
 {
   ASSIGN(config, c);
@@ -194,35 +189,6 @@
   processIdentifier = p;
 }
 
-- (void) setRestarting: (BOOL)flag
-{
-  if (flag != restarting)
-    {
-      restarting = flag ? YES : NO;
-      if (YES == restarting)
-        {
-          NSLog(@"Restarting %@", name);
-        }
-    }
-}
-
-- (void) setTerminating: (BOOL)flag
-{
-  if (flag != terminating)
-    {
-      terminating = flag ? YES : NO;
-      if (YES == terminating)
-        {
-	  restarting = NO;
-          NSLog(@"Terminating %@", name);
-        }
-      else
-        {
-          NSLog(@"Unregistered %@", name);
-        }
-    }
-}
-
 - (void) setTransient: (BOOL)flag
 {
   transient = flag ? YES : NO;
@@ -233,16 +199,7 @@
   if (flag != unregistered)
     {
       unregistered = flag ? YES : NO;
-      if (YES == unregistered)
-        {
-          [self setTerminating: NO];
-        }
     }
-}
-
-- (BOOL) terminating
-{
-  return terminating;
 }
 
 - (BOOL) transient

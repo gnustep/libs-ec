@@ -1,3 +1,12 @@
+2019-10-29 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcClientI.h:
+	* EcClientI.m: Remove a couple of methods only used by EcCommand.
+	* EcCommand.m: Add more information to launch info and use it to
+	ensure that suspended tasks remain suspended if they crash.  Also
+	check for task completion in case a task crashes before it can
+	establish a DO connection back to the Command server.
+
 2019-10-05 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcLogger.m:
