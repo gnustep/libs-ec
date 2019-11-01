@@ -1,3 +1,15 @@
+2019-11-01 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Restructure so that all ways we can be informed that
+	a task has shut down/ended funnel into the same few methods to avoid
+	code duplication and errors where different code paths treat things
+	differently.  All unregistration into one method (with options for
+	a clean unregistration and a simple loss of connection ... dirty).
+	Final task cleanup/restart code in one method called on notifiction
+	of task termination or (if we don't have an NSTask object because
+	the process was not launched by the Command server) simulated when
+	the process unregisters or the connection is lost.  Add comments.
+
 2019-10-29 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcClientI.h:
