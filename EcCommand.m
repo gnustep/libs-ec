@@ -388,39 +388,24 @@ static NSMutableDictionary	*launchInfo = nil;
 
 - (void) setShutdown: (BOOL)flag
 {
-  if (flag != shutdown)
+  shutdown = flag ? YES : NO;
+  if (YES == shutdown)
     {
-      shutdown = flag ? YES : NO;
-      if (YES == shutdown)
-        {
-	  /* NB. a process may be set to be shut down if the Console is
-	   * used to quit it, or if it shuts down gracefully for some
-	   * other reason.
-	   */ 
-	  restarting = NO;	// Must not restart if we should be shut down
-	  if (YES == alive)
-	    {
-	      NSLog(@"Terminating %@", name);
-	    }
-	  else
-	    {
-	      NSLog(@"Unregistered %@", name);
-	    }
-	  [self setWhen: [NSDate distantFuture]];
-        }
+      /* NB. a process may be set to be shut down if the Console is
+       * used to quit it, or if it shuts down gracefully for some
+       * other reason.
+       */ 
+      restarting = NO;	// Must not restart if we should be shut down
+      [self setWhen: [NSDate distantFuture]];
     }
 }
 
 - (void) setRestarting: (BOOL)flag
 {
-  if (flag != restarting)
+  restarting = flag ? YES : NO;
+  if (YES == restarting)
     {
-      restarting = flag ? YES : NO;
-      if (YES == restarting)
-        {
-	  shutdown = NO;	// Can't restart if we are already terminating
-          NSLog(@"Restarting %@", name);
-        }
+      shutdown = NO;	// Can't restart if we are already terminating
     }
 }
 
@@ -2616,7 +2601,9 @@ NSLog(@"Problem %@", localException);
                         }
                       [task launch];
                       [[self cmdLogFile: logname]
-                        printf: @"%@ launched %@\n", [NSDate date], prog];
+                        printf: @"%@ launched %@ with %@ at %@\n",
+			[NSDate date], prog, args,
+			[NSThread callStackSymbols]];
                     }
                 }
               NS_HANDLER
@@ -2690,12 +2677,12 @@ NSLog(@"Problem %@", localException);
 	      BOOL		disabled = [l disabled];
 	      BOOL		autolaunch = [l autolaunch];
 
-	      if (disabled == NO)
+	      if (NO == disabled)
 		{
 		  date = [l when];
 		  if (nil == date)
 		    {
-		      if (autolaunch == YES)
+		      if (YES == autolaunch)
 			{
                           /* This task needs to autolaunch so it is a
                            * candidate now.
@@ -2713,7 +2700,8 @@ NSLog(@"Problem %@", localException);
                     {
                       if ([now timeIntervalSinceDate: date] < 0.0)
                         {
-                          /* This was already launched recently.
+                          /* This was already launched recently or has
+			   * been suspended (date set to distant future).
                            * Don't retry yet.
                            */
                           [toTry removeObject: key];
@@ -3011,6 +2999,10 @@ NSLog(@"Problem %@", localException);
        * clients.
        */
       [launching removeObjectForKey: n];
+      if (nil == l)
+	{
+	  l = [LaunchInfo launchInfo: n];
+	}
       [l setWhen: now];
       [l setAlive: YES];
 
@@ -3247,9 +3239,16 @@ NSLog(@"Problem %@", localException);
     {
       [l setShutdown: YES];
       s = [NSString stringWithFormat: 
-	@"%@ removed (%@) server with name '%@' on %@.\n",
-	[NSDate date], (0 == status ? @"unregistered" : @"lost"),
-        name, host];
+	@"%@ removed (shutdown) server with name '%@' on %@.\n",
+	[NSDate date], name, host];
+
+      /* If this task had no configuration it must have been launched
+       * manually and now that it's shut down we remove it.
+       */
+      if ([l configuration] == nil)
+	{
+	  [LaunchInfo remove: [l name]];
+	}
     }
   [[self cmdLogFile: logname] puts: s];
   [self update];
@@ -3952,9 +3951,9 @@ NSLog(@"Problem %@", localException);
 
 - (void) unregisterClient: (EcClientI*)o gracefully: (BOOL)clean
 {
-  LaunchInfo	*l = [LaunchInfo existing: [o name]];
+  NSString	*name = AUTORELEASE(RETAIN([o name]));
+  LaunchInfo	*l = [LaunchInfo existing: name];
   BOOL	        transient = [o transient];
-  NSString	*name = [l name];
   NSUInteger	i;
 
   [l setAlive: NO];
@@ -3975,7 +3974,7 @@ NSLog(@"Problem %@", localException);
       NSString	*m;
 
       m = [NSString stringWithFormat: 
-	@"\n%@ removed (unregistered) server -\n  '%@' on %@\n",
+	@"%@ removing (unregistered) server with name '%@' on %@\n",
 	[NSDate date], name, host];
       [[self cmdLogFile: logname] puts: m];
       if (transient == NO)
