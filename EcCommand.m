@@ -1116,18 +1116,6 @@ NSLog(@"Problem %@", localException);
     }
 }
 
-- (void) clientLost: (EcClientI*)o 
-{
-  NSConnection  *c = [[o obj] connectionForProxy];
-
-  [[NSNotificationCenter defaultCenter]
-    removeObserver: self
-              name: NSConnectionDidDieNotification
-            object: c];
-  [[c sendPort] invalidate];
-  [self unregisterClient: o gracefully: NO];
-}
-
 - (oneway void) cmdGnip: (id <CmdPing>)from
                sequence: (unsigned)num
                   extra: (NSData*)data
@@ -2183,7 +2171,9 @@ NSLog(@"Problem %@", localException);
 	  DESTROY(control);
 	}
 
-      /* Now remove the clients from the active list.
+      /* Remove any clients using this connection from the active list.
+       * Clients which have not been registered (or which have been
+       * unregistered) will not be in the list.
        */
       c = AUTORELEASE([clients mutableCopy]);
       i = [c count];
@@ -2194,11 +2184,7 @@ NSLog(@"Problem %@", localException);
 	  if ([(id)[o obj] connectionForProxy] == conn)
 	    {
 	      lostClients = YES;
-	      if (i <= pingPosition && pingPosition > 0)
-		{
-		  pingPosition--;
-		}
-              [self clientLost: o];
+	      [self unregisterClient: o gracefully: NO];
 	    }
 	}
       [c removeAllObjects];
@@ -3213,7 +3199,16 @@ NSLog(@"Problem %@", localException);
 - (void) taskTerminated: (LaunchInfo*)l withStatus: (int)status
 {
   NSString	*name = [l name];
+  NSTask	*task = [l task];
   NSString	*s;
+
+  if (status != 0 && YES == [task isRunning])
+    {
+      /* The task is still running so we must be forcibly shutting it
+       * down (eg because it has hung).
+       */
+      [task terminate];
+    }
 
   [l setTask: nil];
   [launching removeObjectForKey: name];
@@ -3759,14 +3754,25 @@ NSLog(@"Problem %@", localException);
 	  if ([clients indexOfObjectIdenticalTo: r] != NSNotFound
             && d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
 	    {
-	      NSString	*m;
+	      NSConnection	*c;
+	      NSString		*m;
 
 	      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 		@"Client '%@' failed to respond for over %d seconds"),
 		[r name], (int)pingDelay];
 	      [self information: m from: nil to: nil type: LT_CONSOLE];
 	      lost = YES;
-              [self clientLost: r];
+
+	      /* As we are forcing a client to die we invalidate its
+	       * connection (so we don't try to use it again).
+	       */
+	      c = [(NSDistantObject*)[r obj] connectionForProxy];
+	      [[NSNotificationCenter defaultCenter]
+		removeObserver: self
+			  name: NSConnectionDidDieNotification
+			object: c];
+	      [[c sendPort] invalidate];
+	      [self unregisterClient: r gracefully: NO];
 	    }
 	}
       [a removeAllObjects];
