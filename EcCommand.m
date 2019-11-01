@@ -1118,6 +1118,13 @@ NSLog(@"Problem %@", localException);
 
 - (void) clientLost: (EcClientI*)o 
 {
+  NSConnection  *c = [[o obj] connectionForProxy];
+
+  [[NSNotificationCenter defaultCenter]
+    removeObserver: self
+              name: NSConnectionDidDieNotification
+            object: c];
+  [[c sendPort] invalidate];
   [self unregisterClient: o gracefully: NO];
 }
 
@@ -3939,21 +3946,10 @@ NSLog(@"Problem %@", localException);
 
 - (void) unregisterClient: (EcClientI*)o gracefully: (BOOL)clean
 {
-  NSConnection  *c = [[o obj] connectionForProxy];
   LaunchInfo	*l = [LaunchInfo existing: [o name]];
   BOOL	        transient = [o transient];
   NSString	*name = [l name];
   NSUInteger	i;
-
-  /* We don't want a connection loss notification after the client has
-   * unregistered, so we need to remove ourselves as an observer and
-   * invalidate the connection to the client.
-   */
-  [[NSNotificationCenter defaultCenter]
-    removeObserver: self
-              name: NSConnectionDidDieNotification
-            object: c];
-  [[c sendPort] invalidate];
 
   [l setAlive: NO];
   [o setUnregistered: YES];
