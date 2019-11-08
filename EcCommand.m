@@ -1408,6 +1408,7 @@ NSLog(@"Problem %@", localException);
                           found = YES;
 			  if (nil != l)
 			    {
+			      [l resetDelay];
 			      [l setWhen: [NSDate date]];
 			      [l setShutdown: NO];
 			    }
@@ -1438,6 +1439,7 @@ NSLog(@"Problem %@", localException);
 				  l = [LaunchInfo existing: key];
 				  if (nil != l)
 				    {
+				      [l resetDelay];
 				      [l setWhen: [NSDate date]];
 				      [l setShutdown: NO];
 				    }
