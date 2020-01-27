@@ -35,6 +35,7 @@
 #import	"EcAlarmDestination.h"
 #import	"EcAlarmSinkSNMP.h"
 #import "EcProcess.h"
+#import "EcLogger.h"
 
 static EcAlarmSinkSNMP	*alarmSink = nil;	// The singleton
 static NSLock		*classLock = nil;
@@ -247,10 +248,12 @@ logSNMP(int major, int minor, void* server, void* client)
           case LOG_EMERG:
           case LOG_ALERT:
           case LOG_CRIT:
-            [EcProc cmdAlert: @"%s", slm->msg]; break;
+	    [[EcLogger loggerForType: LT_ALERT] log: @"%s", slm->msg];
+            break;
 
           case LOG_ERR:
-            [EcProc cmdError: @"%s", slm->msg]; break;
+	    [[EcLogger loggerForType: LT_ERROR] log: @"%s", slm->msg];
+            break;
 
           case LOG_WARNING:
           case LOG_NOTICE:

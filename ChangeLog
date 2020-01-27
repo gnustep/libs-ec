@@ -1,3 +1,13 @@
+2020-01-27 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlarmSinkSNMP.m:
+	* EcCommand.m:
+	* EcLogger.h:
+	* EcLogger.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Changes to formally deprecate cmdAlert:... and cmdError:... 
+
 2019-11-01 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Restructure so that all ways we can be informed that

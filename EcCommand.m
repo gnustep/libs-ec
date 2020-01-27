@@ -3443,7 +3443,8 @@ NSLog(@"Problem %@", localException);
             objectForKey: NSFileSystemFreeSize] integerValue])
             {
               [mgr removeFileAtPath: src handler: nil];
-              [self cmdError: @"Unable to compress %@ (too big; deleted)", src];
+              EcExceptionMajor(nil,
+		@"Unable to compress %@ (too big; deleted)", src);
               continue; // Not enough space free to compress
             }
 
@@ -3459,7 +3460,8 @@ NSLog(@"Problem %@", localException);
             {
               [dh closeFile];
               [mgr removeFileAtPath: dst handler: nil];
-              [self cmdError: @"Unable to compress %@ to %@", src, dst];
+              EcExceptionMajor(nil,
+		@"Unable to compress %@ to %@", src, dst);
               continue;
             }
 

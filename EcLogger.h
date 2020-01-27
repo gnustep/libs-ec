@@ -105,6 +105,10 @@
  */
 - (void) log: (NSString*)fmt arguments: (va_list)args;
 
+/* Calls -log:arguments:
+ */
+- (void) log: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
+
 /** Called when the user defaults system has changed and a configuration
  * update may have occurred.
  */

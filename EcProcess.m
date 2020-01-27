@@ -2151,8 +2151,9 @@ static NSString	*noFiles = @"No log files to archive";
 #if     SIZEOF_VOIDP == 4
   if (memAllowed >= 4*1024)
     {
-      [self cmdError: @"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memAllowed];
+      EcExceptionMajor(nil,
+	@"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
+        @" using 0", memAllowed);
       memAllowed = 0;
     }
 #endif
@@ -2161,8 +2162,9 @@ static NSString	*noFiles = @"No log files to archive";
 #if     SIZEOF_VOIDP == 4
   if (memMaximum >= 4*1024)
     {
-      [self cmdError: @"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memMaximum];
+      EcExceptionMajor(nil,
+	@"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
+        @" using 0", memMaximum);
       memMaximum = 0;	                // Disabled
     }
 #endif
@@ -3261,17 +3263,17 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	[self cmdWarn: @"%@", message];
 	break;
       case LT_ERROR:
-	[self cmdError: @"%@", message];
+	[[EcLogger loggerForType: LT_ERROR] log: @"%@", message];
 	break;
       case LT_ALERT:
-	[self cmdAlert: @"%@", message];
+	[[EcLogger loggerForType: LT_ALERT] log: @"%@", message];
 	break;
       case LT_AUDIT:
       case LT_CONSOLE:
 	[self cmdAudit: @"%@", message];
 	break;
       default:
-	[self cmdError: @"%@", message];
+	[[EcLogger loggerForType: LT_ERROR] log: @"%@", message];
 	break;
     }
 }
@@ -3744,7 +3746,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       NS_HANDLER
 	{
-	  [self cmdAlert: @"Problem running server: %@", localException];
+	  EcExceptionCritical(localException, @"Problem running server");
           [NSThread sleepForTimeInterval: 1.0];
 	}
       NS_ENDHANDLER;
@@ -5537,8 +5539,9 @@ With two parameters ('maximum' and a number),\n\
 	      return [[server proxy] BCPproxy: count];
 	    }
 	}
-      [self cmdError: @"Attempt to get %@ server for number %@ with bad config",
-	serverName, num];
+      EcExceptionMajor(nil,
+	@"Attempt to get %@ server for number %@ with bad config",
+	serverName, num);
       return nil;
     }
   return [server proxy];

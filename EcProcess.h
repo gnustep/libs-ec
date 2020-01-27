@@ -754,7 +754,8 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Deprecated; do not use.
  */
-- (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
+- (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2)
+ __attribute__((deprecated));
 
 /** Archives debug log files into the appropriate subdirectory for the
  * supplied date (or the files last modification date if when is nil).<br />
@@ -823,7 +824,8 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Deprecated; do not use.
  */
-- (void) cmdError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
+- (void) cmdError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2)
+  __attribute__((deprecated));
 
 /** Flush logging information.
  */

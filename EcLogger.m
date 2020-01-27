@@ -515,6 +515,15 @@ static NSArray          *modes;
     }
 }
 
+- (void) log: (NSString*)fmt, ...
+{
+  va_list ap;
+
+  va_start (ap, fmt);
+  [self log: fmt arguments: ap];
+  va_end (ap);
+}
+
 /* Should only be called on main thread.
  */
 - (void) _timeout: (NSTimer*)t
