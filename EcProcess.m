@@ -2033,7 +2033,7 @@ static NSString	*noFiles = @"No log files to archive";
       NSUInteger        c;
 
       [self ecDoLock];
-      a = [ecConfigClients copy];
+      a = [ecConfigClients mutableCopy];
       [self ecUnLock];
       c = [a count];
       while (c-- > 0)
