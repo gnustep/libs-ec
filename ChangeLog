@@ -1,3 +1,11 @@
+2020-03-23 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Add protocols to allow one process to register with another as a
+	client to whom config should be forwarded.  This allows closely
+	cooperating processes to be aware of each-other's config changes.
+
 2020-01-27 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcAlarmSinkSNMP.m:

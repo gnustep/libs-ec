@@ -251,6 +251,7 @@ static NSUserDefaults	*cmdDefs = nil;
 static NSString		*cmdDebugName = nil;
 static NSMutableDictionary	*cmdLogMap = nil;
 static id<EcMemoryLogger>       cmdMemoryLogger = nil;
+static NSMutableArray     	*ecConfigClients = nil;
 
 static NSDate	*started = nil;	        /* Time object was created. */
 static NSDate	*memStats = nil;        /* Time stats were started. */
@@ -1996,7 +1997,7 @@ static NSString	*noFiles = @"No log files to archive";
 
 /* This method handles the final stage of a configuration update either
  * from the Control server or via the local NSUserDefaults system.
- * If no error has occurred so far, we call the method to chewck/apply
+ * If no error has occurred so far, we call the method to check/apply
  * the updated config.
  * If an error occurs at any stage, we reset the error string and call
  * the method to report it.
@@ -2021,6 +2022,48 @@ static NSString	*noFiles = @"No log files to archive";
   /* NB. if err is nil this will clear any currently raised alarm
    */
   [self ecConfigurationError: @"%@", (nil == err) ? @"" : err];
+
+  /* Forward new config to any listening clients.
+   * Remove any clients to which forwarding failed.
+   */
+  if ([ecConfigClients count] > 0)
+    {
+      NSDictionary      *d = [cmdDefs dictionaryRepresentation];
+      NSMutableArray    *a;
+      NSUInteger        c;
+
+      [self ecDoLock];
+      a = [ecConfigClients copy];
+      [self ecUnLock];
+      c = [a count];
+      while (c-- > 0)
+        {
+          id<EcConfigForwarded> client = [a objectAtIndex: c];
+          id                    o = (id)client;
+
+          if (YES == [o respondsToSelector: @selector(connectionForProxy)]
+            && NO == [[o connectionForProxy] isValid])
+            {
+              continue; // Skip send on invalid DO connection
+            }
+          NS_DURING
+            [client ecForwardedConfig: d from: self];
+            [a removeObjectAtIndex: c];
+          NS_HANDLER
+            EcExceptionMajor(localException, @"Failed to forward config");
+          NS_ENDHANDLER
+        }
+      if ((c = [a count]) > 0)
+        {
+          [self ecDoLock];
+          while (c-- > 0)
+            {
+              [ecConfigClients removeObjectIdenticalTo: [a objectAtIndex: c]];
+            }
+          [self ecUnLock];
+        }
+      RELEASE(a);
+    }
 }
 
 /* This method is called when the defaults database is updated for any
@@ -2151,9 +2194,8 @@ static NSString	*noFiles = @"No log files to archive";
 #if     SIZEOF_VOIDP == 4
   if (memAllowed >= 4*1024)
     {
-      EcExceptionMajor(nil,
-	@"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memAllowed);
+      [self cmdError: @"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
+        @" using 0", memAllowed];
       memAllowed = 0;
     }
 #endif
@@ -2162,9 +2204,8 @@ static NSString	*noFiles = @"No log files to archive";
 #if     SIZEOF_VOIDP == 4
   if (memMaximum >= 4*1024)
     {
-      EcExceptionMajor(nil,
-	@"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memMaximum);
+      [self cmdError: @"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
+        @" using 0", memMaximum];
       memMaximum = 0;	                // Disabled
     }
 #endif
@@ -2960,6 +3001,13 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     }
 }
 
+- (oneway void) ecCancelConfigFwdTo: (id<EcConfigForwarded>)client
+{
+  [self ecDoLock];
+  [ecConfigClients removeObjectIdenticalTo: client];
+  [self ecUnLock];
+}
+
 - (NSString*) ecCopyright
 {
   return @"";
@@ -2968,6 +3016,27 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 - (void) ecDoLock
 {
   [ecLock lock];
+}
+
+- (bycopy NSDictionary*) ecSetupConfigFwdTo: (id<EcConfigForwarded>)client
+{
+  NSDictionary  *config = nil;
+
+  [self ecDoLock];
+  /* Ensure the array exists; do this before -indexOfObjectIdenticalTo: as
+   * calling the method on a nil arraqy would always return 0.
+   */
+  if (nil == ecConfigClients)
+    {
+      ecConfigClients = [NSMutableArray new];
+    }
+  if ([ecConfigClients indexOfObjectIdenticalTo: client] == NSNotFound)
+    {
+      [ecConfigClients addObject: client];
+    }
+  config = [cmdDefs dictionaryRepresentation];
+  [self ecUnLock];
+  return config;
 }
 
 - (void) ecUnLock
@@ -3263,17 +3332,17 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	[self cmdWarn: @"%@", message];
 	break;
       case LT_ERROR:
-	[[EcLogger loggerForType: LT_ERROR] log: @"%@", message];
+	[self cmdError: @"%@", message];
 	break;
       case LT_ALERT:
-	[[EcLogger loggerForType: LT_ALERT] log: @"%@", message];
+	[self cmdAlert: @"%@", message];
 	break;
       case LT_AUDIT:
       case LT_CONSOLE:
 	[self cmdAudit: @"%@", message];
 	break;
       default:
-	[[EcLogger loggerForType: LT_ERROR] log: @"%@", message];
+	[self cmdError: @"%@", message];
 	break;
     }
 }
@@ -3746,7 +3815,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       NS_HANDLER
 	{
-	  EcExceptionCritical(localException, @"Problem running server");
+	  [self cmdAlert: @"Problem running server: %@", localException];
           [NSThread sleepForTimeInterval: 1.0];
 	}
       NS_ENDHANDLER;
@@ -5539,9 +5608,8 @@ With two parameters ('maximum' and a number),\n\
 	      return [[server proxy] BCPproxy: count];
 	    }
 	}
-      EcExceptionMajor(nil,
-	@"Attempt to get %@ server for number %@ with bad config",
-	serverName, num);
+      [self cmdError: @"Attempt to get %@ server for number %@ with bad config",
+	serverName, num];
       return nil;
     }
   return [server proxy];

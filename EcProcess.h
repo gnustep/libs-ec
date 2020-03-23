@@ -104,6 +104,39 @@ typedef enum    {
 - (oneway void) updateConfig: (in bycopy NSData*)info;
 @end
 
+@protocol       EcConfigForwarded;
+
+/** The EcConfigForwarding protocol is provided by a process to allow
+ * cooperating client processes to know how it is configured and to get
+ * automatic updates when its configuration changes.
+ */
+@protocol	EcConfigForwarding <NSObject>
+
+/** This method may be called by a client when it wishes to stop receiving
+ * configuraton updates from the server.
+ */
+- (oneway void) ecCancelConfigFwdTo: (id<EcConfigForwarded>)client;
+
+/** This method is called by the client when it wants to start receiving
+ * configuration updates from the server.  The method returns the current
+ * configuration of the server (at the point when the method was called).
+ * NB. With multithreaded applications it is possible that setting up
+ * configuration forwarding could cause a client to be informed of a
+ * configuration change before the setup method returns the configuration.
+ */
+- (bycopy NSDictionary*) ecSetupConfigFwdTo: (id<EcConfigForwarded>)client;
+@end
+
+/** This is the protocol to which a client of configuration forwarding must
+ * confirm.  It contains a single method that the server calls to pass config
+ * to the client.
+ */
+@protocol	EcConfigForwarded <NSObject>
+- (oneway void) ecForwardedConfig: (in bycopy NSDictionary*)info
+                             from: (id<EcConfigForwarding>)server;
+@end
+
+
 /** Messages that the Command server may send to clients.
  */
 @protocol	CmdClient <CmdPing,CmdConfig>
@@ -476,7 +509,8 @@ extern NSString*	cmdVersion(NSString *ver);
  *   specific alarms of different severity.
  * </p>
  */
-@interface EcProcess : NSObject <CmdClient,EcAlarmDestination>
+@interface EcProcess : NSObject <CmdClient,EcAlarmDestination,
+  EcConfigForwarding>
 {
   /** Any method which is executing in the main thread (and needs to
    * return before a quit can be handled in the main thread) must
@@ -754,8 +788,7 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Deprecated; do not use.
  */
-- (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2)
- __attribute__((deprecated));
+- (void) cmdAlert: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
 /** Archives debug log files into the appropriate subdirectory for the
  * supplied date (or the files last modification date if when is nil).<br />
@@ -824,8 +857,7 @@ extern NSString*	cmdVersion(NSString *ver);
 
 /** Deprecated; do not use.
  */
-- (void) cmdError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2)
-  __attribute__((deprecated));
+- (void) cmdError: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
 
 /** Flush logging information.
  */
