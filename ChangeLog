@@ -1,3 +1,17 @@
+2020-04-02 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcLogger.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Remove obsolete methods for registration/unregistration.  Change code
+	to refrain from registering with Command server if in the process of
+	shutting down, and to refrain from attempting an unregistration if
+	not already registered.  The hope is that this will prevent a race
+	condition where loss of connection to the Command server can cause a
+	shutdown and re-register during the shutdown fooling the Command
+	server into thinking the process is still running.
+
 2020-03-23 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

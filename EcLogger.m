@@ -147,7 +147,7 @@ static NSArray          *modes;
   id<CmdLogger>	server;
 
   server = (id<CmdLogger>)[EcProc server: name];
-  [server registerClient: self name: cmdLogName()];
+  [server registerClient: self name: cmdLogName() transient: NO];
 }
 
 /* Should only be called on main thread, but doesn't matter.

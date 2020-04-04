@@ -157,9 +157,9 @@ typedef enum    {
 		      type: (EcLogType)t
 		       for: (id)o;
 - (bycopy NSData*) registerClient: (id)c
-			     name: (NSString*)n;
+			     name: (NSString*)n
+			transient: (BOOL)t;
 - (void) unregisterByObject: (id)obj;
-- (void) unregisterByName: (NSString*)n;
 @end
 
 @protocol	Console <NSObject>

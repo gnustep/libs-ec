@@ -241,6 +241,7 @@ static BOOL             configInProgress = NO;
 static BOOL		cmdFlagDaemon = NO;
 static BOOL		cmdFlagTesting = NO;
 static BOOL		cmdIsRunning = NO;
+static BOOL		cmdIsRegistered = NO;
 static BOOL		cmdKeepStderr = NO;
 static BOOL		cmdKillDebug = NO;
 static NSString		*cmdBase = nil;
@@ -1966,10 +1967,12 @@ findMode(NSDictionary* d, NSString* s)
       [connection invalidate];
     }
   DESTROY(cmdServer);
+  cmdIsRegistered = NO;
 }
 
 - (void) _connectionRegistered
 {
+  cmdIsRegistered = YES;
   [alarmDestination domanage: nil];
 }
 
@@ -3411,6 +3414,29 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		    rootProxyForConnectionWithRegisteredName: name
 							host: host
                                              usingNameServer: ns];
+		  [proxy setProtocolForProxy: @protocol(Command)];
+		  if (nil == proxy)
+		    {
+		      NSLog(@"Unable to connect to Command server");
+		    }
+		  else
+		    {
+		      NSConnection	*connection;
+
+		      ASSIGN(cmdServer, proxy);
+		      connection = [cmdServer connectionForProxy];
+		      [connection enableMultipleThreads];
+		      if (nil == alarmDestination)
+			{
+			  alarmDestination = [EcAlarmDestination new];
+			}
+		      [[self ecAlarmDestination] setDestination: cmdServer];
+		      [[NSNotificationCenter defaultCenter]
+			addObserver: self
+			   selector: @selector(cmdConnectionBecameInvalid:)
+			       name: NSConnectionDidDieNotification
+			     object: connection];
+		    }
 		}
 	      NS_HANDLER
 		{
@@ -3420,12 +3446,15 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		}
 	      NS_ENDHANDLER
 
-	      if (proxy != nil)
+	      /* We only register and fetch new configuration information
+	       * if we are NOT in the process of shutting down: a process
+	       * which is shutting down should only use the Command server
+	       * for logging/alerting purposes.
+	       */
+	      if (proxy != nil && 0.0 == beganQuitting)
 		{
 		  NSMutableDictionary	*r = nil;
 		  
-		  [proxy setProtocolForProxy: @protocol(Command)];
-
 		  NS_DURING
 		    {
 		      NSData	*d;
@@ -3466,26 +3495,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		    }
 		  else if ([r objectForKey: @"back-off"] != nil)
 		    {
-		      NSLog(@"Unable to connect to Command server ..."
+		      NSLog(@"Unable to register with Command server ..."
 			@" back-off");
 		    }
 		  else
 		    {
-		      NSConnection	*connection;
-
-		      cmdServer = [proxy retain];
-		      connection = [cmdServer connectionForProxy];
-		      [connection enableMultipleThreads];
-		      if (nil == alarmDestination)
-			{
-			  alarmDestination = [EcAlarmDestination new];
-			}
-		      [[self ecAlarmDestination] setDestination: cmdServer];
-		      [[NSNotificationCenter defaultCenter]
-			addObserver: self
-			   selector: @selector(cmdConnectionBecameInvalid:)
-			       name: NSConnectionDidDieNotification
-			     object: connection];
 		      [self _update: r];
 
                       /* If we just connected to the command server,
@@ -3498,10 +3512,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                           [self _connectionRegistered];
                         }
 		    }
-		}
-	      else
-		{
-		  NSLog(@"Unable to connect to Command server ... not found");
 		}
 	    }
 	  connecting = NO;
@@ -3532,7 +3542,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     {
       NS_DURING
 	{
-	  [cmdServer unregisterByObject: self];
+	  if (cmdIsRegistered)
+	    {
+	      cmdIsRegistered = NO;
+	      [cmdServer unregisterByObject: self];
+	    }
 	}
       NS_HANDLER
 	{

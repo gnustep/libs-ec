@@ -550,8 +550,6 @@ static NSMutableDictionary	*launchInfo = nil;
 - (void) reLaunch: (NSTimer*)t;
 - (void) requestConfigFor: (id<CmdConfig>)c;
 - (NSData*) registerClient: (id<CmdClient>)c
-		      name: (NSString*)n;
-- (NSData*) registerClient: (id<CmdClient>)c
 		      name: (NSString*)n
 		 transient: (BOOL)t;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
@@ -563,7 +561,6 @@ static NSMutableDictionary	*launchInfo = nil;
 - (void) _tryLaunch: (NSTimer*)t;
 - (void) tryLaunchSoon;
 - (void) unregisterByObject: (id)obj;
-- (void) unregisterByName: (NSString*)n;
 - (void) unregisterClient: (EcClientI*)o gracefully: (BOOL)clean;
 - (void) update;
 - (void) updateConfig: (NSData*)data;
@@ -2949,12 +2946,6 @@ NSLog(@"Problem %@", localException);
 
 - (NSData*) registerClient: (id<CmdClient>)c
 		      name: (NSString*)n
-{
-  return [self registerClient: c name: n transient: NO];
-}
-
-- (NSData*) registerClient: (id<CmdClient>)c
-		      name: (NSString*)n
 		 transient: (BOOL)t
 {
   NSMutableDictionary	*dict;
@@ -3032,6 +3023,10 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
+      /* Rejecting means the client is not registered (and therefore should
+       * not be told to quit when the objct is deallocated.
+       */
+      [obj setUnregistered: YES];
       RELEASE(obj);
       m = [NSString stringWithFormat: 
 	@"%@ rejected new server with name '%@' on %@\n",
@@ -4024,14 +4019,10 @@ NSLog(@"Problem %@", localException);
 {
   EcClientI	*o = [self findIn: clients byObject: obj];
 
-  [self unregisterClient: o gracefully: YES];
-}
-
-- (void) unregisterByName: (NSString*)n
-{
-  EcClientI	*o = [self findIn: clients byName: n];
-
-  [self unregisterClient: o gracefully: YES];
+  if (o != nil)
+    {
+      [self unregisterClient: o gracefully: YES];
+    }
 }
 
 - (void) update
