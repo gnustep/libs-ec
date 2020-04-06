@@ -1,3 +1,10 @@
+2020-04-06 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.m:
+	Fix bug with AlertConfig.plist;  when the file is not provided the
+	value of the Alerter key in the Control (keyed on any empty string)
+	area in Control.plist should be used, but instead it was failing.
+
 2020-04-02 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

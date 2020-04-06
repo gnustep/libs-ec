@@ -2781,22 +2781,24 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
    * sections of Control.plist.
    */
   path = [base stringByAppendingPathComponent: @"AlertConfig.plist"];
-  if ([mgr isReadableFileAtPath: path] == NO
-    || (d = [NSDictionary dictionaryWithContentsOfFile: path]) == nil
-    || (d = [self recursiveInclude: d]) == nil)
+  if ([mgr isReadableFileAtPath: path] == YES)
     {
-      [[self cmdLogFile: logname]
-	printf: @"Failed to load %@\n", path];
-      return NO;
-    }
-  else
-    {
-      alertConfig = [[self cmdDefaults] dictionaryForKey: @"Alerter"];
-      if (nil == alertConfig || NO == [alertConfig isEqual: d])
+      if ((d = [NSDictionary dictionaryWithContentsOfFile: path]) == nil
+        || (d = [self recursiveInclude: d]) == nil)
         {
-          changed = YES;
+          [[self cmdLogFile: logname]
+            printf: @"Failed to load %@\n", path];
+          return NO;
         }
-      alertConfig = d;
+      else
+        {
+          alertConfig = [[self cmdDefaults] dictionaryForKey: @"Alerter"];
+          if (NO == [alertConfig isEqual: d])
+            {
+              changed = YES;
+            }
+          alertConfig = d;
+        }
     }
 
   path = [base stringByAppendingPathComponent: @"Operators.plist"];
@@ -3028,14 +3030,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       NSString  *alerterDef;
       NSString  *str;
-      id        myConfig;
+      id        myConfig = nil;
 
       /* Merge the global configuration and Control server specific
        * configuration into this process' user defaults.
        */
-      d = [config objectForKey: @"*"];
+      d = [config objectForKey: @"*"];          // Config across all hosts
       if ([d isKindOfClass: [NSDictionary class]])
         {
+          myConfig = [d objectForKey: @""];     // Empty process name
           d = [d objectForKey: @"*"];
         }
       if (YES == [d isKindOfClass: [NSDictionary class]])
@@ -3049,7 +3052,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
       /* Control server specific config.
        */
-      myConfig = [config objectForKey: @""];
       if ([myConfig isKindOfClass: [NSDictionary class]])
         {
           [dict addEntriesFromDictionary: myConfig];
