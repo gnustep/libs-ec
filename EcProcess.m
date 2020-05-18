@@ -1604,10 +1604,7 @@ findMode(NSDictionary* d, NSString* s)
 	userDefaultsWithPrefix: prf
 	strict: EC_DEFAULTS_STRICT]);
       defs = [EcDefaultRegistration merge: defs];
-      if (defs != nil)
-	{
-	  [cmdDefs registerDefaults: defs];
-	}
+      [cmdDefs registerDefaults: defs];
 
       cmdUser = EC_EFFECTIVE_USER;
       if (nil == cmdUser)
@@ -3893,6 +3890,17 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       [self ecTestLog: fmt arguments: ap];
       va_end (ap);
     }
+}
+
+- (void) ecUpdateRegisteredDefaults
+{
+  NSDictionary	*d;
+
+  [ecLock lock];
+  d = [cmdDefs volatileDomainForName: NSRegistrationDomain];
+  d = [EcDefaultRegistration merge: d];
+  [cmdDefs registerDefaults: d];
+  [ecLock unlock];
 }
 
 - (NSString*) ecUserDirectory
@@ -6428,7 +6436,6 @@ With two parameters ('maximum' and a number),\n\
 @implementation EcDefaultRegistration
 
 static NSMutableDictionary      *regDefs = nil;
-static BOOL                     merged = NO;
 
 + (void) defaultsChanged: (NSUserDefaults*)defs
 {
@@ -6602,7 +6609,6 @@ static BOOL                     merged = NO;
       m = [NSMutableDictionary dictionaryWithCapacity: [regDefs count]];
     }
   [ecLock lock];
-  merged = YES;
   e = [regDefs keyEnumerator];
   while (nil != (k = [e nextObject]))
     {
@@ -6625,7 +6631,6 @@ static BOOL                     merged = NO;
 {
   static NSCharacterSet *w = nil;
   EcDefaultRegistration *d;
-  BOOL                  alreadyMerged;
 
   if (nil == w)
     {
@@ -6670,7 +6675,6 @@ static BOOL                     merged = NO;
     }
 
   [ecLock lock];
-  alreadyMerged = merged;
   d = [regDefs objectForKey: name];
   if (nil == d)
     {
@@ -6687,12 +6691,6 @@ static BOOL                     merged = NO;
     }
   ASSIGNCOPY(d->val, value);
   [ecLock unlock];
-  if (YES == alreadyMerged && nil != d->val)
-    {
-      [NSException raise: NSInternalInconsistencyException
-                  format: @"default '%@' value '%@' registered too late",
-        d->name, d->val];
-    }
 }
 
 + (void) showHelp

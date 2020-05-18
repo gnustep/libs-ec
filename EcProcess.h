@@ -580,7 +580,10 @@ extern NSString*	cmdVersion(NSString *ver);
  * tries to respond to being started with a --help command line argument.<br />
  * NB. defaults keys do not have to be registered (and can still be updated
  * using the 'defaults' command), but registration provides a more user
- * friendly interface.
+ * friendly interface.<br />
+ * If this method is called later (once the EcProcess instance has been
+ * initialized) it will not update the current user defaults until you also
+ * call the -ecUpdateRegisteredDefaults method.
  */
 + (void) ecRegisterDefault: (NSString*)name
               withTypeText: (NSString*)type
@@ -1299,6 +1302,12 @@ extern NSString*	cmdVersion(NSString *ver);
  * Operates by calling the -ecTestLog:arguments: method.
  */
 - (void) ecTestLog: (NSString*)fmt, ... NS_FORMAT_FUNCTION(1,2);
+
+/** This method must be called to make the user defaults system aware of
+ * any changeds to registered defaults made after the EcProcess instance
+ * has been created.
+ */
+- (void) ecUpdateRegisteredDefaults;
 
 /** Returns the directory set as the root for files owned by the ECCL user
  */
