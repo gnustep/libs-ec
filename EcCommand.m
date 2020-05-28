@@ -502,6 +502,8 @@ static NSMutableDictionary	*launchInfo = nil;
   NSTimeInterval        debUndeleted;
   NSTimeInterval        logUncompressed;
   NSTimeInterval        logUndeleted;
+  NSInteger		compressAfter;
+  NSInteger		deleteAfter;
   BOOL                  sweeping;
 }
 - (NSFileHandle*) openLog: (NSString*)lname;
@@ -1249,7 +1251,10 @@ NSLog(@"Problem %@", localException);
 	}
       else if (comp(wd, @"archive") >= 0)
 	{
-	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
+	  NSCalendarDate	*when;
+
+	  m = [NSString stringWithFormat: @"\n%@\n", [self ecArchive: nil]];
+	  when = [NSCalendarDate date];
 	}
       else if (comp(wd, @"help") >= 0)
 	{
@@ -2233,6 +2238,8 @@ NSLog(@"Problem %@", localException);
 	(unsigned)[launching count], (unsigned)launchLimit];
       [m appendFormat: @"  Names: %@\n", [launching allKeys]];
     }
+  [m appendFormat: @"  Compress/Delete after %d/%d days.\n",
+    (int)compressAfter, (int)deleteAfter];
   return m;
 }
 
@@ -3253,7 +3260,7 @@ NSLog(@"Problem %@", localException);
 
 - (NSString*) makeSpace
 {
-  NSInteger             deleteAfter;
+  NSInteger             purgeAfter;
   NSTimeInterval        latestDeleteAt;
   NSTimeInterval        now;
   NSTimeInterval        ti;
@@ -3275,10 +3282,10 @@ NSLog(@"Problem %@", localException);
    * would start compressing but no further ... we don't want to delete
    * all logs!
    */
-  deleteAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
-  if (deleteAfter < 1)
+  purgeAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
+  if (purgeAfter < 1)
     {
-      deleteAfter = 7;
+      purgeAfter = 7;
     }
 
   mgr = [NSFileManager defaultManager];
@@ -3288,7 +3295,7 @@ NSLog(@"Problem %@", localException);
       debUndeleted = now - 365.0 * day;
     }
   ti = debUndeleted;
-  latestDeleteAt = now - day * deleteAfter;
+  latestDeleteAt = now - day * purgeAfter;
   while (nil == gone && ti < latestDeleteAt)
     {
       when = [NSCalendarDate dateWithTimeIntervalSinceReferenceDate: ti];
@@ -3310,8 +3317,6 @@ NSLog(@"Problem %@", localException);
 
 - (void) _sweep: (BOOL)deb at: (NSCalendarDate*)when
 {
-  NSInteger             compressAfter;
-  NSInteger             deleteAfter;
   NSTimeInterval        uncompressed;
   NSTimeInterval        undeleted;
   NSTimeInterval        latestCompressAt;
@@ -3515,7 +3520,7 @@ NSLog(@"Problem %@", localException);
 {
   if (sweeping == YES)
     {
-      NSLog(@"Argh - nested sweep attempt");
+      NSLog(@"Argh - nested hourly sweep attempt");
       return;
     }
   sweeping = YES;
