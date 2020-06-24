@@ -71,12 +71,19 @@
 	}
       RELEASE(c);
     }
-  DESTROY(lastUnanswered);
+  DESTROY(outstanding);
+  DESTROY(delayed);
+  DESTROY(recovered);
   DESTROY(config);
   DESTROY(files);
   DESTROY(name);
   DESTROY(obj);
   [super dealloc];
+}
+
+- (NSDate*) delayed
+{
+  return delayed;
 }
 
 - (NSMutableSet*) files
@@ -95,9 +102,16 @@
 	}
     }
   revSequence = s;
+  if (nil == recovered && nil != delayed)
+    {
+      /* We were in a sequence of delayed pings, so we need to record
+       * that we have ended that sequence.
+       */
+      ASSIGN(recovered, [NSDate date]);
+    }
+  DESTROY(outstanding);
   if (revSequence == fwdSequence)
     {
-      DESTROY(lastUnanswered);
       return YES;				/* up to date	*/
     }
   else
@@ -113,20 +127,17 @@
   self = [super init];
   if (self != nil)
     {
-      theServer = s;
       files = [NSMutableSet new];
       [self setObj: o];
       [self setName: n];
-      pingOk = [o respondsToSelector: @selector(cmdPing:sequence:extra:)];
-      if (pingOk == NO)
-	NSLog(@"Warning - %@ is an old server ... it can't be pinged", n);
+      [self setServer: s];
     }
   return self;
 }
 
-- (NSDate*) lastUnanswered
+- (NSDate*) outstanding
 {
-  return lastUnanswered;
+  return outstanding;
 }
 
 - (NSString*) name
@@ -141,13 +152,9 @@
 
 - (void) ping
 {
-  if (pingOk == NO)
-    {
-      return;
-    }
   if (fwdSequence == revSequence)
     {
-      lastUnanswered = [[NSDate date] retain];
+      ASSIGN(outstanding, [NSDate date]);
       NS_DURING
 	{
 	  [obj cmdPing: theServer sequence: ++fwdSequence extra: nil];
@@ -160,6 +167,23 @@
     }
   else
     {
+      if (recovered != nil)
+	{
+	  /* The connection had recovered from a late ping response,
+	   * but now we have another delayed ping, so we discard the
+	   * information about the previous delay/recovery sequence
+	   * in order to start another.
+	   */
+	  DESTROY(recovered);
+	  DESTROY(delayed);
+	}
+      if (nil == delayed)
+	{
+	  /* This ping is the first one delayed, so we need to record
+	   * the timestamp at which the delay started.
+	   */ 
+	  ASSIGN(delayed, outstanding);
+	}
       NSLog(@"Ping to %@ when one is already in progress.", name);
     }
 }
@@ -167,6 +191,11 @@
 - (int) processIdentifier
 {
   return processIdentifier;
+}
+
+- (NSDate*) recovered
+{
+  return recovered;
 }
 
 - (void) setConfig: (NSData*)c
@@ -189,6 +218,11 @@
   processIdentifier = p;
 }
 
+- (void) setServer: (id<CmdClient>)s
+{
+  theServer = s;
+}
+
 - (void) setTransient: (BOOL)flag
 {
   transient = flag ? YES : NO;
@@ -205,6 +239,11 @@
 - (BOOL) transient
 {
   return transient;
+}
+
+- (BOOL) unregistered
+{
+  return unregistered;
 }
 @end
 

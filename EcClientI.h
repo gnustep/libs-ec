@@ -42,34 +42,39 @@
   id<CmdClient>	theServer;
   id		obj;                    /* The proxy object of client.  */
   NSString	*name;                  /* The name of the client.      */
-  NSDate        *lastUnanswered;        /* Last unanswered ping.        */
+  NSDate        *outstanding;        	/* Time of outstanding ping.	*/
+  NSDate        *delayed;        	/* When we had a ping delay.	*/
+  NSDate        *recovered;        	/* Time of recovery from delay. */
   unsigned	fwdSequence;		/* Last ping sent TO client.	*/
   unsigned	revSequence;		/* Last gnip sent BY client.	*/
   NSMutableSet	*files;			/* Want update info for these.	*/
   NSData	*config;		/* Config info for client.	*/
-  BOOL		pingOk;                 /* Can remote end accept ping?  */
   BOOL		transient;              /* Is this a transient client?  */
   BOOL		unregistered;           /* Has client unregistered?     */
   int           processIdentifier;	/* Process ID if known (or 0).	*/
 }
 - (NSComparisonResult) compare: (EcClientI*)other;
 - (NSData*) config;
+- (NSDate*) delayed;
 - (NSMutableSet*) files;
 - (BOOL) gnip: (unsigned)seq;
 - (id) initFor: (id)obj
           name: (NSString*)n
 	  with: (id<CmdClient>)svr;
-- (NSDate*) lastUnanswered;
+- (NSDate*) outstanding;
 - (NSString*) name;
 - (id) obj;
 - (void) ping;
 - (int) processIdentifier;
+- (NSDate*) recovered;
 - (void) setConfig: (NSData*)c;
 - (void) setName: (NSString*)n;
 - (void) setObj: (id)o;
 - (void) setProcessIdentifier: (int)p;
+- (void) setServer: (id<CmdClient>)s;
 - (void) setTransient: (BOOL)flag;
 - (void) setUnregistered: (BOOL)flag;
 - (BOOL) transient;
+- (BOOL) unregistered;
 @end
 

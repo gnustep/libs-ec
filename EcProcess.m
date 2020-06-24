@@ -2779,6 +2779,8 @@ static BOOL     ecDidAwaken = NO;
   [ecLock lock];
   if (0.0 == beganQuitting)
     {
+      NSLog(@"-[%@ ecQuit: %@ for: %ld]", NSStringFromClass([self class]),
+        reason, (long)status);
       ASSIGN(ecQuitReason, reason);
       ecQuitStatus = status;
     }
@@ -3718,9 +3720,10 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 - (int) ecRun
 {
   CREATE_AUTORELEASE_POOL(arp);
-  NSConnection          *c;
-  NSRunLoop             *loop;
-  NSDate                *future;
+  NSSocketPortNameServer	*ns;
+  NSString			*name;
+  NSRunLoop             	*loop;
+  NSDate                	*future;
 
   if (YES == cmdIsTransient)
     {
@@ -3730,17 +3733,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       return 1;
     }
 
-  NSAssert(nil == EcProcConnection, NSGenericException);
-  c = [[NSConnection alloc] initWithReceivePort: (NSPort*)[NSSocketPort port]
-                                       sendPort: nil];
-  [c setRootObject: self];
-  
-  if ([c registerName: [self cmdName]
-       withNameServer: [NSSocketPortNameServer sharedInstance]] == NO)
+  NSAssert(nil != EcProcConnection, NSGenericException);
+  ns = [NSSocketPortNameServer sharedInstance];
+  name = [self cmdName];
+  if ([EcProcConnection registerName: name withNameServer: ns] == NO)
     {
       EcAlarm   *a;
 
-      DESTROY(c);
+      DESTROY(EcProcConnection);
       NSLog(@"Unable to register with name server. Perhaps a copy of this process is already running (or is hung or blocked waiting for a database query etc), or perhaps an old version was killed and is still registered.  Check the state of any running process and and check the process registration with gdomap.");
 
       a = [EcAlarm alarmForManagedObject: nil
@@ -3774,15 +3774,20 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       [self alarm: a];
     }
 
-  [c setDelegate: self];
+  [EcProcConnection setDelegate: self];
   [[NSNotificationCenter defaultCenter] 
     addObserver: self
     selector: @selector(cmdConnectionBecameInvalid:)
     name: NSConnectionDidDieNotification
-    object: c];
-  EcProcConnection = c;
+    object: EcProcConnection];
   
   [self _connectionRegistered];
+
+  /* Now that startup has completed and we are registered under our normal
+   * name, we should remove the name used during startup.
+   */
+  name = [name stringByAppendingString: @" (starting)"];
+  [ns removePortForName: name];
 
   /* Called to permit subclasses to initialise before entering run loop.
    */
@@ -5232,6 +5237,8 @@ With two parameters ('maximum' and a number),\n\
   [ecLock lock];
   if (0.0 == beganQuitting)
     {
+      NSLog(@"-[%@ cmdQuit: %ld]", NSStringFromClass([self class]),
+        (long)status);
       ASSIGN(ecQuitReason, nil);
       ecQuitStatus = status;
     }
@@ -5278,6 +5285,47 @@ With two parameters ('maximum' and a number),\n\
   self = [self initWithDefaults: [[self class] ecInitialDefaults]];
   RELEASE(pool);
   return self;
+}
+
+- (BOOL) ecPrepareUnique
+{
+  NSSocketPortNameServer	*ns = [NSSocketPortNameServer sharedInstance];
+  NSString		*name = [self cmdName];
+  NSString		*prep = [name stringByAppendingString: @" (starting)"];
+  NSPort		*p;
+
+  /* First try registering as a non-functional process using our unique
+   * name with th suffix '(starting)' to prevent other instances trying
+   * to start up at the same time.
+   */
+  p = (NSPort*)[NSSocketPort port];
+  EcProcConnection = [[NSConnection alloc] initWithReceivePort: p
+						      sendPort: nil];
+  [EcProcConnection setRootObject: self];
+  if ([EcProcConnection registerName: prep withNameServer: ns] == NO)
+    {
+      p = [ns portForName: prep onHost: @""];
+      DESTROY(EcProcConnection);
+      NSLog(@"There is already a process: %@, on %@", prep, p);
+      return NO;
+    }
+
+  /* Now check to see if there is an instance already running.
+   */
+  p = [ns portForName: name onHost: @""];
+  if (nil != p)
+    {
+      [ns removePortForName: prep];
+      DESTROY(EcProcConnection);
+      NSLog(@"There is already a process: %@, on %@", name, p);
+      return NO;
+    }
+
+  /* Yippee ... there is no other copy of this process running and we have
+   * grabbed the name of a process starting up, so no other process can
+   * conflict with our startup.
+   */
+  return YES;
 }
 
 - (id) initWithDefaults: (NSDictionary*) defs
@@ -5386,6 +5434,17 @@ With two parameters ('maximum' and a number),\n\
 	  return nil;
 	}
 
+      cmdIsTransient = [cmdDefs boolForKey: @"Transient"];
+      if (NO == cmdIsTransient)
+	{
+          if (NO == [self ecPrepareUnique])
+	    {
+	      RELEASE(self);
+	      [ecLock unlock];
+	      return nil;
+	    }
+	}
+
       for (i = 0; i < 32; i++)
 	{
 	  switch (i)
@@ -5457,6 +5516,7 @@ With two parameters ('maximum' and a number),\n\
 	  hdl = [self cmdLogFile: cmdDebugName];
 	  if (hdl == nil)
 	    {
+	      DESTROY(EcProcConnection);
 	      [ecLock unlock];
 	      exit(1);
 	    }
@@ -5477,8 +5537,6 @@ With two parameters ('maximum' and a number),\n\
       [self cmdMesgCache];
 
       [self cmdDefaultsChanged: nil];
-
-      cmdIsTransient = [cmdDefs boolForKey: @"Transient"];
 
       if ([cmdDefs objectForKey: @"CmdInterval"] != nil)
 	{

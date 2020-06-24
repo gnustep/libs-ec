@@ -2395,7 +2395,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       while (count-- > 0)
 	{
 	  EcClientI	*r = [commands objectAtIndex: count];
-	  NSDate	*d = [r lastUnanswered];
+	  NSDate	*d = [r outstanding];
 
 	  if (d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
 	    {
@@ -2424,7 +2424,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       while (count-- > 0)
 	{
 	  EcClientI	*r = [consoles objectAtIndex: count];
-	  NSDate	*d = [r lastUnanswered];
+	  NSDate	*d = [r outstanding];
 
 	  if (d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
 	    {

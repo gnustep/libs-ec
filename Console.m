@@ -51,6 +51,7 @@ inner_main()
 
   defs = [NSDictionary dictionaryWithObjectsAndKeys:
     @"NO", @"Daemon",
+    @"YES", @"Transient",
 #if	defined(EC_REGISTRATION_DOMAIN)
     EC_REGISTRATION_DOMAIN
 #endif

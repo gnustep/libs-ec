@@ -97,7 +97,7 @@ typedef enum    {
 @end
 
 /** The CmdConfig protocol is needed by objects that send and receive
- * configuarion information.
+ * configuration information.
  */
 @protocol	CmdConfig
 - (oneway void) requestConfigFor: (id<CmdConfig>)c;
