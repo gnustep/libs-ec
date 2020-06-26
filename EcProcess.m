@@ -3733,6 +3733,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       return 1;
     }
 
+  /* Now that startup has completed we re-register our connection under
+   * our normal name (which removes the name used during startup).
+   */
   NSAssert(nil != EcProcConnection, NSGenericException);
   ns = [NSSocketPortNameServer sharedInstance];
   name = [self cmdName];
@@ -3782,12 +3785,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     object: EcProcConnection];
   
   [self _connectionRegistered];
-
-  /* Now that startup has completed and we are registered under our normal
-   * name, we should remove the name used during startup.
-   */
-  name = [name stringByAppendingString: @" (starting)"];
-  [ns removePortForName: name];
 
   /* Called to permit subclasses to initialise before entering run loop.
    */

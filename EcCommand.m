@@ -40,6 +40,12 @@
 #define	DLY	300.0
 #define	FIB	0.1
 
+static NSDate *
+date(NSTimeInterval t)
+{
+  return [NSDate dateWithTimeIntervalSinceReferenceDate: t];
+}
+
 static const NSTimeInterval   day = 24.0 * 60.0 * 60.0;
 
 static int	tStatus = 0;
@@ -95,7 +101,7 @@ cmdWord(NSArray* a, unsigned int pos)
 static NSDate                   *terminateBy = nil;
 
 static NSUInteger               launchLimit = 0;
-static BOOL                     launchSuspended = NO;
+static BOOL                     launchEnabled = NO;
 static NSMutableDictionary	*launchInfo = nil;
 static NSMutableArray	        *launchQueue = nil;
 
@@ -183,20 +189,26 @@ desiredName(Desired state)
   BOOL                  clientLost;
   BOOL                  clientQuit;
   int			identifier;     // The current process ID or zero
-  NSDate		*when;	// The timestamp we want to launch/stop at/by
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
   Desired		desired;	// If process *should* be live/dead
-  NSTimer		*starting;	// The process is starting up
-  NSTimeInterval	startingTime;
+  BOOL			starting;       // The process is starting up
+  NSTimer		*startingTimer;	// Not retained
+  NSTimeInterval	startingDate;
   BOOL			startingAlarm;
-  NSTimer		*stopping;	// The process is shutting down
-  NSTimeInterval	stoppingTime;
+  BOOL                  stopping;       // The process is shutting down
+  NSTimer		*stoppingTimer; // Not retained
+  NSTimeInterval	stoppingDate;
   BOOL			stoppingAlarm;
-  NSTimeInterval        terminationTime;        // Time of process termination
+  NSTimeInterval        terminationDate;        // Time of process termination
   unsigned              terminationCount;       // Terminations during startup
   int                   terminationStatus;      // Last exit status
-  BOOL			stable;	                // Has been running for a while
+  NSTimeInterval        registrationDate;       // Time of process registration
+  NSTimeInterval        deferredDate;           // Deferred re-launch interval
+  NSTimeInterval        queuedDate;             // When queued for launch
+  NSTimeInterval	stableDate;	        // Has been running for a while
+  NSTimeInterval	launchDate;	        // When we launched process
+  NSTimeInterval	abortDate;	        // When we abort process
   NSString              *restartReason;         // Reason for restart or nil
   NSArray               *dependencies;
 }
@@ -211,7 +223,7 @@ desiredName(Desired state)
 - (BOOL) autolaunch;
 - (BOOL) checkActive;
 - (BOOL) checkAlive;
-- (void) clearClient: (EcClientI*)c unregistered: (BOOL)didQuit;
+- (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient;
 - (EcClientI*) client;
 - (NSDictionary*) configuration;
 - (NSTimeInterval) delay;
@@ -232,10 +244,10 @@ desiredName(Desired state)
 - (void) setDesired: (Desired)state;
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
-- (void) setWhen: (NSDate*)w;
 - (BOOL) stable;
+- (NSString*) status;
 - (NSTask*) task;
-- (NSDate*) when;
+- (NSArray*) unfulfilled;
 @end
 
 /* Special configuration options are:
@@ -350,9 +362,8 @@ desiredName(Desired state)
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
 - (void) terminate: (NSDate*)by;
 - (void) _terminate: (NSTimer*)t;
-- (void) tryLaunch: (NSTimer*)t;
-- (void) _tryLaunch: (NSTimer*)t;
-- (void) tryLaunchSoon;
+- (void) housekeeping: (NSTimer*)t;
+- (void) _housekeeping: (NSTimer*)t;
 - (NSMutableArray*) unconfiguredClients;
 - (void) unregisterByObject: (id)obj;
 - (void) unregisterClient: (EcClientI*)o;
@@ -372,6 +383,7 @@ desiredName(Desired state)
   unsigned		disabled = 0;
   unsigned		launchable = 0;
   unsigned		starting = 0;
+  unsigned		stopping = 0;
   unsigned		suspended = 0;
   unsigned		alive = 0;
 
@@ -380,6 +392,10 @@ desiredName(Desired state)
       if ([l isStarting])
         {
           starting++;
+        }
+      else if ([l isStopping])
+        {
+          stopping++;
         }
       else if ([l processIdentifier] > 0)
 	{
@@ -409,8 +425,8 @@ desiredName(Desired state)
 	}
     }
   return [NSString stringWithFormat: @"LaunchInfo alive:%u, starting:%u,"
-    @" disabled:%u, suspended:%u, launchable:%u (auto:%u)\n",
-    starting, alive, disabled, suspended, launchable, autolaunch];
+    @" stopping:%u disabled:%u, suspended:%u, launchable:%u (auto:%u)\n",
+    alive, starting, stopping, disabled, suspended, launchable, autolaunch];
 }
 
 + (LaunchInfo*) existing: (NSString*)name
@@ -503,7 +519,7 @@ desiredName(Desired state)
 
   while (nil != (l = [e nextObject]))
     {
-      if (l->starting != nil && l->task != nil)
+      if ([l isStarting] && l->task != nil)
         {
           found++;
         }
@@ -544,6 +560,7 @@ desiredName(Desired state)
               if (nil == r)
                 {
                   [launchQueue removeObject: l];
+                  l->queuedDate = 0.0;
                   [l starting: nil];
                 }
             }
@@ -639,11 +656,11 @@ desiredName(Desired state)
   return NO;
 }
 
-- (void) clearClient: (EcClientI*)c unregistered: (BOOL)didQuit
+- (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient
 {
   NSAssert(client == c, NSInternalInconsistencyException);
   DESTROY(client);
-  if (didQuit)
+  if (unregisteredOrTransient)
     {
       clientQuit = YES;
       clientLost = NO;
@@ -675,13 +692,13 @@ desiredName(Desired state)
 
 - (void) dealloc
 {
-  [starting invalidate];
-  [stopping invalidate];
+  [startingTimer invalidate];
+  [stoppingTimer invalidate];
   RELEASE(restartReason);
+  RELEASE(dependencies);
   RELEASE(client);
   RELEASE(name);
   RELEASE(conf);
-  RELEASE(when);
   RELEASE(task);
   [super dealloc];
 }
@@ -713,32 +730,14 @@ desiredName(Desired state)
 	  fib1 = delay;
 	}
     }
-  [self setWhen: [NSDate dateWithTimeIntervalSinceNow: delay]];
+  deferredDate = [NSDate timeIntervalSinceReferenceDate] + delay;
   return delay;
 }
 
 - (NSString*) description
 {
-  NSString	*status;
+  NSString	*status = [self status];
 
-  if (nil != starting)
-    {
-      status = [NSString stringWithFormat: @"Starting since %@",
-        [NSDate dateWithTimeIntervalSinceReferenceDate: startingTime]];
-    }
-  else if (nil != stopping)
-    {
-      status = [NSString stringWithFormat: @"Stopping since %@",
-        [NSDate dateWithTimeIntervalSinceReferenceDate: stoppingTime]];
-    }
-  else if (nil == client)
-    {
-      status = @"Not active";
-    }
-  else
-    {
-      status = @"Active";
-    }
   return [NSString stringWithFormat: @"%@ for process '%@'\n"
     @"  %@\n"
     @"  Configuration %@\n",
@@ -759,17 +758,17 @@ desiredName(Desired state)
  */
 - (BOOL) isActive
 {
-  return (client != nil && stopping == nil) ? YES : NO;
+  return (client != nil && NO == stopping) ? YES : NO;
 }
 
 - (BOOL) isStarting
 {
-  return starting ? YES : NO;
+  return starting;
 }
 
 - (BOOL) isStopping
 {
-  return stopping ? YES : NO;
+  return stopping;
 }
 
 /* This method should only ever be called from the -starting: method (when
@@ -891,12 +890,12 @@ desiredName(Desired state)
 
 	      /* Record time of launch start
 	       */
-	      [self setWhen: [NSDate date]];
 	      [[NSNotificationCenter defaultCenter]
 		addObserver: self
 		   selector: @selector(taskTerminated:)
 		       name: NSTaskDidTerminateNotification
 		     object: task];
+              launchDate = [NSDate timeIntervalSinceReferenceDate];
 	      [task launch];
 	      identifier =  [task processIdentifier];
 	      [[command logFile]
@@ -912,6 +911,7 @@ desiredName(Desired state)
 	    removeObserver: self
 		      name: NSTaskDidTerminateNotification
 		    object: task];
+          launchDate = 0.0;
 	  DESTROY(task);
 	  failed = @"failed to launch";
 	  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
@@ -938,6 +938,11 @@ desiredName(Desired state)
   return [self checkAlive];  // On failure return NO
 }
 
+- (NSDate*) launchDate
+{
+  return (launchDate > 0.0) ? date(launchDate) : (NSDate*)nil;
+}
+
 - (BOOL) mayCoreDump
 {
   if (fib1 > FIB)
@@ -959,35 +964,32 @@ desiredName(Desired state)
 - (NSString*) reasonToPreventLaunch
 {
   EcCommand	*command = (EcCommand*)EcProc;
+  NSArray       *unfulfilled;
   NSString      *reason = nil;
 
-  if (nil == starting)
+  if (NO == starting)
     {
       if ([launchQueue containsObject: self])
         {
           NSLog(@"Found object which is not starting in queue: %@", self);
           [launchQueue removeObject: self];
+          queuedDate = 0.0;
         }
     }
-  else if (nil != stopping)
+  else if (stopping)
     {
       if ([launchQueue containsObject: self])
         {
           NSLog(@"Found object which is stopping in queue: %@", self);
           [launchQueue removeObject: self];
+          queuedDate = 0.0;
         }
     }
-  else if (YES == [self checkAlive])
+  else if (deferredDate > 0.0
+    && [NSDate timeIntervalSinceReferenceDate] < deferredDate)
     {
-      if ([launchQueue containsObject: self])
-        {
-          NSLog(@"Found object which is already alive in queue: %@", self);
-          [launchQueue removeObject: self];
-        }
-    }
-  else if (nil != when && [when timeIntervalSinceNow] > 0.0)
-    {
-      reason = [NSString stringWithFormat: @"waiting for retry at %@", when];
+      reason = [NSString stringWithFormat: @"waiting for retry at %@",
+        date(deferredDate)];
     }
   else if ([command ecIsQuitting])
     {
@@ -997,7 +999,7 @@ desiredName(Desired state)
     {
       reason = @"all servers shutting down";
     }
-  else if (launchSuspended)
+  else if (NO == launchEnabled)
     {
       reason = @"launching suspended";
     }
@@ -1006,25 +1008,9 @@ desiredName(Desired state)
       reason = [NSString stringWithFormat: @"%u launches in progress",
         (unsigned)launchLimit];
     }
-  else
+  else if ([(unfulfilled = [self unfulfilled]) count] > 0)
     {
-      NSMutableArray    *d = [[conf objectForKey: @"Deps"] mutableCopy];
-      NSUInteger        c = [d count];
-
-      while (c-- > 0)
-        {
-          NSString      *n = [d objectAtIndex: c];
-          LaunchInfo    *l = [LaunchInfo existing: n];
-
-          if ([l client] != nil)
-            {
-              [d removeObjectAtIndex: c];
-            }
-        }
-      if ([d count] > 0)
-        {
-          reason = [NSString stringWithFormat: @"waiting for %@", d];
-        }
+      reason = [NSString stringWithFormat: @"waiting for %@", unfulfilled];
     }
   return reason;
 }
@@ -1044,7 +1030,7 @@ desiredName(Desired state)
  */
 - (void) progress
 {
-  if (nil == starting && nil == stopping)
+  if (NO == starting && NO == stopping)
     {
       if (Live == desired && nil == client)
         {
@@ -1054,11 +1040,39 @@ desiredName(Desired state)
         {
           [self stop];
         }
+      else
+        {
+          /* We reached the desired state, so we clear the desire
+           * and decide if we need to change state normally.
+           */
+          desired = None;
+          if ([self disabled])
+            {
+              /* If the config says we are disabled, we should stop.
+               */
+              if (nil != client)
+                {
+                  [self stop];
+                }
+            }
+          else if ([self autolaunch] && NO == clientQuit)
+            {
+              /* If the config says we autolaunch and the last process
+               * didn't shut down cleanly, we should start.
+               */
+                
+              if (nil == client)
+                {
+                  [self start];
+                }
+            }
+        }
     }
 }
 
 - (void) resetDelay
 {
+  deferredDate = 0.0;
   fib0 = fib1 = 0.0;
 }
 
@@ -1066,7 +1080,7 @@ desiredName(Desired state)
 {
   if ([self checkActive])
     {
-      if (nil == stopping)
+      if (NO == stopping)
         {
           ASSIGNCOPY(restartReason, reason);
           [self stop];
@@ -1078,50 +1092,23 @@ desiredName(Desired state)
     }
 }
 
-/* When process startup has completed and the client has registered itself
- * with the Command server, the registration process will call this method.
- * Here we should do all the work associated with completion of the startup
- * process.
- */
-- (void) setClient: (EcClientI*)c
+- (void) started
 {
-  NSAssert([c isKindOfClass: [EcClientI class]],
-    NSInternalInconsistencyException);
-  if (client != c)
-    {
-      int	newPid = [c processIdentifier];
-
-      ASSIGN(client, c);
-      if (task != nil && [task processIdentifier] != newPid)
-	{
-          /* This could happen if someone manually launches the process
-           * before the Command server launches it.  In that case we
-           * need to cancel the handling of the task and depends on
-           * the excess process to shut itself down.
-           */ 
-	  NSLog(@"LaunchInfo(%@) new pid(%d) from client connection"
-	    @" differs from old pid(%d) from task launch",
-	    name, [task processIdentifier], newPid);
-          [[NSNotificationCenter defaultCenter]
-            removeObserver: self
-                      name: NSTaskDidTerminateNotification
-                    object: task];
-          DESTROY(task);
-	}
-      identifier = newPid;
-    }
+NSLog(@"startup completed for %@", self);
   clientLost = NO;
   clientQuit = NO;
+  [launchQueue removeObject: self];
+  queuedDate = 0.0;
   if (starting)
     {
       /* The client has connected and registered itself ... startup of
        * this process has completed.  Alarms will be cleared when the
        * new process becomes stable.
        */
-      [launchQueue removeObject: self];
-      [starting invalidate];
-      starting = nil;
-      startingTime = 0.0;
+      [startingTimer invalidate];
+      startingTimer = nil;
+      startingDate = 0.0;
+      starting = NO;
       if (Dead == desired)
         {
           /* It is not desired that this process should be running:
@@ -1131,6 +1118,42 @@ desiredName(Desired state)
         }
     }
   [LaunchInfo processQueue];    // Maybe we can launch more now
+}
+
+/* When process startup has completed and the client has registered itself
+ * with the Command server, the registration process will call this method.
+ * Here we should do all the work associated with completion of the startup
+ * process.
+ */
+- (void) setClient: (EcClientI*)c
+{
+  int   newPid;
+
+  NSAssert([c isKindOfClass: [EcClientI class]],
+    NSInternalInconsistencyException);
+  ASSIGN(client, c);
+
+  newPid = [c processIdentifier];
+  if (task != nil && [task processIdentifier] != newPid)
+    {
+      /* This could happen if someone manually launches the process
+       * before the Command server launches it.  In that case we
+       * need to cancel the handling of the task and depends on
+       * the excess process to shut itself down.
+       */ 
+      NSLog(@"LaunchInfo(%@) new pid(%d) from client connection"
+        @" differs from old pid(%d) from task launch",
+        name, [task processIdentifier], newPid);
+      [[NSNotificationCenter defaultCenter]
+        removeObserver: self
+                  name: NSTaskDidTerminateNotification
+                object: task];
+      launchDate = 0.0;
+      DESTROY(task);
+    }
+  registrationDate = [NSDate timeIntervalSinceReferenceDate];
+  identifier = newPid;
+  [self started];
 }
 
 - (void) setConfiguration: (NSDictionary*)c
@@ -1151,7 +1174,7 @@ desiredName(Desired state)
 }
 
 /* Called when a manual change is made to specify what state a process should
- * be in.
+ * be in (also called to set configured state).
  */
 - (void) setDesired: (Desired)state
 {
@@ -1172,8 +1195,8 @@ desiredName(Desired state)
     {
       NSLog(@"-setDesired:%@ unchanged of %@",
         desiredName(desired), self);
-      if (terminateBy != nil && stopping != nil
-        && [when earlierDate: terminateBy] == terminateBy)
+      if (terminateBy != nil && stopping
+        && [[stoppingTimer fireDate] earlierDate: terminateBy] == terminateBy)
         {
           /* Force timer reset to match terminateBy
            */
@@ -1225,17 +1248,20 @@ desiredName(Desired state)
 
 - (void) setStable: (BOOL)s
 {
-  stable = s ? YES : NO;
-}
-
-- (void) setWhen: (NSDate*)w
-{
-  ASSIGNCOPY(when, w);
+  if (NO == s)
+    {
+      stableDate = 0.0;
+    }
+  else if (s && 0.0 == stableDate)
+    {
+      stableDate = [NSDate timeIntervalSinceReferenceDate];
+      [self resetDelay];
+    }
 }
 
 - (BOOL) stable
 {
-  return stable;
+  return stableDate > 0.0 ? YES : NO;
 }
 
 /* This method may be called to initiate startup of a server.
@@ -1244,30 +1270,103 @@ desiredName(Desired state)
  */
 - (void) start
 {
-  if (nil != starting)
+  if (starting)
     {
-      NSLog(@"-start when already starting of %@", self);
+      EcExceptionMajor(nil, @"-start when already starting of %@", self);
+    }
+  else if (startingTimer)
+    {
+      EcExceptionMajor(nil, @"-start when timer already set of %@", self);
+    }
+  else if (nil != client)
+    {
+      EcExceptionMajor(nil, @"-start when already active of %@", self);
     }
   else if (YES == [self checkAlive])
     {
-      NSLog(@"-start when already alive of %@", self);
+      EcExceptionMajor(nil, @"-start when already alive of %@", self);
     }
   else
     {
       NSLog(@"-start called for %@", self);
-      DESTROY(when);            // No limit on when we can start
       [self resetDelay];
       terminationCount = 0;
-      terminationTime = 0.0;
+      terminationDate = 0.0;
       terminationStatus = -1;
+      starting = YES;
       startingAlarm = NO;
-      startingTime = [NSDate timeIntervalSinceReferenceDate];
-      starting = [NSTimer scheduledTimerWithTimeInterval: 0.01
-						  target: self
-						selector: @selector(starting:)
-						userInfo: name
-						 repeats: NO];
+      startingDate = [NSDate timeIntervalSinceReferenceDate];
+      startingTimer = [NSTimer
+        scheduledTimerWithTimeInterval: 0.01
+        target: self
+        selector: @selector(starting:)
+        userInfo: name
+        repeats: NO];
     }
+}
+
+- (BOOL) checkAbandonedStartup
+{
+  BOOL  abandon = NO;
+
+  [self checkAlive];
+  if (NO == starting || client != nil)
+    {
+      return NO;        // Not starting
+    }
+  /* We will only abandon startup if we want the process to be dead
+   */
+  if (Dead == desired)
+    {
+      if (0 == identifier)
+        {
+          abandon = YES;        //  No process, easy to abandon
+        }
+      else
+        {
+          NSTimeInterval        now = [NSDate timeIntervalSinceReferenceDate];
+
+          if (now - launchDate >= 30.0)
+            {
+              abandon = YES;            // One process taking too long to start
+            }
+          else if (now - startingDate >= 120.0)
+            {
+              abandon = YES;            // Multiple attempts taking too long
+            }
+        }
+    }
+  if (YES == abandon)
+    {
+      [startingTimer invalidate];
+      startingTimer = nil;
+      startingDate = 0.0;
+      starting = NO;
+      [launchQueue removeObject: self];
+      if (identifier > 0)
+        {
+          if (task != nil)
+            {
+              [[NSNotificationCenter defaultCenter]
+                removeObserver: self
+                          name: NSTaskDidTerminateNotification
+                        object: task];
+              launchDate = 0.0;
+              DESTROY(task);
+            }
+          kill(identifier, SIGKILL);
+          identifier = 0;
+        }
+      if (startingAlarm)
+        {
+          EcCommand	        *command = (EcCommand*)EcProc;
+
+          startingAlarm = NO;
+          [command clear: name addText: @"process manually stopped"];
+        }
+      [self progress];
+    }
+  return abandon;
 }
 
 - (void) starting: (NSTimer*)t
@@ -1281,19 +1380,23 @@ desiredName(Desired state)
    * Either way the timer is no longer valid and a new one will need
    * to be created unless startup has completed.
    */
-  if (t != starting)
+  [startingTimer invalidate];
+  startingTimer = nil;
+  if (NO == starting)
     {
-      [starting invalidate];
+      EcExceptionMajor(nil, @"-starting: when not starting for %@", self);
+      return;
     }
-  starting = nil;
-
-  if (YES == [self checkAlive])
+  if (client != nil)
     {
-      /* We are waiting for the client to connect and register.
-       */
-      ti = 0.0;         // Calculate the time we wait below
+      EcExceptionMajor(nil, @"-starting: when already registered for %@", self);
+      return;
     }
-  else
+  if ([self checkAbandonedStartup])
+    {
+      return;
+    }
+  if (0 == identifier)
     {
       NSString  *r = [self reasonToPreventLaunch];
 
@@ -1302,10 +1405,12 @@ desiredName(Desired state)
           /* We are able to launch now
            */
           [launchQueue removeObject: self];
+          queuedDate = 0.0;
           if (NO == [self launch])
             {
               ti = [self delay];        // delay between launch attempts
               [launchQueue addObject: self];
+              queuedDate = [NSDate timeIntervalSinceReferenceDate];
               [command logChange: @"queued (launch failed)" for: name];
             }
           else
@@ -1320,15 +1425,19 @@ desiredName(Desired state)
         }
       else
         {
-          if (nil != when && [when timeIntervalSinceNow] > 0.0)
+          BOOL  alreadyQueued = [launchQueue containsObject: self];
+          NSTimeInterval        now = [NSDate timeIntervalSinceReferenceDate];
+
+          if (deferredDate > 0.0 && now < deferredDate)
             {
               /* We are waiting for a retry at a specific time.
                * If we are not already queued, add to queue.
                */
-              ti = [when timeIntervalSinceNow];
-              if (NO == [launchQueue containsObject: self])
+              ti = deferredDate - now;
+              if (NO == alreadyQueued)
                 {
                   [launchQueue addObject: self];
+                  queuedDate = [NSDate timeIntervalSinceReferenceDate];
                 }
             }
           else
@@ -1337,27 +1446,30 @@ desiredName(Desired state)
                * so we reset the time from which we count launching as
                * started and specify a timer for checking again.
                */
-              startingTime = [NSDate timeIntervalSinceReferenceDate];
-              DESTROY(when);
+              startingDate = [NSDate timeIntervalSinceReferenceDate];
               ti = 1.0;
-              if (NO == [launchQueue containsObject: self])
+              if (NO == alreadyQueued)
                 {
                   [launchQueue addObject: self];
+                  queuedDate = [NSDate timeIntervalSinceReferenceDate];
                 }
             }
-          r = [NSString stringWithFormat: @"queued (%@)", r];
-          [command logChange: r for: name];
+          if (NO == alreadyQueued)
+            {
+              r = [NSString stringWithFormat: @"queued (%@)", r];
+              [command logChange: r for: name];
+            }
         }
     }
   if (0.0 == ti)
     {
       ti = [NSDate timeIntervalSinceReferenceDate];
-      if (ti - startingTime < 30.0)
+      if (ti - startingDate < 30.0)
         {
           /* We need to raise an alarm if it takes longer than 30 seconds
            * to start up the process.
            */
-          ti = 30.0 - (ti - startingTime);
+          ti = 30.0 - (ti - startingDate);
         }
       else
         {
@@ -1370,21 +1482,65 @@ desiredName(Desired state)
           ti = 60.0;
         }
     }
-  starting = [NSTimer scheduledTimerWithTimeInterval: ti
-					      target: self
-					    selector: _cmd
-					    userInfo: name
-					     repeats: NO];
+  if (nil != startingTimer)
+    {
+      [startingTimer invalidate];
+      EcExceptionMajor(nil, @"startingTimer reset %@", self);
+    }
+  startingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
+                                                   target: self
+                                                 selector: _cmd
+                                                 userInfo: name
+                                                  repeats: NO];
+}
+
+- (NSDate*) startingDate
+{
+  return (startingDate > 0.0) ? date(startingDate) : (NSDate*)nil;
+}
+
+- (NSString*) status
+{
+  NSString	*status;
+
+  if (starting)
+    {
+      status = [NSString stringWithFormat: @"Starting since %@",
+        date(startingDate)];
+    }
+  else if (stopping)
+    {
+      status = [NSString stringWithFormat: @"Stopping since %@",
+        date(stoppingDate)];
+    }
+  else if (nil == client)
+    {
+      status = @"Not active";
+    }
+  else
+    {
+      if ([self stable])
+        {
+          status = @"Active (stable)";
+        }
+      else
+        {
+          status = [NSString stringWithFormat: @"Active since %@",
+            date(registrationDate)];
+        }
+    }
+  return status;
 }
 
 - (void) stop
 {
-  if (nil == stopping && YES == [self checkAlive])
+  if (NO == stopping && YES == [self checkAlive])
     {
       [self resetDelay];
-      DESTROY(when);
+      stopping = YES;
       stoppingAlarm = NO;
-      stoppingTime = [NSDate timeIntervalSinceReferenceDate];
+      stoppingDate = [NSDate timeIntervalSinceReferenceDate];
+      abortDate = stoppingDate + 120.0;
       if (nil == client)
         {
           /* No connection to client established ... try to shut it down
@@ -1412,7 +1568,7 @@ desiredName(Desired state)
                */
               if (nil != client)
                 {
-                  [self clearClient: client unregistered: NO];
+                  [self clearClient: client cleanly: NO];
                 }
               NSLog(@"Exception sending command to %@", localException);
             }
@@ -1426,9 +1582,11 @@ desiredName(Desired state)
 {
   EcCommand	*command = (EcCommand*)EcProc;
 
-  [stopping invalidate];
-  stopping = nil;
-
+  [stoppingTimer invalidate];
+  stoppingTimer = nil;
+  abortDate = 0.0;
+  stopping = NO;
+  DESTROY(terminateBy);         // Termination completed
   if (YES == clientLost)
     {
       NSString      *text;
@@ -1451,6 +1609,7 @@ desiredName(Desired state)
     {
       /* Clean shutdown (process unregistered itself).
        */
+      [self resetDelay];
       [command update];
     }
   else
@@ -1464,11 +1623,10 @@ desiredName(Desired state)
 
 - (void) stopping: (NSTimer*)t
 {
-  NSTimeInterval	ti = 0.0;
-  NSDate                *final;
+  NSTimeInterval	ti;
 
-  [stopping invalidate];
-  stopping = nil;
+  [stoppingTimer invalidate];
+  stoppingTimer = nil;
 
   if (nil == client && NO == [self checkAlive])
     {
@@ -1476,30 +1634,36 @@ desiredName(Desired state)
       return;
     }
 
-  if (nil == when)
+  if (stoppingDate <= 0.0)
     {
-      /* We need to set a limit on how long the shutdown process can take.
-       */
-      ti = stoppingTime + 120.0;
-      ASSIGN(when, [NSDate dateWithTimeIntervalSinceReferenceDate: ti]);
+      stoppingDate = [NSDate timeIntervalSinceReferenceDate];
     }
-  if (nil == terminateBy)
+  if (abortDate <= 0.0)
     {
-      final = when;
+      abortDate = stoppingDate + 120.0;
     }
-  else
+  if (nil != terminateBy)
     {
-      final = [when earlierDate: terminateBy];
+      ti = [terminateBy timeIntervalSinceReferenceDate];
+      if (ti < abortDate)
+        {
+          abortDate = ti;
+        }
     }
-  ti = [final timeIntervalSinceNow];
+  ti = abortDate;
   if (ti <= 0.0)
     {
       /* Maximum time for clean shutdown has passed.
        */
       if (client != nil)
         {
-          [self clearClient: client unregistered: NO];
+          [self clearClient: client cleanly: NO];
         }
+      [[NSNotificationCenter defaultCenter]
+        removeObserver: self
+                  name: NSTaskDidTerminateNotification
+                object: task];
+      launchDate = 0.0;
       DESTROY(task);
       if (identifier > 0)
         {
@@ -1519,12 +1683,17 @@ desiredName(Desired state)
            */
           ti = 0.1;
         }
-      stopping = [NSTimer scheduledTimerWithTimeInterval: ti
-                                                  target: self
-                                                selector: _cmd
-                                                userInfo: name
-                                                 repeats: NO];
+      stoppingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
+                                                       target: self
+                                                     selector: _cmd
+                                                     userInfo: name
+                                                      repeats: NO];
     }
+}
+
+- (NSDate*) stoppingDate
+{
+  return (stoppingDate > 0.0) ? date(stoppingDate) : (NSDate*)nil;
 }
 
 - (NSTask*) task
@@ -1557,7 +1726,8 @@ desiredName(Desired state)
     {
       terminationCount++;
       terminationStatus = [task terminationStatus];
-      terminationTime = [NSDate timeIntervalSinceReferenceDate];
+      terminationDate = [NSDate timeIntervalSinceReferenceDate];
+      launchDate = 0.0;
       DESTROY(task);
       if (terminationStatus != 0)
         {
@@ -1575,10 +1745,24 @@ desiredName(Desired state)
     }
 }
 
-- (NSDate*) when
+- (NSArray*) unfulfilled
 {
-  return AUTORELEASE(RETAIN(when));
+  NSMutableArray    *d = [[conf objectForKey: @"Deps"] mutableCopy];
+  NSUInteger        c = [d count];
+
+  while (c-- > 0)
+    {
+      NSString      *n = [d objectAtIndex: c];
+      LaunchInfo    *l = [LaunchInfo existing: n];
+
+      if ([l client] != nil)
+        {
+          [d removeObjectAtIndex: c];
+        }
+    }
+  return d;
 }
+
 @end
 
 
@@ -1721,6 +1905,11 @@ NSLog(@"Problem %@", localException);
   return found;
 }
 
+- (void) disableLaunching
+{
+  launchEnabled = NO;
+}
+
 - (oneway void) domanage: (in bycopy NSString*)managedObject
 {
   NS_DURING
@@ -1736,10 +1925,22 @@ NSLog(@"Problem %@", localException);
 
 - (void) ecAwaken
 {
+  [self contactControl];
   [super ecAwaken];
   [[self ecAlarmDestination] setCoalesce: NO];
-  launchSuspended = [[self cmdDefaults] boolForKey: @"LaunchStartSuspended"];
-  [self _tryLaunch: nil];    // Simulate timeout to set timer going
+  if (NO == [[self cmdDefaults] boolForKey: @"LaunchStartSuspended"])
+    {
+      [self enableLaunching];
+    }
+  /* Start housekeeping timer.
+   */
+  [self _housekeeping: nil];
+}
+
+- (void) enableLaunching
+{
+  launchEnabled = YES;
+  [LaunchInfo processQueue];
 }
 
 - (oneway void) unmanage: (in bycopy NSString*)managedObject
@@ -2047,13 +2248,11 @@ NSLog(@"Problem %@", localException);
                 }
               conf = md;
 
-              /* Validate the LaunchOrder array and use it to add
-               * some dependncies.
+              /* Validate the LaunchOrder array.
                */
               if (newOrder != nil)
                 {
                   NSUInteger    c;
-                  NSUInteger    i;
 
                   c = [newOrder count];
                   while (c-- > 0)
@@ -2076,28 +2275,6 @@ NSLog(@"Problem %@", localException);
                           NSLog(@"bad 'LaunchOrder' item ('%@' at %u) ignored"
                             @" (not in 'Launch' dictionary)", o, (unsigned)c);
                           [newOrder removeObjectAtIndex: c];
-                        }
-                    }
-                  /* Now we use an explicit launch order as a means of
-                   * setting dependencies for all but the first item.
-                   */
-                  c = [newOrder count];
-                  for (i = 1; i < c; i++)
-                    {
-                      NSMutableArray    *ma;
-
-                      k = [newOrder objectAtIndex: i];
-                      md = [conf objectForKey: k];
-                      ma = [md objectForKey: @"Deps"];
-                      if (nil == ma)
-                        {
-                          ma = [NSMutableArray arrayWithCapacity: 1];
-                          [md setObject: ma forKey: @"Deps"];
-                        }
-                      k = [newOrder objectAtIndex: i - 1];
-                      if (NO == [ma containsObject: k])
-                        {
-                          [ma addObject: k];
                         }
                     }
                 }
@@ -2501,104 +2678,130 @@ NSLog(@"Problem %@", localException);
 	}
       else if (comp(wd, @"launch") >= 0)
 	{
-          if (YES == launchSuspended)
+          if (NO == launchEnabled)
             {
               m = @"Launching of tasks is suspended.\n"
                   @"Use the Resume command to resume launching.\n";
             }
 	  else if ([cmd count] > 1)
 	    {
-              NSString	*nam = [cmd objectAtIndex: 1];
-              BOOL      all = NO;
+              NSString	        *nam = [cmd objectAtIndex: 1];
+              NSMutableString   *s = [NSMutableString string];
+              BOOL              all = NO;
 
               if ([nam caseInsensitiveCompare: @"all"] == NSOrderedSame)
                 {
                   all = YES;
                 }
 
-	      if ([[LaunchInfo names] count] > 0)
+	      if ([launchOrder count] > 0)
 		{
+                  NSArray       *names;
 		  NSEnumerator	*enumerator;
 		  NSString	*key;
-		  BOOL		found = NO;
 
-		  enumerator = [launchOrder objectEnumerator];
+                  /* Build array of process names matching request.
+                   */
                   if (YES == all)
                     {
-                      NSMutableArray  *names = [NSMutableArray array];
-
-                      while ((key = [enumerator nextObject]) != nil)
-                        {
-                          EcClientI	*r;
-			  LaunchInfo	*l;
-                          NSDictionary  *inf;
-
-                          l = [LaunchInfo existing: key];
-                          inf = [l configuration];
-			  if ([l autolaunch] == NO)
-                            {
-                              continue;
-                            }
-                          r = [self findIn: clients byName: key];
-                          if (nil != r)
-                            {
-                              continue;
-                            }
-                          found = YES;
-			  if (nil != l)
-			    {
-			      [l resetDelay];
-			      [l setDesired: Live];
-			    }
-                          [names addObject: key];
-                        }
-                      if (YES == found)
-                        {
-                          [names sortUsingSelector: @selector(compare:)];
-                          m = [NSString stringWithFormat:
-                            @"Ok - I will launch %@ when I get a chance.\n",
-                            names];
-                        }
+                      names = launchOrder;
                     }
                   else
                     {
+                      NSMutableArray    *a = [NSMutableArray array];
+                      enumerator = [launchOrder objectEnumerator];
                       while ((key = [enumerator nextObject]) != nil)
                         {
                           if (comp(nam, key) >= 0)
                             {
-                              EcClientI	*r;
+                              [a addObject: key];
+                            }
+                        }
+                      names = a;
+                    }
 
-                              found = YES;
-                              r = [self findIn: clients byName: key];
-                              if (r == nil)
+                  enumerator = [names objectEnumerator];
+                  while ((key = [enumerator nextObject]) != nil)
+                    {
+                      LaunchInfo	*l = [LaunchInfo existing: key];
+
+                      if ([l disabled] == YES)
+                        {
+                          if (NO == all)
+                            {
+                              [s appendFormat:
+                                @"  %-32.32s disabled in config\n",
+                                [key UTF8String]];
+                            }
+                        }
+                      else if ([l isActive])
+                        {
+                          if (NO == all)
+                            {
+                              [s appendFormat:
+                                @"  %-32.32s is already running\n",
+                                [key UTF8String]];
+                            }
+                        }
+                      else if ([l isStarting])
+                        {
+                          NSArray       *u = [l unfulfilled];
+
+                          if (NO == all || [u count] > 0)
+                            {
+                              if ([u count] > 0)
                                 {
-				  LaunchInfo	*l;
-
-				  l = [LaunchInfo existing: key];
-				  if (nil != l)
-				    {
-				      [l resetDelay];
-				      [l setDesired: Live];
-				    }
-                                  m = @"Ok - I will launch that program "
-                                      @"when I get a chance.\n";
+                                  [s appendFormat:
+                                    @"  %-32.32s is queued waiting for %@\n",
+                                    [key UTF8String], u];
                                 }
                               else
                                 {
-                                  m = @"That program is already running\n";
+                                  [s appendFormat:
+                                    @"  %-32.32s is already starting\n",
+                                    [key UTF8String]];
                                 }
                             }
                         }
+                      else if ([l isStopping])
+                        {
+                          [s appendFormat:
+                            @"  %-32.32s is stopping (will restart)\n",
+                            [key UTF8String]];
+                          [l setDesired: Live];
+                        }
+                      else
+                        {
+                          [s appendFormat:
+                            @"  %-32.32s will be started\n",
+                            [key UTF8String]];
+                          [l resetDelay];
+                          [l setDesired: Live];
+                        }
                     }
-		  if (found == NO)
+
+		  if ([names count] == 0)
 		    {
-		      m = @"I don't know how to launch that program.\n";
+                      /* May happen if the name given doesn't match
+                       * anything in the launch array.
+                       */
+                      [s appendString:
+                         @"I don't know how to launch that program.\n"];
 		    }
+                  else if ([s length] == 0)
+                    {
+                      /* May happen if we were looking for all the
+                       * launchable processes and there weren't any.
+                       */
+                      [s appendString:
+                         @"Nothing found to start.\n"];
+                    }
 		}
 	      else
 		{
-		  m = @"There are no programs we can launch.\n";
+		  [s appendString: @"There are no programs we can launch.\n"];
 		}
+              m = s;
 	    }
 	  else
 	    {
@@ -2637,99 +2840,33 @@ NSLog(@"Problem %@", localException);
 		{
 		  NSEnumerator	*enumerator;
 		  NSString	*key;
-		  NSDate	*date;
-		  NSDate	*now = [NSDate date];
 
 		  m = @"Programs we can launch -\n";
 		  enumerator = [[names sortedArrayUsingSelector:
 		    @selector(compare:)] objectEnumerator];
 		  while ((key = [enumerator nextObject]) != nil)
 		    {
-		      EcClientI		*r;
 		      LaunchInfo	*l = [LaunchInfo existing: key];
+                      NSString          *status = [l status];
 
 		      m = [m stringByAppendingFormat: @"  %-32.32s ",
 			[key cString]];
-		      r = [self findIn: clients byName: key];
-		      if (nil != r)
-			{
-			  m = [m stringByAppendingString: @"running\n"];
-			}
-		      else if ([l isStarting])
-			{
-			  m = [m stringByAppendingString: 
-			    @"launch attempt in progress\n"];
-			}
-		      else
-			{
-			  if ([l disabled] == YES)
-			    {
-			      m = [m stringByAppendingString: 
-				@"disabled in config\n"];
-			    }
-			  else if ([l autolaunch] == NO)
-			    {
-			      date = [[LaunchInfo existing: key] when];
-			      if (nil == date
-				|| [NSDate distantFuture] == date)
-				{
-				  m = [m stringByAppendingString: 
-				    @"may be launched manually\n"];
-				}
-			      else if ([now timeIntervalSinceDate: date] > 0.0)
-				{
-				  m = [m stringByAppendingString: 
-				    @"will attempt launch ASAP\n"];
-				}
-			      else
-				{
-				  m = [m stringByAppendingFormat: 
-				    @"will attempt launch at %@\n", date];
-				}
-			    }
-			  else
-			    {
-			      LaunchInfo	*l;
-
-			      l = [LaunchInfo existing: key];
-			      date = [l when];
-			      if (date == nil)
-				{
-				  date = now;
-				  [l setWhen: date];
-				}
-			      if ([NSDate distantFuture] == date)
-				{
-				  m = [m stringByAppendingString: 
-				    @"manually suspended\n"];
-				}
-			      else
-				{
-				  if ([now timeIntervalSinceDate: date] > 0.0)
-				    {
-				      m = [m stringByAppendingString: 
-					@"will attempt autolaunch ASAP\n"];
-				    }
-				  else
-				    {
-				      m = [m stringByAppendingFormat: 
-					@"will attempt autolaunch at %@\n",
-					date];
-				    }
-				}
-			    }
-			}
-		    }
-		  if ([launchInfo count] == 0)
-		    {
-		      m = [m stringByAppendingString: @"nothing\n"];
+                      if ([l disabled] == YES)
+                        {
+                          m = [m stringByAppendingString: 
+                            @"disabled in config\n"];
+                        }
+                      else
+                        {
+                          m = [m stringByAppendingFormat: @"%@\n", status]; 
+                        }
 		    }
 		}
 	      else
 		{
 		  m = @"There are no programs we can launch.\n";
 		}
-              if (YES == launchSuspended)
+              if (NO == launchEnabled)
                 {
                   m = [m stringByAppendingString:
                     @"\nLaunching is suspended.\n"];
@@ -2839,7 +2976,8 @@ NSLog(@"Problem %@", localException);
                             }
                           else
                             {
-                              [l setDesired: NO];
+                              [l setDesired: Dead];
+                              [l checkAbandonedStartup];
                             }
 			  found = YES;
 			}
@@ -2873,6 +3011,7 @@ NSLog(@"Problem %@", localException);
 				  m = [m stringByAppendingFormat:
 				    @"Suspended %@\n", key];
 				}
+                              [l checkAbandonedStartup];
 			    }
 			}
 		    }
@@ -2975,11 +3114,10 @@ NSLog(@"Problem %@", localException);
 	}
       else if (comp(wd, @"resume") >= 0)
         {
-          if (YES == launchSuspended)
+          if (NO == launchEnabled)
             {
-              launchSuspended = NO;
+              [self enableLaunching];
               m = @"Launching is now resumed.\n";
-              [self tryLaunchSoon];
             }
           else
             {
@@ -3011,8 +3149,24 @@ NSLog(@"Problem %@", localException);
 		  else if ([l isStarting])
 		    {
 		      m = [m stringByAppendingFormat:
-			@"\nProcess '%@' is launching since %@.",
-			n, [l when]];
+			@"\nProcess '%@' is starting since %@",
+                        n, [l startingDate]];
+                      if ([l processIdentifier] > 0)
+                        {
+                          m = [m stringByAppendingFormat:
+                            @" (last launch at %@)", [l launchDate]];
+                        }
+                      else
+                        {
+                          NSArray       *u = [l unfulfilled];
+
+                          if ([u count] > 0)
+                            {
+                              m = [m stringByAppendingFormat:
+                                @", waiting for %@", u];
+                            }
+                        }
+                      m = [m stringByAppendingString: @"."];
 		    }
 		  m = [m stringByAppendingFormat: @"\n%@\n", l];
 		}
@@ -3020,13 +3174,13 @@ NSLog(@"Problem %@", localException);
         }
       else if (comp(wd, @"suspend") >= 0)
         {
-          if (YES == launchSuspended)
+          if (NO == launchEnabled)
             {
               m = @"Launching was/is already suspended.\n";
             }
           else
             {
-              launchSuspended = YES;
+              [self disableLaunching];
               m = @"Launching is now suspended.\n";
             }
         }
@@ -3207,8 +3361,8 @@ NSLog(@"Problem %@", localException);
     {
       if (nil == o)
 	{
-	  /* No instance specific config found for server,
-	   * try using the base server name without instance ID.
+	  /* No instance specific config found for process,
+	   * try using the base process name without instance ID.
 	   */
 	  o = [config objectForKey: base];
 	}
@@ -3216,8 +3370,8 @@ NSLog(@"Problem %@", localException);
 	{
 	  id	tmp;
 
-	  /* We found instance specific configuration for the server,
-	   * so we merge by taking values from generic server config
+	  /* We found instance specific configuration for the process,
+	   * so we merge by taking values from generic process config
 	   * (if any) and overwriting them with instance specific values.
 	   */
 	  tmp = [config objectForKey: base];
@@ -3296,16 +3450,21 @@ NSLog(@"Problem %@", localException);
 	  if ([(id)[o obj] connectionForProxy] == conn)
 	    {
               LaunchInfo	*l = [LaunchInfo existing: [o name]];
+              BOOL              failedToUnregister = NO;
 
-              if (NO == [o unregistered])
+              /* Unless this is a transient process, it should have
+               * unregistered.
+               */
+              if (NO == [o unregistered] && NO == [o transient])
                 {
+                  failedToUnregister = YES;
                   [self alarmCode: ACProcessLost
                          procName: [l name]
                           addText: @"lost connection to process"];
                 }
               lostClients = YES;
 	      [self unregisterClient: o];
-              [l clearClient: o unregistered: NO];
+              [l clearClient: o cleanly: failedToUnregister ? NO : YES];
 	    }
 	}
       [c removeAllObjects];
@@ -3334,6 +3493,110 @@ NSLog(@"Problem %@", localException);
   return self;
 }
 
+- (BOOL) contactControl
+{
+  if (nil == control)
+    {
+      NSUserDefaults	*defs;
+      NSString		*ctlName;
+      NSString		*ctlHost;
+      id		c;
+
+      defs = [self cmdDefaults];
+      ctlName = [defs stringForKey: @"ControlName"];
+      if (ctlName == nil)
+        {
+          ctlName = @"Control";
+        }
+      if (nil != (ctlHost = [NSHost controlWellKnownName]))
+        {
+          /* Map to operating system host name.
+           */
+          ctlHost = [[NSHost hostWithWellKnownName: ctlHost] name];
+        }
+      if (nil == ctlHost)
+        {
+          ctlHost = @"*";
+        }
+
+      NS_DURING
+        {
+          NSLog(@"Connecting to %@ on %@", ctlName, ctlHost);
+          control = (id<Control>)[NSConnection
+              rootProxyForConnectionWithRegisteredName: ctlName
+                                                  host: ctlHost
+           usingNameServer: [NSSocketPortNameServer sharedInstance] ];
+        }
+      NS_HANDLER
+        {
+          NSLog(@"Connecting to control server: %@", localException);
+          control = nil;
+        }
+      NS_ENDHANDLER
+      c = control;
+      if (RETAIN(c) != nil)
+        {
+          /* Re-initialise control server ping */
+          DESTROY(outstanding);
+          fwdSequence = 0;
+          revSequence = 0;
+
+          [(NSDistantObject*)c setProtocolForProxy: @protocol(Control)];
+          c = [(NSDistantObject*)c connectionForProxy];
+          [c setDelegate: self];
+          [[NSNotificationCenter defaultCenter]
+            addObserver: self
+               selector: @selector(connectionBecameInvalid:)
+                   name: NSConnectionDidDieNotification
+                 object: c];
+          NS_DURING
+            {
+              NSData		*dat;
+
+              dat = [control registerCommand: self
+                                        name: host];
+              if (nil == dat)
+                {
+                  // Control server not yet ready.
+                  DESTROY(control);
+                }
+              else
+                {
+                  NSMutableDictionary	*conf;
+
+                  conf = [NSPropertyListSerialization
+                    propertyListWithData: dat
+                    options: NSPropertyListMutableContainers
+                    format: 0
+                    error: 0];
+                  if ([conf objectForKey: @"rejected"] == nil)
+                    {
+                      [self updateConfig: dat];
+                    }
+                  else
+                    {
+                      NSLog(@"Registering %@ with Control server: %@",
+                        host, [conf objectForKey: @"rejected"]);
+                      DESTROY(control);
+                    }
+                }
+            }
+          NS_HANDLER
+            {
+              NSLog(@"Registering %@ with Control server: %@",
+                host, localException);
+              DESTROY(control);
+            }
+          NS_ENDHANDLER
+          if (control != nil)
+            {
+              [self update];
+            }
+        }
+    }
+  return (nil == control) ? NO : YES;
+}
+
 - (void) dealloc
 {
   [self cmdLogEnd: logname];
@@ -3357,7 +3620,7 @@ NSLog(@"Problem %@", localException);
 
   m = [NSMutableString stringWithFormat: @"%@ running since %@\n",
     [super description], [self ecStarted]];
-  if (launchSuspended)
+  if (NO == launchEnabled)
     {
       [m appendString: @"  Launching is currently suspended.\n"];
     }
@@ -3507,11 +3770,7 @@ NSLog(@"Problem %@", localException);
 {
   if (t != LT_DEBUG && inf != nil && [inf length] > 0)
     {
-      if (control == nil)
-	{
-	  [self tryLaunch: nil];
-	}
-      if (control == nil)
+      if (NO == [self contactControl])
 	{
 	  NSLog(@"Information (from:%@ to:%@ type:%d) with no Control -\n%@",
 	    s, d, t, inf);
@@ -3619,8 +3878,8 @@ NSLog(@"Problem %@", localException);
 {
   NSString      *s;
 
-  NSLog(@"%@ server with name '%@' on %@", change, name, host);
-  s = [NSString stringWithFormat: @"%@ %@ server with name '%@' on %@\n",
+  NSLog(@"%@ process with name '%@' on %@", change, name, host);
+  s = [NSString stringWithFormat: @"%@ %@ process with name '%@' on %@\n",
     [NSDate date], change, name, host];
   [[self logFile] puts: s];
   [self information: s from: nil to: nil type: LT_CONSOLE];
@@ -3730,6 +3989,16 @@ NSLog(@"Problem %@", localException);
         }
       NS_ENDHANDLER
     }
+/*
+  while ([clients count] > 0 && [terminateBy timeIntervalSinceNow] > 0.0)
+    {
+      ENTER_POOL
+      NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 0.1];
+      [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
+                               beforeDate: next];
+      LEAVE_POOL
+    }
+*/
 }
 
 /*
@@ -3759,7 +4028,6 @@ NSLog(@"Problem %@", localException);
 		 transient: (BOOL)t
 {
   LaunchInfo	        *l = [LaunchInfo existing: n];
-  NSDate		*now = [NSDate date];
   int		        pid;
   NSMutableDictionary	*dict;
   EcClientI		*obj;
@@ -3812,9 +4080,6 @@ NSLog(@"Problem %@", localException);
 	{
 	  l = [LaunchInfo launchInfo: n];
 	}
-      [l setWhen: now];
-      [l setClient: obj];
-
       if (t == YES)
 	{
 	  [obj setTransient: YES];
@@ -3823,13 +4088,13 @@ NSLog(@"Problem %@", localException);
 	{
 	  [obj setTransient: NO];
 	}
+      [l setClient: obj];
       [self logChange: @"registered" for: [l name]];
       d = [self configurationFor: n];
       if (nil != d)
 	{
 	  [obj setConfig: d];
 	}
-      [self tryLaunchSoon];
       return [obj config];
     }
   else
@@ -3853,11 +4118,7 @@ NSLog(@"Problem %@", localException);
 
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c
 {
-  if (control == nil)
-    {
-      [self tryLaunch: nil];
-    }
-  if (control != nil)
+  if ([self contactControl])
     {
       NS_DURING
 	{
@@ -4234,7 +4495,7 @@ NSLog(@"Problem %@", localException);
   [self terminate: nil];
 }
 
-- (void) tryLaunch: (NSTimer*)t
+- (void) housekeeping: (NSTimer*)t
 {
   static BOOL	inTimeout = NO;
   NSDate	*now = [t fireDate];
@@ -4261,105 +4522,7 @@ NSLog(@"Problem %@", localException);
       BOOL		lost = NO;
 
       inTimeout = YES;
-      if (control == nil)
-	{
-	  NSUserDefaults	*defs;
-	  NSString		*ctlName;
-	  NSString		*ctlHost;
-	  id			c;
-
-	  defs = [self cmdDefaults];
-	  ctlName = [defs stringForKey: @"ControlName"];
-	  if (ctlName == nil)
-	    {
-	      ctlName = @"Control";
-	    }
-	  if (nil != (ctlHost = [NSHost controlWellKnownName]))
-            {
-              /* Map to operating system host name.
-               */
-              ctlHost = [[NSHost hostWithWellKnownName: ctlHost] name];
-            }
-	  if (nil == ctlHost)
-	    {
-	      ctlHost = @"*";
-	    }
-
-	  NS_DURING
-	    {
-	      NSLog(@"Connecting to %@ on %@", ctlName, ctlHost);
-	      control = (id<Control>)[NSConnection
-		  rootProxyForConnectionWithRegisteredName: ctlName
-						      host: ctlHost
-	       usingNameServer: [NSSocketPortNameServer sharedInstance] ];
-	    }
-	  NS_HANDLER
-	    {
-	      NSLog(@"Connecting to control server: %@", localException);
-	      control = nil;
-	    }
-	  NS_ENDHANDLER
-	  c = control;
-	  if (RETAIN(c) != nil)
-	    {
-	      /* Re-initialise control server ping */
-	      DESTROY(outstanding);
-	      fwdSequence = 0;
-	      revSequence = 0;
-
-	      [(NSDistantObject*)c setProtocolForProxy: @protocol(Control)];
-	      c = [(NSDistantObject*)c connectionForProxy];
-	      [c setDelegate: self];
-	      [[NSNotificationCenter defaultCenter]
-		addObserver: self
-		   selector: @selector(connectionBecameInvalid:)
-		       name: NSConnectionDidDieNotification
-		     object: c];
-	      NS_DURING
-		{
-		  NSData		*dat;
-
-		  dat = [control registerCommand: self
-					    name: host];
-		  if (nil == dat)
-		    {
-		      // Control server not yet ready.
-		      DESTROY(control);
-		    }
-		  else
-		    {
-		      NSMutableDictionary	*conf;
-
-		      conf = [NSPropertyListSerialization
-			propertyListWithData: dat
-			options: NSPropertyListMutableContainers
-			format: 0
-			error: 0];
-		      if ([conf objectForKey: @"rejected"] == nil)
-			{
-			  [self updateConfig: dat];
-			}
-		      else
-			{
-			  NSLog(@"Registering %@ with Control server: %@",
-                            host, [conf objectForKey: @"rejected"]);
-			  DESTROY(control);
-			}
-		    }
-		}
-	      NS_HANDLER
-		{
-		  NSLog(@"Registering %@ with Control server: %@",
-                    host, localException);
-		  DESTROY(control);
-		}
-	      NS_ENDHANDLER
-	      if (control != nil)
-		{
-		  [self update];
-		}
-	    }
-	}
+      [self contactControl];
 
       a = AUTORELEASE([clients mutableCopy]);
       count = [a count];
@@ -4528,10 +4691,10 @@ NSLog(@"Problem %@", localException);
   inTimeout = NO;
 }
 
-- (void) _tryLaunch: (NSTimer*)t
+- (void) _housekeeping: (NSTimer*)t
 {
   NS_DURING
-    [self tryLaunch: t];
+    [self housekeeping: t];
   NS_HANDLER
     NSLog(@"Problem in timeout: %@", localException);
   NS_ENDHANDLER
@@ -4540,24 +4703,12 @@ NSLog(@"Problem %@", localException);
     {
       timer = [NSTimer scheduledTimerWithTimeInterval: 5.0
 					       target: self
-					     selector: @selector(_tryLaunch:)
+					     selector: @selector(_housekeeping:)
 					     userInfo: nil
 					      repeats: NO];
     }
 }
 
-- (void) tryLaunchSoon
-{
-  if (NO == [timer isValid] || [[timer fireDate] timeIntervalSinceNow] > 0.1)
-    {
-      [timer invalidate];
-      timer = [NSTimer scheduledTimerWithTimeInterval: 0.1
-        target: self
-        selector: @selector(_tryLaunch:)
-        userInfo: nil
-        repeats: NO];
-    }
-}
 
 - (NSMutableArray*) unconfiguredClients
 {
@@ -4607,7 +4758,7 @@ NSLog(@"Problem %@", localException);
     {
       LaunchInfo	*l = [launchInfo objectForKey: [o name]];
 
-      [l clearClient: o unregistered: YES];
+      [l clearClient: o cleanly: YES];
       [self unregisterClient: o];
       [l progress];
     }
@@ -4638,7 +4789,7 @@ NSLog(@"Problem %@", localException);
 	}
       NS_HANDLER
 	{
-	  NSLog(@"Exception sending servers to Control: %@", localException);
+	  NSLog(@"Exception sending names to Control: %@", localException);
 	}
       NS_ENDHANDLER
     }
