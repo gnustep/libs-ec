@@ -2664,13 +2664,13 @@ static BOOL     ecDidAwaken = NO;
 		 message: (NSString*)format
 	       arguments: (va_list)args
 {
-  CREATE_AUTORELEASE_POOL(pool);
   EcAlarm               *alarm;
   NSArray               *stack;
   NSCalendarDate        *now;
   NSString              *msg;
   NSMutableString       *full;
 
+  ENTER_POOL
   if (nil == (msg = specificProblem))
     {
       msg = (nil == cause) ? @"Code/Data Error" : @"Exception";
@@ -2732,19 +2732,26 @@ static BOOL     ecDidAwaken = NO;
       msg = [msg substringToIndex: [msg length] - 1];
     }
 
-  alarm = [EcAlarm alarmForManagedObject: nil
-    at: now
-    withEventType: EcAlarmEventTypeProcessingError
-    probableCause: EcAlarmSoftwareProgramError
-    specificProblem: specificProblem
-    perceivedSeverity: EcAlarmSeverityMajor
-    proposedRepairAction: @"Check debug log file for details,"
-      @" correct the problem, use the Console to clear the alarm"
-      @" in the originating process."
-    additionalText: msg];
-  [self alarm: alarm];
-  RETAIN(alarm);
-  RELEASE(pool);
+  if (EcAlarmSeverityCleared == perceivedSeverity)
+    {
+      alarm = nil;
+    }
+  else
+    {
+      alarm = [EcAlarm alarmForManagedObject: nil
+	at: now
+	withEventType: EcAlarmEventTypeProcessingError
+	probableCause: EcAlarmSoftwareProgramError
+	specificProblem: specificProblem
+	perceivedSeverity: perceivedSeverity
+	proposedRepairAction: @"Check debug log file for details,"
+	  @" correct the problem, use the Console to clear the alarm"
+	  @" in the originating process."
+	additionalText: msg];
+      [self alarm: alarm];
+      RETAIN(alarm);
+    }
+  LEAVE_POOL;
   return AUTORELEASE(alarm);
 }
 

@@ -45,7 +45,7 @@
 #define EcExceptionCritical(cause, format, args...) \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
-    (nil == (cause) ? "Code/Data Error" : "Exception"), \
+    (nil == (cause) ? "Code/Data Error (critical)" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityCritical \
 	      message: (format), ##args ]
@@ -61,9 +61,17 @@
 #define EcExceptionMinor(cause, format, args...) \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
-    (nil == (cause) ? "Code/Data Error" : "Exception"), \
+    (nil == (cause) ? "Code/Data Error (minor)" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityMinor \
+	      message: (format), ##args ]
+
+#define EcExceptionDebug(cause, format, args...) \
+  [EcProc ecException: (cause) \
+      specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
+    (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
+    [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
+    perceivedSeverity: EcAlarmSeverityClear \
 	      message: (format), ##args ]
 
 
@@ -1321,7 +1329,10 @@ extern NSString*	cmdVersion(NSString *ver);
  * This method serves a dual purpose, as it generates an alarm to alert
  * people about an unexpected problem, but it also logs detailed information
  * about that problem (including a stack trace) as an aid to debugging and
- * analysis.
+ * analysis.<br />
+ * You may use EcAlarmSeverityClear to suppress the use of an alarm and just
+ * generate debug logging including a stack trace in the case where you want
+ * to know what's going on at some point. 
  */
 - (EcAlarm*) ecException: (NSException*)cause
 	 specificProblem: (NSString*)specificProblem
