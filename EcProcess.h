@@ -66,6 +66,11 @@
     perceivedSeverity: EcAlarmSeverityMinor \
 	      message: (format), ##args ]
 
+/* Diagnostic logging including a stack trace (either from an exception or,
+ * if the exception is nil, from the point at which the log is generated.
+ * This list like the other EcException macros, except that it does not
+ * generate an alarm.
+ */
 #define EcExceptionDebug(cause, format, args...) \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
