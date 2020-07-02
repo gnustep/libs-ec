@@ -238,37 +238,41 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
 
 - (void) setBool: (BOOL)value forKey: (NSString*)aKey
 {
-  [defs setBool: value forKey: [self key: aKey]];
+  [defs setBool: value forKey: (enforce ? [self key: aKey] : aKey)];
 }
 
 - (BOOL) setCommand: (id)val forKey: (NSString*)key
 {
-  return [defs setCommand: val forKey: [self key: key]];
+  return [defs setCommand: val forKey: (enforce ? [self key: key] : key)];
 }
 
-- (BOOL) setCommand: (id)val forKey: (NSString*)key lifetime: (NSTimeInterval)t
+- (BOOL) setCommand: (id)val
+	     forKey: (NSString*)key
+	   lifetime: (NSTimeInterval)t
 {
-  return [defs setCommand: val forKey: [self key: key] lifetime: t];
+  return [defs setCommand: val
+		   forKey: (enforce ? [self key: key] : key)
+		 lifetime: t];
 }
 
 - (void) setDouble: (double)value forKey: (NSString*)aKey
 {
-  [defs setDouble: value forKey: [self key: aKey]];
+  [defs setDouble: value forKey: (enforce ? [self key: aKey] : aKey)];
 }
 
 - (void) setFloat: (float)value forKey: (NSString*)aKey
 {
-  [defs setFloat: value forKey: [self key: aKey]];
+  [defs setFloat: value forKey: (enforce ? [self key: aKey] : aKey)];
 }
 
 - (void) setInteger: (NSInteger)value forKey: (NSString*)aKey
 {
-  [defs setInteger: value forKey: [self key: aKey]];
+  [defs setInteger: value forKey: (enforce ? [self key: aKey] : aKey)];
 }
 
 - (void) setObject: (id)anObject forKey: (NSString*)aKey
 {
-  [defs setObject: anObject forKey: [self key: aKey]];
+  [defs setObject: anObject forKey: (enforce ? [self key: aKey] : aKey)];
 }
 
 - (NSArray*) stringArrayForKey: (NSString*)aKey
@@ -350,6 +354,11 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
   return nil;	// No prefix in use ... this is not a proxy
 }
 
+- (BOOL) enforcePrefix
+{
+  return NO;	// No prefix to enforce ... this is not a proxy
+}
+
 - (NSString*) key: (NSString*)aKey
 {
   NSString	*prefix = [self defaultsPrefix];
@@ -429,18 +438,14 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
 - (BOOL) setCommand: (id)val forKey: (NSString*)key lifetime: (NSTimeInterval)t
 {
   NSDictionary	*new = nil;
-  NSString	*pre = [self defaultsPrefix];
   BOOL		changed = NO;
   id		old;
   
-  /* Make sure prefix is used if we have one set.
-   */
-  if (nil != pre)
+  if (YES == [self enforcePrefix])
     {
-      if (NO == [key hasPrefix: pre])
-	{
-	  key = [pre stringByAppendingString: key];
-	}
+      /* Make sure prefix is used if we have one set.
+       */
+      key = [self key: key];
     }
 
   [lock lock];

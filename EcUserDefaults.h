@@ -53,7 +53,9 @@
  * default is used.<br />
  * If the enforcePrefix flag is YES, the prefix is strictly enforced,
  * otherwise the system will read defaults using the unprefixed key
- * if no value is found for the prefixed key.
+ * if no value is found for the prefixed key.  Similary, when setting
+ * values, this flag will force the prefix to be prepended to any key
+ * where it is not already present.
  */
 + (NSUserDefaults*) userDefaultsWithPrefix: (NSString*)aPrefix
 				    strict: (BOOL)enforcePrefix;
@@ -78,6 +80,11 @@
 /** Returns the prefix used by the receiver, or nil if no prefix is in use.
  */
 - (NSString*) defaultsPrefix;
+
+/** returns YES if this is a proxy which enforces the use of the prefix on
+ * defaults keys.
+ */
+- (BOOL) enforcePrefix;
 
 /** Convenience method to prepend the pefix to the supplied aKey value
  * if it is not already present.
