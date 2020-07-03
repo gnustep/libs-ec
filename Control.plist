@@ -46,6 +46,7 @@
          *                      automatic restart (defaults to 0; fast)
          * AddE = (dictionary)  key/value pairs added to the environment
          * SetE = (dictionary)  key/value pairs to be used as environment
+         * Deps = (array)       Names of other processes needed by this one
          * KeepStandardInput = (boolean)     Don't close stdin
          * KeepStandardOutput = (boolean)    Don't close stdout
          * KeepStandardError = (boolean)     Don't close stderr
@@ -64,6 +65,7 @@
 	  Home = "~xxx/Test";				// Directory to run in
 	  Args = ("-Debug", "YES");			// Args to launch with
 	  Auto = YES;					// Auto-launch?
+          Deps = (Foo);                                 // Only if Foo is running
 	};
 	Feep = {
 	  Prog = "Feep";                         	// RName of binary

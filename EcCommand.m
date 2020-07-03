@@ -103,6 +103,7 @@ static NSDate                   *terminateBy = nil;
 static NSUInteger               launchLimit = 0;
 static BOOL                     launchEnabled = NO;
 static NSMutableDictionary	*launchInfo = nil;
+static NSArray                  *launchOrder = nil;
 static NSMutableArray	        *launchQueue = nil;
 
 typedef enum {
@@ -182,35 +183,142 @@ desiredName(Desired state)
  */
 @interface	LaunchInfo : NSObject
 {
-  NSString		*name;	// The name of this process
-  NSDictionary		*conf;	// The configuration from Control.plist
-  NSTask		*task;	// The current task (if launched by us)
-  EcClientI		*client;	// The connected client (or nil)
+  /** The name of this process
+   */
+  NSString		*name;
+
+  /** The configuration from Control.plist
+   */
+  NSDictionary		*conf;
+
+  /** The current process ID (or zero if there isn't one).
+   *  This is set when we launch the process or when the process is launched
+   *  externally and connects and registers itself with the Command server.
+   */
+  int			identifier;
+
+  /** The current task (if launched by us).  
+   */
+  NSTask		*task;
+
+  /** The client instance representing a registered distributed objects
+   * connection from the process into the Command server.
+   */ 
+  EcClientI		*client;
+
+  /* Flag set at the point when a previously registered process is shutting
+   * down and drops the connection to the Command server.  It indicates an
+   * unintentional shutdown of the process (a failure).
+   */
   BOOL                  clientLost;
+
+  /* Flag set at the point when a previously registered process is shutting
+   * down and cleanly unregisters with the Command server.  It indicates an
+   * intentional shutdown of the process.
+   */
   BOOL                  clientQuit;
-  int			identifier;     // The current process ID or zero
+
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
+
+  /** Records the desired state for this process (usually when a command
+   * is issued at the Console).  This is needed for situations where the
+   * system can no respond immediately to an instruction.  For instance
+   * the process is shutting down and a start command is given: we must
+   * continue to complete the clean shutdown, and then start up again.
+   */
   Desired		desired;	// If process *should* be live/dead
-  BOOL			starting;       // The process is starting up
-  NSTimer		*startingTimer;	// Not retained
+
+  /** The timestamp at which the current startup operation began, or zero
+   * if the process is not currently starting.
+   */
   NSTimeInterval	startingDate;
+
+  /** A timer to progress the startup process.  When it fires the -starting:
+   * method is called to check on progress and raise an alarm if startup is
+   * taking too long.
+   */
+  NSTimer		*startingTimer;	// Not retained
+
+  /* A flag set, during the startup process, if an alarm has been raised
+   * because startup is taking too long.  This prevents re-raising of the
+   * alarm.
+   */
   BOOL			startingAlarm;
-  BOOL                  stopping;       // The process is shutting down
-  NSTimer		*stoppingTimer; // Not retained
+
+  /** The timestamp at which the process began shutting down, or zero
+   * if the process is not currently stopping.
+   */
   NSTimeInterval	stoppingDate;
-  BOOL			stoppingAlarm;
-  NSTimeInterval        terminationDate;        // Time of process termination
-  unsigned              terminationCount;       // Terminations during startup
+
+  /** A timer to progress the stopping process.  When it fires the -stopping:
+   * method is called to check on progress and, if stopping has taken too long,
+   * attempt to forcibly terminate the process.
+   */
+  NSTimer		*stoppingTimer; // Not retained
+
+  /** When a process termination is detected, this varibale records it.
+   */
+  NSTimeInterval        terminationDate;
+
+  /** If, during startup, the process terminates and has to be relaunched,
+   * we record the count of attempts here.
+   */
+  unsigned              terminationCount;
+
+  /** Where the Command server launched the process and is able to get the
+   * process termination status, this variqable is used to record it.
+   */
   int                   terminationStatus;      // Last exit status
+
+  /** The timestamp at which the process registered with the Command server.
+   * or zero if it has not registered.
+   */
   NSTimeInterval        registrationDate;       // Time of process registration
+
+  /** The timestamp at which the process told the Command server it had
+   * completely awakend (was ready to handle requests) or zero if it has
+   * not woken.
+   */
   NSTimeInterval        awakenedDate;           // When the process was awakened
+
+  /** If there is a problem causing processes to fail repeatedly and autostart
+   * to retry, we impose a slightly longer delay between each successive
+   * relaunch.  In that case the deferredDate tells us when the queued
+   * starting process can next be launched.
+   */
   NSTimeInterval        deferredDate;           // Deferred re-launch interval
+
+  /** If a starting process cannt be launched immediately, this records the
+   * timestamp at which it was added to the queue of processes awaiting launch.
+   */
   NSTimeInterval        queuedDate;             // When queued for launch
+
+  /** Once a process has been active for a while it is considered stable.
+   * A stable process will, if it terminates without shutting down cleanly,
+   * be elegible for immediate autolaunch.
+   */
   NSTimeInterval	stableDate;	        // Has been running for a while
+
+  /** The timestamp at which we last launched this process.
+   */
   NSTimeInterval	launchDate;	        // When we launched process
+
+  /** The timestamp at which we will aborting a process (if it fails to shut
+   * down as quickly as we need it to).
+   */
   NSTimeInterval	abortDate;	        // When we abort process
+
+  /** If we want the process to restart, this reason is why, and is passed
+   * to the process so that it can log why it was restarted.
+   */
   NSString              *restartReason;         // Reason for restart or nil
+
+  /** Records the names of other processes which must be active in order for
+   * this process to work.  Any attempt to start this process will result in
+   * it remaining in a queue of starting processes until all the dependencies
+   * have been met.
+   */
   NSArray               *dependencies;
 }
 + (NSString*) description;
@@ -247,7 +355,42 @@ desiredName(Desired state)
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
 - (BOOL) stable;
+
+/** Initiates the startup of a process.  This will either add the receiver to
+ * the queue of processes to be started (if it can't be started immediately)
+ * or launch the process using the configuration set for it.  The startup
+ * will then continue until the launched process registers itself with the
+ * Command server, at which point the -started method will be called.
+ */
+- (void) start;
+
+/** Called automatically when startup of a process completes, either as a
+ * result of an internal -start or as a result of an externally launched
+ * process connectin to and registering with the Command server.
+ */
+- (void) started;
+
+/** internal timer mathos for handling the progression of a startup.  If the
+ * startup takes too long, this method will raise an alarm.
+ */ 
+- (void) starting: (NSTimer*)t;
+
+/** Returns a human readble description of the current process status.
+ */
 - (NSString*) status;
+
+/** Initiates the shut down of a process.  This will use the DO connection to
+ * a registered process to tell it to shut itself down.
+ * The shutdown will continue until the process no longer exists, but if it
+ * goes on longer than the time limit, the process will be killed.
+ */
+- (void) stop;
+
+/** Called at the pont when a stopping process finally ceases to exist.
+ */
+- (void) stopped;
+
+- (void) stopping: (NSTimer*)t;
 - (NSTask*) task;
 - (NSArray*) unfulfilled;
 @end
@@ -290,7 +433,6 @@ desiredName(Desired state)
   NSTimer		*timer;
   NSString		*logname;
   NSMutableDictionary	*config;
-  NSArray               *launchOrder;
   NSDictionary		*environment;
   unsigned		pingPosition;
   NSTimer		*terminating;
@@ -767,17 +909,17 @@ desiredName(Desired state)
  */
 - (BOOL) isActive
 {
-  return (client != nil && NO == stopping) ? YES : NO;
+  return (client != nil && NO == [self isStopping]) ? YES : NO;
 }
 
 - (BOOL) isStarting
 {
-  return starting;
+  return (startingDate > 0.0) ? YES : NO;
 }
 
 - (BOOL) isStopping
 {
-  return stopping;
+  return (stoppingDate > 0.0) ? YES : NO;
 }
 
 /* This method should only ever be called from the -starting: method (when
@@ -939,6 +1081,7 @@ desiredName(Desired state)
 
   if (nil != failed)
     {
+      startingAlarm = YES;
       [command alarmCode: ACLaunchFailed
                 procName: name
                  addText: failed];
@@ -976,7 +1119,7 @@ desiredName(Desired state)
   NSArray       *unfulfilled;
   NSString      *reason = nil;
 
-  if (NO == starting)
+  if (NO == [self isStarting])
     {
       if ([launchQueue containsObject: self])
         {
@@ -985,7 +1128,7 @@ desiredName(Desired state)
           queuedDate = 0.0;
         }
     }
-  else if (stopping)
+  else if ([self isStopping])
     {
       if ([launchQueue containsObject: self])
         {
@@ -1039,7 +1182,7 @@ desiredName(Desired state)
  */
 - (void) progress
 {
-  if (NO == starting && NO == stopping)
+  if (NO == [self isStarting] && NO == [self isStopping])
     {
       if (Live == desired && nil == client)
         {
@@ -1089,7 +1232,7 @@ desiredName(Desired state)
 {
   if ([self checkActive])
     {
-      if (NO == stopping)
+      if (NO == [self isStopping])
         {
           ASSIGNCOPY(restartReason, reason);
           [self stop];
@@ -1108,7 +1251,7 @@ NSLog(@"startup completed for %@", self);
   clientQuit = NO;
   [launchQueue removeObject: self];
   queuedDate = 0.0;
-  if (starting)
+  if ([self isStarting])
     {
       /* The client has connected and registered itself ... startup of
        * this process has completed.  Alarms will be cleared when the
@@ -1117,7 +1260,6 @@ NSLog(@"startup completed for %@", self);
       [startingTimer invalidate];
       startingTimer = nil;
       startingDate = 0.0;
-      starting = NO;
     }
   if (Dead == desired)
     {
@@ -1205,7 +1347,7 @@ NSLog(@"startup completed for %@", self);
     {
       NSLog(@"-setDesired:%@ unchanged of %@",
         desiredName(desired), self);
-      if (terminateBy != nil && stopping
+      if (terminateBy != nil && [self isStopping]
         && [[stoppingTimer fireDate] earlierDate: terminateBy] == terminateBy)
         {
           /* Force timer reset to match terminateBy
@@ -1213,12 +1355,12 @@ NSLog(@"startup completed for %@", self);
           [self stopping: nil];
         }
     }
-  else if (starting)
+  else if ([self isStarting])
     {
       NSLog(@"-setDesired:%@ deferred pending startup of %@",
         desiredName(desired), self);
     }
-  else if (stopping)
+  else if ([self isStopping])
     {
       NSLog(@"-setDesired:%@ deferred pending shutdown of %@",
         desiredName(desired), self);
@@ -1280,7 +1422,7 @@ NSLog(@"startup completed for %@", self);
  */
 - (void) start
 {
-  if (starting)
+  if ([self isStarting])
     {
       EcExceptionMajor(nil, @"-start when already starting of %@", self);
     }
@@ -1303,7 +1445,8 @@ NSLog(@"startup completed for %@", self);
       terminationCount = 0;
       terminationDate = 0.0;
       terminationStatus = -1;
-      starting = YES;
+      clientLost = NO;
+      clientQuit = NO;
       startingAlarm = NO;
       startingDate = [NSDate timeIntervalSinceReferenceDate];
       startingTimer = [NSTimer
@@ -1320,7 +1463,7 @@ NSLog(@"startup completed for %@", self);
   BOOL  abandon = NO;
 
   [self checkAlive];
-  if (NO == starting || client != nil)
+  if (NO == [self isStarting] || client != nil)
     {
       return NO;        // Not starting
     }
@@ -1351,7 +1494,6 @@ NSLog(@"startup completed for %@", self);
       [startingTimer invalidate];
       startingTimer = nil;
       startingDate = 0.0;
-      starting = NO;
       [launchQueue removeObject: self];
       if (identifier > 0)
         {
@@ -1392,7 +1534,7 @@ NSLog(@"startup completed for %@", self);
    */
   [startingTimer invalidate];
   startingTimer = nil;
-  if (NO == starting)
+  if (NO == [self isStarting])
     {
       EcExceptionMajor(nil, @"-starting: when not starting for %@", self);
       return;
@@ -1485,6 +1627,7 @@ NSLog(@"startup completed for %@", self);
         {
           if (NO == startingAlarm)
             {
+              startingAlarm = YES;
               [command alarmCode: ACLaunchFailed
                         procName: name
                          addText: @"Client not active after launch attempt"];
@@ -1513,12 +1656,12 @@ NSLog(@"startup completed for %@", self);
 {
   NSString	*status;
 
-  if (starting)
+  if ([self isStarting])
     {
       status = [NSString stringWithFormat: @"Starting since %@",
         date(startingDate)];
     }
-  else if (stopping)
+  else if ([self isStopping])
     {
       status = [NSString stringWithFormat: @"Stopping since %@",
         date(stoppingDate)];
@@ -1544,11 +1687,9 @@ NSLog(@"startup completed for %@", self);
 
 - (void) stop
 {
-  if (NO == stopping && YES == [self checkAlive])
+  if (NO == [self isStopping] && YES == [self checkAlive])
     {
       [self resetDelay];
-      stopping = YES;
-      stoppingAlarm = NO;
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
       abortDate = stoppingDate + 120.0;
       if (nil == client)
@@ -1594,9 +1735,9 @@ NSLog(@"startup completed for %@", self);
 
   [stoppingTimer invalidate];
   stoppingTimer = nil;
+  stoppingDate = 0.0;
   awakenedDate = 0.0;
   abortDate = 0.0;
-  stopping = NO;
   DESTROY(terminateBy);         // Termination completed
   if (YES == clientLost)
     {
@@ -2967,10 +3108,11 @@ NSLog(@"Problem %@", localException);
 		}
 	      else
 		{
-		  NSArray	*a = [self findAll: clients byAbbreviation: wd];
+		  NSArray	*a;
 		  unsigned	i;
 		  BOOL		found = NO;
 
+		  a = [self findAll: clients byAbbreviation: wd];
 		  for (i = 0; i < [a count]; i++)
 		    {
 		      EcClientI	*c = [a objectAtIndex: i];
@@ -3014,6 +3156,7 @@ NSLog(@"Problem %@", localException);
 			    {
 			      LaunchInfo	*l;
 
+                              found = YES;
 			      l = [LaunchInfo existing: key];
                               if ([l desired] == Dead)
 				{
@@ -3623,7 +3766,6 @@ NSLog(@"Problem %@", localException);
   RELEASE(host);
   RELEASE(clients);
   RELEASE(launchInfo);
-  RELEASE(launchOrder);
   RELEASE(environment);
   RELEASE(outstanding);
   [super dealloc];

@@ -24,3 +24,43 @@ look there to diagnose problems.
 ~xxx/Data/Command/AlertConfig.plist before the Control server will start.
 There are examples in the same directory as this README
 
+The Command server handles launching and shutting down of processes and
+monitoring their state.  When a process starts up it registers itself with
+the Command server, and when it shuts down it unregisters itself.
+A process is considered stable if it starts up, registers itself, and then
+responds to the 'pings' that the Command server sends to it at intervals.
+A process has to be working for long enough to respond to at least three of
+the periodic pings before it is considered stable.
+
+In connection with this process management, the server will raise and clear
+some alarms.
+These alarms are all created with the 'processingError' event type
+and the 'softwareProgramError' probable cause.
+The individual specific problems are:
+
+Launch failed
+  Raised when a process should have launched but has failed to do so within
+  the permitted time (currently hard coded to 30 seconds).
+  This can be immediately on attempting to launch (eg if the configuration
+  is wrong, so there is no executable to launch), very shortly after launch
+  (eg if the program crashes immediately), or at the end of the permitted
+  time (eg the program fails to connect to and register itself with the
+  Command server).
+  This alarm shoudl be cleared automatically once the process launches or if
+  the process is told to quit from the Console.
+
+Process hung
+  Raised when a process which was working ceases to respond to the Command
+  server.  This may be due to the process hanging up due to an internal
+  problem, or may be due to some very slow operation (a temporary hangup)
+  such as a long slow database query.  If the process recovers (and becomes
+  stable), this alarm should automatically be cleared.
+  If the process is manually quit it should also be cleared.
+
+Process lost
+  Raised when a process which was working ceases to exist (eg crashes) without
+  cleanly shutting down (ie without telling the Command server it is shutting
+  down before it does so).
+  If the process is started again (and becomes stable), the alarm should
+  automatically be cleared.
+
