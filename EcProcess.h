@@ -153,9 +153,21 @@ typedef enum    {
 /** Messages that the Command server may send to clients.
  */
 @protocol	CmdClient <CmdPing,CmdConfig>
+/** Passes a property list message to the client (eg from the Console).
+ */
 - (oneway void) cmdMesgData: (in bycopy NSData*)dat from: (NSString*)name;
+/** Tells the client to shut down.
+ */
 - (oneway void) cmdQuit: (NSInteger)status;
+/** Asks the client for its process identifier.
+ */
 - (int) processIdentifier;
+/** Asks the client whether it is awake (-ecAwaken has been called)
+ */
+- (BOOL) ecDidAwaken;
+/** Instructs the client process to connect and re-register with the Command
+ * server.
+ */
 - (oneway void) ecReconnect;
 @end
 
@@ -170,9 +182,11 @@ typedef enum    {
 		      type: (EcLogType)t
 		       for: (id)o;
 - (bycopy NSData*) registerClient: (id)c
+                       identifier: (int)p
 			     name: (NSString*)n
 			transient: (BOOL)t;
 - (void) unregisterByObject: (id)obj;
+- (void) woken: (id)obj;
 @end
 
 @protocol	Console <NSObject>
@@ -180,8 +194,8 @@ typedef enum    {
 @end
 
 /** Messages that clients may send to the server.
- * NB. The -registerClient:name:transient: method must be sent before
- * the -command:to:from: or -reply:to:from: methods.
+ * NB. The -registerClient:identifier:name:transient: method must be sent
+ * before the -command:to:from: or -reply:to:from: methods.
  */
 @protocol	Command <CmdLogger,CmdConfig,EcAlarmDestination>
 
@@ -208,7 +222,8 @@ typedef enum    {
 
 /** Registers as a client process of the Command server.
  */
-- (bycopy NSData*) registerClient: (id<CmdClient>)c
+- (bycopy NSData*) registerClient: (id)c
+                       identifier: (int)p
 			     name: (NSString*)n
 			transient: (BOOL)t;
 
@@ -236,6 +251,12 @@ typedef enum    {
  * time your software needs it.
  */
 - (bycopy NSData *) configurationFor: (NSString *)name;
+
+/** Informs the Command server that a previously registered client considers
+ * itself to have started up and to now be stable.
+ */
+- (void) woken: (id)obj;
+
 @end
 
 /*

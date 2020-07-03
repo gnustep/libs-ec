@@ -72,8 +72,7 @@ static NSString			*controlName = nil;
 	  defs = [NSUserDefaults prefixedDefaults];
 	  if (nil == defs)
 	    {
-	      defs = [NSUserDefaults userDefaultsWithPrefix: nil
-						     strict: NO];
+	      defs = [NSUserDefaults userDefaultsWithPrefix: nil];
 	    }
 	  name = [defs stringForKey: @"ControlHost"];
 	  if (nil != name)

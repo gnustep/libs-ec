@@ -105,9 +105,6 @@ static NSInteger        descriptorsMaximum = 0;
 #if	!defined(EC_DEFAULTS_PREFIX)
 #define	EC_DEFAULTS_PREFIX nil
 #endif
-#if	!defined(EC_DEFAULTS_STRICT)
-#define	EC_DEFAULTS_STRICT NO
-#endif
 #if	!defined(EC_EFFECTIVE_USER)
 #define	EC_EFFECTIVE_USER nil
 #endif
@@ -1600,9 +1597,7 @@ findMode(NSDictionary* d, NSString* s)
 	  prf = @"";
 	}
 
-      ASSIGN(cmdDefs, [NSUserDefaults
-	userDefaultsWithPrefix: prf
-	strict: EC_DEFAULTS_STRICT]);
+      ASSIGN(cmdDefs, [NSUserDefaults userDefaultsWithPrefix: prf]);
       defs = [EcDefaultRegistration merge: defs];
       [cmdDefs registerDefaults: defs];
 
@@ -1676,9 +1671,7 @@ findMode(NSDictionary* d, NSString* s)
 	      NSLog(@"You must be '%@' to run this.", cmdUser);
 	      exit(1);
 	    }
-	  ASSIGN(cmdDefs, [NSUserDefaults
-	    userDefaultsWithPrefix: prf
-	    strict: EC_DEFAULTS_STRICT]);
+	  ASSIGN(cmdDefs, [NSUserDefaults userDefaultsWithPrefix: prf]);
 	  if (defs != nil)
 	    {
 	      [cmdDefs registerDefaults: defs];
@@ -3466,6 +3459,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		      NSData	*d;
 
 		      d = [proxy registerClient: self
+                                     identifier: [self processIdentifier]
 					   name: cmdLogName()
 				      transient: cmdIsTransient];
 		      r = [NSPropertyListSerialization
@@ -3806,6 +3800,17 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   
   [self triggerCmdTimeout];     /* make sure that regular timers run.  */
 
+  NS_DURING
+    [cmdServer woken: self];
+  NS_HANDLER
+    DESTROY(cmdServer);
+  NS_ENDHANDLER
+  if (nil == cmdServer)
+    {
+      DESTROY(cmdLast);		// Allow immediate retry
+      [self cmdNewServer];
+    }
+
   loop = [NSRunLoop currentRunLoop];
   future = [NSDate distantFuture];
   while (YES == [EcProcConnection isValid])
@@ -3868,6 +3873,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     {
       NS_DURING
 	[cmdServer registerClient: self
+                       identifier: [self processIdentifier]
 			     name: cmdLogName()
 			transient: cmdIsTransient];
       NS_HANDLER

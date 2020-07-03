@@ -147,7 +147,10 @@ static NSArray          *modes;
   id<CmdLogger>	server;
 
   server = (id<CmdLogger>)[EcProc server: name];
-  [server registerClient: self name: cmdLogName() transient: NO];
+  [server registerClient: self
+              identifier: [[NSProcessInfo processInfo] processIdentifier]
+                    name: cmdLogName()
+               transient: NO];
 }
 
 /* Should only be called on main thread, but doesn't matter.
@@ -208,6 +211,11 @@ static NSArray          *modes;
     }
   [lock unlock];
   return s;
+}
+
+- (BOOL) ecDidAwaken
+{
+  return YES;
 }
 
 /**

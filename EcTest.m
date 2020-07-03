@@ -32,9 +32,6 @@
 #if     !defined(EC_DEFAULTS_PREFIX)
 #define EC_DEFAULTS_PREFIX nil
 #endif
-#if     !defined(EC_DEFAULTS_STRICT)
-#define EC_DEFAULTS_STRICT NO
-#endif
 #if     !defined(EC_EFFECTIVE_USER)
 #define EC_EFFECTIVE_USER nil
 #endif
@@ -61,8 +58,7 @@ defaults()
         {
           pref = @"";
         }
-      ASSIGN(defs, [NSUserDefaults userDefaultsWithPrefix: pref
-        strict: EC_DEFAULTS_STRICT]);
+      ASSIGN(defs, [NSUserDefaults userDefaultsWithPrefix: pref]);
       dict = [defs dictionaryForKey: @"WellKnownHostNames"];
       if (nil != dict)
         {
@@ -142,10 +138,11 @@ EcTestConnect(NSString *name, NSString *host, NSTimeInterval timeout)
         {
           if (YES == [(EcProcess*)proxy cmdIsClient])
             {
-              if (NO == [(EcProcess*)proxy cmdIsConnected])
+              if (NO == [(EcProcess*)proxy ecDidAwaken])
                 {
                   /* We must wait for the connected process to register
-                   * with the Command server and configure itself.
+                   * with the Command server (if it's not transient) and
+                   * configure itself and wake up.
                    */
                   proxy = nil;
                   [NSThread sleepForTimeInterval: 0.1];
@@ -242,5 +239,4 @@ EcTestShutdown(id<EcTest> process, NSTimeInterval timeout)
     }
   return YES;
 }
-
 

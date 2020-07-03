@@ -47,18 +47,14 @@
  */
 + (void) setDefaultLifetime: (NSTimeInterval)t;
 
-/** Returns a proxy to the shared user defaults instance, which will use
+/** Returns a proxy to the shared user defaults instance, which will allow
  * aPrefix at the start of every key.<br />
  * If aPrefix is nil, the string given by the EcUserDefaultsPrefix user
  * default is used.<br />
- * If the enforcePrefix flag is YES, the prefix is strictly enforced,
- * otherwise the system will read defaults using the unprefixed key
- * if no value is found for the prefixed key.  Similary, when setting
- * values, this flag will force the prefix to be prepended to any key
- * where it is not already present.
+ * The proxy will read defaults using the unprefixed key if no value is
+ * found for the prefixed key.
  */
-+ (NSUserDefaults*) userDefaultsWithPrefix: (NSString*)aPrefix
-				    strict: (BOOL)enforcePrefix;
++ (NSUserDefaults*) userDefaultsWithPrefix: (NSString*)aPrefix;
 
 /** Returns a dictionary listing all the command override keys for which
  * values are currently set.  The values in the dictionary are the timestamps
@@ -81,12 +77,7 @@
  */
 - (NSString*) defaultsPrefix;
 
-/** returns YES if this is a proxy which enforces the use of the prefix on
- * defaults keys.
- */
-- (BOOL) enforcePrefix;
-
-/** Convenience method to prepend the pefix to the supplied aKey value
+/** Convenience method to prepend the prefix to the supplied aKey value
  * if it is not already present.
  */
 - (NSString*) key: (NSString*)aKey;

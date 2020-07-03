@@ -204,6 +204,7 @@ desiredName(Desired state)
   unsigned              terminationCount;       // Terminations during startup
   int                   terminationStatus;      // Last exit status
   NSTimeInterval        registrationDate;       // Time of process registration
+  NSTimeInterval        awakenedDate;           // When the process was awakened
   NSTimeInterval        deferredDate;           // Deferred re-launch interval
   NSTimeInterval        queuedDate;             // When queued for launch
   NSTimeInterval	stableDate;	        // Has been running for a while
@@ -221,6 +222,7 @@ desiredName(Desired state)
 + (void) processQueue;
 + (void) remove: (NSString*)name;
 - (BOOL) autolaunch;
+- (void) awakened;
 - (BOOL) checkActive;
 - (BOOL) checkAlive;
 - (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient;
@@ -333,6 +335,8 @@ desiredName(Desired state)
 - (EcClientI*) findIn: (NSArray*)a
              byObject: (id)s;
 - (NSString*) host;
+- (void) housekeeping: (NSTimer*)t;
+- (void) _housekeeping: (NSTimer*)t;
 - (void) information: (NSString*)inf
 		from: (NSString*)s
 		type: (EcLogType)t;
@@ -356,19 +360,19 @@ desiredName(Desired state)
 - (void) quitAll;
 - (void) quitAll: (NSDate*)by;
 - (void) requestConfigFor: (id<CmdConfig>)c;
-- (NSData*) registerClient: (id<CmdClient>)c
+- (NSData*) registerClient: (id)c
+                identifier: (int)p
 		      name: (NSString*)n
 		 transient: (BOOL)t;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
 - (void) terminate: (NSDate*)by;
 - (void) _terminate: (NSTimer*)t;
-- (void) housekeeping: (NSTimer*)t;
-- (void) _housekeeping: (NSTimer*)t;
 - (NSMutableArray*) unconfiguredClients;
 - (void) unregisterByObject: (id)obj;
 - (void) unregisterClient: (EcClientI*)o;
 - (void) update;
 - (void) updateConfig: (NSData*)data;
+- (void) woken: (id)obj;
 @end
 
 
@@ -579,6 +583,11 @@ desiredName(Desired state)
   return [[conf objectForKey: @"Auto"] boolValue];
 }
 
+- (void) awakened
+{
+  awakenedDate = [NSDate timeIntervalSinceReferenceDate];
+}
+
 /* Check to see if there is an active process connected (or which connects
  * when we contact it and ask it to).
  */
@@ -671,7 +680,7 @@ desiredName(Desired state)
       clientLost = YES;
     }
   /* The connection to the client went away, which implies that the process
-   * was connected/registred and we must either be stopping already or need
+   * was connected/registered and we must either be stopping already or need
    * to stop (expect the process to die soon).
    * So either way we should trigger the -stopping: timeout handler to
    * check for the end of the process and to ensure that we try again if
@@ -1109,14 +1118,15 @@ NSLog(@"startup completed for %@", self);
       startingTimer = nil;
       startingDate = 0.0;
       starting = NO;
-      if (Dead == desired)
-        {
-          /* It is not desired that this process should be running:
-           * initiate a shutdown.
-           */
-          [self stop];
-        }
     }
+  if (Dead == desired)
+    {
+      /* It is not desired that this process should be running:
+       * initiate a shutdown.
+       */
+      [self stop];
+    }
+  [self progress];
   [LaunchInfo processQueue];    // Maybe we can launch more now
 }
 
@@ -1584,6 +1594,7 @@ NSLog(@"startup completed for %@", self);
 
   [stoppingTimer invalidate];
   stoppingTimer = nil;
+  awakenedDate = 0.0;
   abortDate = 0.0;
   stopping = NO;
   DESTROY(terminateBy);         // Termination completed
@@ -1655,10 +1666,6 @@ NSLog(@"startup completed for %@", self);
     {
       /* Maximum time for clean shutdown has passed.
        */
-      if (client != nil)
-        {
-          [self clearClient: client cleanly: NO];
-        }
       [[NSNotificationCenter defaultCenter]
         removeObserver: self
                   name: NSTaskDidTerminateNotification
@@ -1670,7 +1677,15 @@ NSLog(@"startup completed for %@", self);
           kill(identifier, SIGKILL);
           identifier = 0;
         }
-      [self stopped];
+      if (client != nil)
+        {
+          [self clearClient: client cleanly: NO];
+        }
+      else
+        {
+          [self stopped];
+        }
+      return;
     }
   else
     {
@@ -4023,12 +4038,12 @@ NSLog(@"Problem %@", localException);
     }
 }
 
-- (NSData*) registerClient: (id<CmdClient>)c
+- (NSData*) registerClient: (id)c
+                identifier: (int)p
 		      name: (NSString*)n
 		 transient: (BOOL)t
 {
   LaunchInfo	        *l = [LaunchInfo existing: n];
-  int		        pid;
   NSMutableDictionary	*dict;
   EcClientI		*obj;
   EcClientI		*old;
@@ -4047,11 +4062,9 @@ NSLog(@"Problem %@", localException);
 	errorDescription: 0];
     }
 
-  pid = [c processIdentifier];
-
   /* Do we already have this registered?
    */
-  if ([l processIdentifier] == pid && (obj = [l client]) != nil)
+  if ([l processIdentifier] == p && (obj = [l client]) != nil)
     {
       [self logChange: @"re-registered" for: [l name]];
       if ([l stable] == YES)
@@ -4074,7 +4087,7 @@ NSLog(@"Problem %@", localException);
       RELEASE(obj);
       [clients sortUsingSelector: @selector(compare:)];
 
-      [obj setProcessIdentifier: pid];
+      [obj setProcessIdentifier: p];
 
       if (nil == l)
 	{
@@ -4902,6 +4915,18 @@ NSLog(@"Problem %@", localException);
   /* Finally, replace old config with new if they differ.
    */
   [self newConfig: newConfig];
+}
+
+- (void) woken: (id)obj
+{
+  EcClientI     *o = [self findIn: clients byObject: obj];
+
+  if (o != nil)
+    {
+      LaunchInfo        *l = [launchInfo objectForKey: [o name]];
+
+      [l awakened];
+    }
 }
 
 @end

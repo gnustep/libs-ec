@@ -32,9 +32,6 @@
 #if     !defined(EC_DEFAULTS_PREFIX)
 #define EC_DEFAULTS_PREFIX nil
 #endif
-#if     !defined(EC_DEFAULTS_STRICT)
-#define EC_DEFAULTS_STRICT NO
-#endif
 #if     !defined(EC_EFFECTIVE_USER)
 #define EC_EFFECTIVE_USER nil
 #endif
@@ -68,8 +65,7 @@ main()
     {
       pref = @"";
     }
-  defs = [NSUserDefaults userDefaultsWithPrefix: pref
-                                         strict: EC_DEFAULTS_STRICT];
+  defs = [NSUserDefaults userDefaultsWithPrefix: pref];
   dict = [defs dictionaryForKey: @"WellKnownHostNames"];
   if (nil != dict)
     {
