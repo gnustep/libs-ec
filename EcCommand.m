@@ -451,7 +451,6 @@ desiredName(Desired state)
   NSString		*logname;
   NSMutableDictionary	*config;
   NSDictionary		*environment;
-  unsigned		pingPosition;
   NSTimer		*terminating;
   NSDate		*outstanding;
   unsigned		fwdSequence;
@@ -4854,20 +4853,18 @@ NSLog(@"Problem %@", localException);
 	{
 	  [self update];
 	}
-      /*
-       * We ping each client in turn.  If there are fewer than 4 clients,
-       * we skip timeouts so that clients get pinged no more frequently
-       * than one per 4 timeouts.
+      /* We ping each client in turn.
        */
-      count = [clients count];
-      pingPosition++;
-      if (pingPosition >= 4 && pingPosition >= count)
+      a = AUTORELEASE([clients mutableCopy]);
+      count = [a count];
+      while (count-- > 0)
 	{
-	  pingPosition = 0;
-	}
-      if (pingPosition < count)
-	{
-	  [[clients objectAtIndex: pingPosition] ping];
+	  EcClientI	*r = [a objectAtIndex: count];
+
+          if ([clients indexOfObjectIdenticalTo: r] != NSNotFound)
+            {
+              [r ping];
+            }
 	}
       // Ping the control server too - once every four times.
       pingControlCount++;
@@ -5031,10 +5028,6 @@ NSLog(@"Problem %@", localException);
   if (i != NSNotFound)
     {
       [clients removeObjectAtIndex: i];
-      if (i <= pingPosition && pingPosition > 0)
-	{
-	  pingPosition--;
-	}
     }
   [self logChange: @"unregistered" for: name];
 }
