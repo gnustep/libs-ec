@@ -1775,6 +1775,7 @@ NSLog(@"startup completed for %@", self);
 
 - (void) stopping: (NSTimer*)t
 {
+  NSTimeInterval	now;
   NSTimeInterval	ti;
 
   [stoppingTimer invalidate];
@@ -1786,9 +1787,10 @@ NSLog(@"startup completed for %@", self);
       return;
     }
 
+  now = [NSDate timeIntervalSinceReferenceDate];
   if (stoppingDate <= 0.0)
     {
-      stoppingDate = [NSDate timeIntervalSinceReferenceDate];
+      stoppingDate = now;
     }
   if (abortDate <= 0.0)
     {
@@ -1803,7 +1805,7 @@ NSLog(@"startup completed for %@", self);
         }
     }
   ti = abortDate;
-  if (ti <= 0.0)
+  if (ti <= now)
     {
       /* Maximum time for clean shutdown has passed.
        */
@@ -2784,7 +2786,8 @@ NSLog(@"Problem %@", localException);
 		  m = @"List\nLists all the connected clients.\n"
 		      @"List launches\nLists the programs we can launch.\n"
 		      @"List limit\nReports concurrent launch attempt limit.\n"
-		      @"List order\nReports launch attempt order.\n";
+		      @"List order\nReports launch attempt order.\n"
+		      @"List process name\nReports detail on named process.\n";
 		}
 	      else if (comp(wd, @"Memory") >= 0)
 		{
@@ -3038,6 +3041,24 @@ NSLog(@"Problem %@", localException);
 	    {
 	      m = [NSString stringWithFormat: @"Launch order is: %@\n",
 		launchOrder]; 	
+	    }
+	  else if (comp(wd, @"process") >= 0)
+	    {
+	      NSEnumerator	*enumerator;
+	      NSString		*key;
+
+	      wd = cmdWord(cmd, 2);
+	
+	      enumerator = [launchOrder objectEnumerator];
+	      while ((key = [enumerator nextObject]) != nil)
+		{
+		  if (comp(wd, key) >= 0)
+		    {
+		      LaunchInfo	*l = [LaunchInfo existing: key];
+
+		      m = [m stringByAppendingFormat: @"%@\n", l];
+		    }
+		}
 	    }
 	}
       else if (comp(wd, @"memory") >= 0)
