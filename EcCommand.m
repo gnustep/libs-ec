@@ -246,6 +246,11 @@ desiredName(Desired state)
    */
   BOOL			startingAlarm;
 
+  /** A timestamp set if an alarm has been raised because the process is not
+   * responding to pings.  This is cleared if/when the process re-registers.
+   */
+  NSTimeInterval	hungDate;
+
   /** The timestamp at which the process began shutting down, or zero
    * if the process is not currently stopping.
    */
@@ -334,12 +339,14 @@ desiredName(Desired state)
 - (BOOL) checkActive;
 - (BOOL) checkAlive;
 - (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient;
+- (void) clearHung;
 - (EcClientI*) client;
 - (NSDictionary*) configuration;
 - (NSTimeInterval) delay;
 - (Desired) desired;
 - (BOOL) disabled;
 - (BOOL) isActive;
+- (BOOL) isHung;
 - (BOOL) isStarting;
 - (BOOL) isStopping;
 - (BOOL) launch;
@@ -352,6 +359,7 @@ desiredName(Desired state)
 - (void) setClient: (EcClientI*)c;
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setDesired: (Desired)state;
+- (void) setHung;
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
 - (BOOL) stable;
@@ -831,6 +839,11 @@ desiredName(Desired state)
   [self stopping: nil];
 }
 
+- (void) clearHung
+{
+  hungDate = 0.0;
+}
+
 - (EcClientI*) client
 {
   return client;
@@ -887,12 +900,55 @@ desiredName(Desired state)
 
 - (NSString*) description
 {
+  NSMutableString	*m = [[super description] mutableCopy];
   NSString	*status = [self status];
 
-  return [NSString stringWithFormat: @"%@ for process '%@'\n"
-    @"  %@\n"
-    @"  Configuration %@\n",
-    [super description], name, status, conf];
+  [m appendFormat: @" for process '%@'\n", name];
+  if (startingDate > 0.0)
+    {
+      [m appendFormat: @"  Starting since %@ next check at %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: startingDate],
+	[startingTimer fireDate]];
+    }
+  if (queuedDate > 0.0)
+    {
+      [m appendFormat: @"  Queued to launch since %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: queuedDate]];
+    }
+  if (launchDate > 0.0)
+    {
+      [m appendFormat: @"  Launched at %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: launchDate]];
+    }
+  if (registrationDate > 0.0)
+    {
+      [m appendFormat: @"  Registered since %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: registrationDate]];
+    }
+  if (awakenedDate > 0.0)
+    {
+      [m appendFormat: @"  Awakened since %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: awakenedDate]];
+    }
+  if (stableDate > 0.0)
+    {
+      [m appendFormat: @"  Stable since %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: stableDate]];
+    }
+  if (hungDate > 0.0)
+    {
+      [m appendFormat: @"  Unresponsive since %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: hungDate]];
+    }
+  if (stoppingDate > 0.0)
+    {
+      [m appendFormat: @"  Stopping since %@ next check at %@\n",
+	[NSDate dateWithTimeIntervalSinceReferenceDate: stoppingDate],
+	[stoppingTimer fireDate]];
+    }
+  [m appendFormat: @"  %@\n", status];
+  [m appendFormat: @"  %@\n", conf];
+  return AUTORELEASE(m);
 }
 
 - (Desired) desired
@@ -910,6 +966,11 @@ desiredName(Desired state)
 - (BOOL) isActive
 {
   return (client != nil && NO == [self isStopping]) ? YES : NO;
+}
+
+- (BOOL) isHung
+{
+  return (hungDate > 0.0) ? YES : NO;
 }
 
 - (BOOL) isStarting
@@ -1250,6 +1311,7 @@ NSLog(@"startup completed for %@", self);
   clientLost = NO;
   clientQuit = NO;
   [launchQueue removeObject: self];
+  hungDate = 0.0;
   queuedDate = 0.0;
   if ([self isStarting])
     {
@@ -1391,6 +1453,14 @@ NSLog(@"startup completed for %@", self);
 	}
     }
   [self progress];
+}
+
+- (void) setHung
+{
+  if (hungDate <= 0.0)
+    {
+      hungDate = [NSDate timeIntervalSinceReferenceDate];
+    }
 }
 
 - (void) setProcessIdentifier: (int)p
@@ -2631,25 +2701,34 @@ NSLog(@"Problem %@", localException);
        */
       r = [self findIn: clients byObject: (id)from];
       [r gnip: num];
-      if (r != nil && num > 2)
+      if (r != nil)
 	{
           NSString      *n = [r name];
 	  LaunchInfo	*l = [LaunchInfo existing: n];
 
-	  /* This was a successful launch so we don't need to impose
-	   * a delay between launch attempts.
-	   */
-	  [l resetDelay];
-	  if (NO == [l stable])
+	  if ([l isHung])
 	    {
-	      /* After the first few ping responses from a client we assume
-	       * that client has completed startup and is running OK.
-	       * We can therefore clear any loss of client alarm, any
-	       * alarm for being unable to register, and launch failure
-	       * or fatal configuration alarms.
+	      /* Had a ping response, so the process is no longer hung.
 	       */
-              [l setStable: YES];
-              [self clear: [l name] addText: @"process is now stable"];
+	      [l clearHung];
+	    }
+	  if (num > 2)
+	    {
+	      /* This was a successful launch so we don't need to impose
+	       * a delay between launch attempts.
+	       */
+	      [l resetDelay];
+	      if (NO == [l stable])
+		{
+		  /* After the first few ping responses from a client we assume
+		   * that client has completed startup and is running OK.
+		   * We can therefore clear any loss of client alarm, any
+		   * alarm for being unable to register, and launch failure
+		   * or fatal configuration alarms.
+		   */
+		  [l setStable: YES];
+		  [self clear: [l name] addText: @"process is now stable"];
+		}
 	    }
 	}
     }
@@ -4705,22 +4784,30 @@ NSLog(@"Problem %@", localException);
       while (count-- > 0)
 	{
 	  EcClientI	*r = [a objectAtIndex: count];
+	  LaunchInfo    *l = [LaunchInfo existing: [r name]];
 	  NSDate	*d = [r outstanding];
 	  
-	  if ([clients indexOfObjectIdenticalTo: r] != NSNotFound
-            && d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
+	  if ([clients indexOfObjectIdenticalTo: r] == NSNotFound)
 	    {
-	      NSString		*m;
+	      continue;
+	    }
+	  if (d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
+	    {
+	      if (nil == l || NO == [l isHung])
+		{
+		  NSString	*m;
 
-	      m = [NSString stringWithFormat:
-                @"failed to respond for over %d seconds", (int)pingDelay];
-              [self alarmCode: ACProcessHung
-                     procName: [r name]
-                      addText: m];
-	      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
-		@"Client '%@' failed to respond for over %d seconds"),
-		[r name], (int)pingDelay];
-	      [self information: m from: nil to: nil type: LT_CONSOLE];
+		  [l setHung];
+		  m = [NSString stringWithFormat:
+		    @"failed to respond for over %d seconds", (int)pingDelay];
+		  [self alarmCode: ACProcessHung
+			 procName: [r name]
+			  addText: m];
+		  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
+		    @"Client '%@' failed to respond for over %d seconds"),
+		    [r name], (int)pingDelay];
+		  [self information: m from: nil to: nil type: LT_CONSOLE];
+		}
 	    }
 	}
       [a removeAllObjects];
