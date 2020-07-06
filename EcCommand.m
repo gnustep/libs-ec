@@ -40,10 +40,14 @@
 #define	DLY	300.0
 #define	FIB	0.1
 
-static NSDate *
+static NSCalendarDate *
 date(NSTimeInterval t)
 {
-  return [NSDate dateWithTimeIntervalSinceReferenceDate: t];
+  NSCalendarDate	*d;
+
+  d = [NSCalendarDate dateWithTimeIntervalSinceReferenceDate: t];
+  [d setCalendarFormat: @"%Y-%m-%d %H:%M:%S.%F %z"];
+  return d;
 }
 
 static const NSTimeInterval   day = 24.0 * 60.0 * 60.0;
@@ -907,44 +911,42 @@ desiredName(Desired state)
   if (startingDate > 0.0)
     {
       [m appendFormat: @"  Starting since %@ next check at %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: startingDate],
-	[startingTimer fireDate]];
+	date(startingDate), [startingTimer fireDate]];
     }
   if (queuedDate > 0.0)
     {
       [m appendFormat: @"  Queued to launch since %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: queuedDate]];
+	date(queuedDate)];
     }
   if (launchDate > 0.0)
     {
       [m appendFormat: @"  Launched at %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: launchDate]];
+	date(launchDate)];
     }
   if (registrationDate > 0.0)
     {
       [m appendFormat: @"  Registered since %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: registrationDate]];
+	date(registrationDate)];
     }
   if (awakenedDate > 0.0)
     {
       [m appendFormat: @"  Awakened since %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: awakenedDate]];
+	date(awakenedDate)];
     }
   if (stableDate > 0.0)
     {
       [m appendFormat: @"  Stable since %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: stableDate]];
+	date(stableDate)];
     }
   if (hungDate > 0.0)
     {
       [m appendFormat: @"  Unresponsive since %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: hungDate]];
+	date(hungDate)];
     }
   if (stoppingDate > 0.0)
     {
       [m appendFormat: @"  Stopping since %@ next check at %@\n",
-	[NSDate dateWithTimeIntervalSinceReferenceDate: stoppingDate],
-	[stoppingTimer fireDate]];
+	date(stoppingDate), [stoppingTimer fireDate]];
     }
   [m appendFormat: @"  %@\n", status];
   [m appendFormat: @"  %@\n", conf];
@@ -4430,7 +4432,7 @@ NSLog(@"Problem %@", localException);
   latestDeleteAt = now - day * purgeAfter;
   while (nil == gone && ti < latestDeleteAt)
     {
-      when = [NSCalendarDate dateWithTimeIntervalSinceReferenceDate: ti];
+      when = date(ti);
       file = [[logs stringByAppendingPathComponent:
         [when descriptionWithCalendarFormat: @"%Y-%m-%d"]]
         stringByStandardizingPath];
@@ -4505,7 +4507,7 @@ NSLog(@"Problem %@", localException);
     {
       NSAutoreleasePool *pool = [NSAutoreleasePool new];
 
-      when = [NSCalendarDate dateWithTimeIntervalSinceReferenceDate: ti];
+      when = date(ti);
       file = [[dir stringByAppendingPathComponent:
         [when descriptionWithCalendarFormat: @"%Y-%m-%d"]]
         stringByStandardizingPath];
@@ -4532,7 +4534,7 @@ NSLog(@"Problem %@", localException);
       BOOL	                isDirectory;
       NSString                  *base;
 
-      when = [NSCalendarDate dateWithTimeIntervalSinceReferenceDate: ti];
+      when = date(ti);
       base = [[dir stringByAppendingPathComponent:
         [when descriptionWithCalendarFormat: @"%Y-%m-%d"]]
         stringByStandardizingPath];
