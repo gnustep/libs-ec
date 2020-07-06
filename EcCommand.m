@@ -2731,6 +2731,7 @@ NSLog(@"Problem %@", localException);
           NSString      *n = [r name];
 	  LaunchInfo	*l = [LaunchInfo existing: n];
 
+	  [l setPing];	// Record the fact that we have a ping response.
 	  if ([l isHung])
 	    {
 	      /* Had a ping response, so the process is no longer hung.
