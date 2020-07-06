@@ -255,6 +255,10 @@ desiredName(Desired state)
    */
   NSTimeInterval	hungDate;
 
+  /** A timestamp set when a ping response is received.
+   */
+  NSTimeInterval	pingDate;
+
   /** The timestamp at which the process began shutting down, or zero
    * if the process is not currently stopping.
    */
@@ -266,7 +270,7 @@ desiredName(Desired state)
    */
   NSTimer		*stoppingTimer; // Not retained
 
-  /** When a process termination is detected, this varibale records it.
+  /** When a process termination is detected, this variable records it.
    */
   NSTimeInterval        terminationDate;
 
@@ -364,6 +368,7 @@ desiredName(Desired state)
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setDesired: (Desired)state;
 - (void) setHung;
+- (void) setPing;
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
 - (BOOL) stable;
@@ -943,6 +948,11 @@ desiredName(Desired state)
       [m appendFormat: @"  Unresponsive since %@\n",
 	date(hungDate)];
     }
+  if (pingDate > 0.0)
+    {
+      [m appendFormat: @"  Last ping response at %@\n",
+	date(pingDate)];
+    }
   if (stoppingDate > 0.0)
     {
       [m appendFormat: @"  Stopping since %@ next check at %@\n",
@@ -1249,7 +1259,14 @@ desiredName(Desired state)
     {
       if (Live == desired && nil == client)
         {
-          [self start];
+	  /* Possibly the client is already running (if the Command server
+	   * has just started) or has been started externally and not yet
+	   * connected ... if so see if we can get it to connect.
+	   */
+	  if (NO == [self checkActive])
+	    {
+	      [self start];
+	    }
         }
       else if (Dead == desired && nil != client)
         {
@@ -1313,6 +1330,7 @@ NSLog(@"startup completed for %@", self);
   clientLost = NO;
   clientQuit = NO;
   [launchQueue removeObject: self];
+  pingDate = 0.0;
   hungDate = 0.0;
   queuedDate = 0.0;
   if ([self isStarting])
@@ -1463,6 +1481,11 @@ NSLog(@"startup completed for %@", self);
     {
       hungDate = [NSDate timeIntervalSinceReferenceDate];
     }
+}
+
+- (void) setPing
+{
+  pingDate = [NSDate timeIntervalSinceReferenceDate];
 }
 
 - (void) setProcessIdentifier: (int)p
