@@ -1704,10 +1704,20 @@ findMode(NSDictionary* d, NSString* s)
       dbg = [prf stringByAppendingString: @"Debug-"];
       while ((str = [enumerator nextObject]) != nil)
 	{
-	  if ([str hasPrefix: dbg])
+	  NSString	*key = nil;
+
+	  if ([str hasPrefix: @"Debug-"])
+	    {
+	      key = [str substringFromIndex: 6];
+	      str = [prf stringByAppendingString: str];
+	    }
+	  else if ([str hasPrefix: dbg])
+	    {
+	      key = [str substringFromIndex: [dbg length]];
+	    }
+	  if (key != nil)
 	    {
 	      id	obj = [defs objectForKey: str];
-	      NSString	*key = [str substringFromIndex: [dbg length]];
 
 	      if ([cmdDebugKnown objectForKey: key] == nil)
 		{
@@ -4333,7 +4343,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: nil forKey: key];
+		  [cmdDefs setCommand: nil forKey: [cmdDefs key: key]];
 		}
 	      [self cmdPrintf: @"Now using debug settings from config.\n"];
             }
@@ -4344,7 +4354,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"YES" forKey: key];
+		  [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: key]];
 		}
 	      [self cmdPrintf: @"All debugging is now active.\n"];
 	    }
@@ -4367,7 +4377,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		      [self cmdPrintf: @"' is already active."];
 		    }
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"YES" forKey: key];
+		  [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: key]];
 		}
 	    }
 	}
@@ -4480,7 +4490,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                 }
               else
                 {
-                  [cmdDefs setCommand: nil forKey: key];
+                  [cmdDefs setCommand: nil forKey: [cmdDefs key: key]];
                   val = [cmdDefs objectForKey: key];
                 }
             }
@@ -4502,7 +4512,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		  NSTimeInterval	t = hours * 60.0 * 60.0;
 
                   val = [msg objectAtIndex: 4];
-                  [cmdDefs setCommand: val forKey: key lifetime: t];
+                  [cmdDefs setCommand: val
+			       forKey: [cmdDefs key: key]
+			     lifetime: t];
                   val = [cmdDefs objectForKey: key];
                 }
               else if ([msg count] == 4)
@@ -4534,7 +4546,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               else if ([msg count] == 4)
                 {
                   val = [msg objectAtIndex: 3];
-                  [cmdDefs setCommand: val forKey: key];
+                  [cmdDefs setCommand: val forKey: [cmdDefs key: key]];
                   val = [cmdDefs objectForKey: key];
                 }
               else if ([msg count] == 3)
@@ -4770,7 +4782,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: nil forKey: key];
+		  [cmdDefs setCommand: nil forKey: [cmdDefs key: key]];
 		}
 	      [self cmdPrintf: @"Now using debug settings from config.\n"];
             }
@@ -4781,7 +4793,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"NO" forKey: key];
+		  [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: key]];
 		}
 	      [self cmdPrintf: @"All debugging is now inactive.\n"];
 	    }
@@ -4804,7 +4816,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		      [self cmdPrintf: @"now deactivated.\n"];
 		    }
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"NO" forKey: key];
+		  [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: key]];
 		}
 	    }
 	}
@@ -4902,11 +4914,11 @@ With two parameters ('maximum' and a number),\n\
                   [self cmdPrintf: @"Memory current stats at %@:\n%s",
                     [NSDate date], list];
 		}
-	      [cmdDefs setCommand: @"YES" forKey: @"Memory"];
+	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
             }
 	  else if ([word caseInsensitiveCompare: @"default"] == NSOrderedSame)
 	    {
-	      [cmdDefs setCommand: nil forKey: @"Memory"];
+	      [cmdDefs setCommand: nil forKey: [cmdDefs key: @"Memory"]];
 	      [self cmdPrintf: @"Memory checking: %s\n",
 		[cmdDefs boolForKey: @"Memory"] ? "YES" : "NO"];
 	    }
@@ -4926,7 +4938,7 @@ With two parameters ('maximum' and a number),\n\
                   [self cmdPrintf: @"Memory total allocation stats at %@:\n%s",
                     [NSDate date], list];
 		}
-	      [cmdDefs setCommand: @"YES" forKey: @"Memory"];
+	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
 	    }
 	  else if ([word boolValue] == YES)
 	    {
@@ -4941,7 +4953,7 @@ With two parameters ('maximum' and a number),\n\
 		  [self cmdPrintf:
 		    @"Memory statistics are already being gathered.\n"];
 		}
-	      [cmdDefs setCommand: @"YES" forKey: @"Memory"];
+	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
 	    }
 	  else
 	    {
@@ -4951,7 +4963,7 @@ With two parameters ('maximum' and a number),\n\
 		    @"Memory statistics were not being gathered.\n"];
 		}
 	      [self cmdPrintf: @"Memory statistics are turned off NOW.\n"];
-	      [cmdDefs setCommand: @"NO" forKey: @"Memory"];
+	      [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: @"Memory"]];
 	    }
 	}
       else if ([msg count] == 3)
@@ -4965,13 +4977,15 @@ With two parameters ('maximum' and a number),\n\
 	      arg = [arg stringByTrimmingSpaces];
 	      if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
 		{
-                  [cmdDefs setCommand: nil forKey: @"MemoryAlarm"];
+                  [cmdDefs setCommand: nil
+			       forKey: [cmdDefs key: @"MemoryAlarm"]];
 		  [self cmdPrintf: @"MemoryAlarm using default value.\n"];
 		}
 	      else
 		{
 		  arg = setMemAlarm(arg);
-                  [cmdDefs setCommand: arg forKey: @"MemoryAlarm"];
+                  [cmdDefs setCommand: arg
+			       forKey: [cmdDefs key: @"MemoryAlarm"]];
 		  [self cmdPrintf: @"MemoryAlarm set to %@.\n", arg];
 		}
 	    }
@@ -4979,7 +4993,8 @@ With two parameters ('maximum' and a number),\n\
             {
               if (val <= 0)
                 {
-                  [cmdDefs setCommand: nil forKey: @"MemoryAllowed"];
+                  [cmdDefs setCommand: nil
+			       forKey: [cmdDefs key: @"MemoryAllowed"]];
                   if (0 == memAllowed)
                     {
                       /* The threshold was set back to zero ... to be
@@ -4992,7 +5007,8 @@ With two parameters ('maximum' and a number),\n\
               else
                 {
                   arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg forKey: @"MemoryAllowed"];
+                  [cmdDefs setCommand: arg
+			       forKey: [cmdDefs key: @"MemoryAllowed"]];
 		  [self cmdPrintf: @"MemoryAllowed set to %@MB.\n", arg];
                 }
               [self _memCheck];
@@ -5006,12 +5022,14 @@ With two parameters ('maximum' and a number),\n\
               if (val >= 0 && val < 24)
                 {
                   arg = [NSString stringWithFormat: @"%d", (int)val];
-                  [cmdDefs setCommand: arg forKey: @"MemoryIdle"];
+                  [cmdDefs setCommand: arg
+			       forKey: [cmdDefs key: @"MemoryIdle"]];
 		  [self cmdPrintf: @"MemoryIdle set to %@.\n", arg];
                 }
               else
                 {
-                  [cmdDefs setCommand: nil forKey: @"MemoryIdle"];
+                  [cmdDefs setCommand: nil
+			       forKey: [cmdDefs key: @"MemoryIdle"]];
 		  [self cmdPrintf: @"MemoryIdle using default value.\n"];
                 }
               [self _memCheck];
@@ -5022,19 +5040,22 @@ With two parameters ('maximum' and a number),\n\
                 {
                   if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
                     {
-                      [cmdDefs setCommand: nil forKey: @"MemoryMaximum"];
+                      [cmdDefs setCommand: nil
+			       forKey: [cmdDefs key: @"MemoryMaximum"]];
                       [self cmdPrintf: @"MemoryMaximum using default value.\n"];
                     }
                   else
                     {
-                      [cmdDefs setCommand: @"0" forKey: @"MemoryMaximum"];
+                      [cmdDefs setCommand: @"0"
+			       forKey: [cmdDefs key: @"MemoryMaximum"]];
                       [self cmdPrintf: @"MemoryMaximum restart turned off.\n"];
                     }
                 }
               else
                 {
                   arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg forKey: @"MemoryMaximum"];
+                  [cmdDefs setCommand: arg
+			       forKey: [cmdDefs key: @"MemoryMaximum"]];
 		  [self cmdPrintf: @"MemoryMaximum set to %@MB.\n", arg];
                 }
               [self _memCheck];
@@ -5054,7 +5075,8 @@ With two parameters ('maximum' and a number),\n\
                       GSDebugAllocationActiveRecordingObjects(c);
                       [self cmdPrintf: @"Recording instances of '%@'.\n", arg];
                     }
-                  else if ([op caseInsensitiveCompare: @"list"] == NSOrderedSame)
+                  else if ([op caseInsensitiveCompare: @"list"]
+		    == NSOrderedSame)
                     {
                       NSArray       *array;
                       NSUInteger    count;
@@ -5755,11 +5777,13 @@ With two parameters ('maximum' and a number),\n\
       if ([[msg objectAtIndex: 1] caseInsensitiveCompare: @"default"]
         == NSOrderedSame)
 	{
-	  [cmdDefs setCommand: nil forKey: @"Release"];
+	  [cmdDefs setCommand: nil
+		       forKey: [cmdDefs key: @"Release"]];
 	}
       else
         {
-	  [cmdDefs setCommand: [msg objectAtIndex: 1] forKey: @"Release"];
+	  [cmdDefs setCommand: [msg objectAtIndex: 1]
+		       forKey: [cmdDefs key: @"Release"]];
 	}
       [self cmdPrintf: @"Double release checking: %s\n",
 	[cmdDefs boolForKey: @"Release"] ? "YES" : "NO"];
@@ -5796,11 +5820,13 @@ With two parameters ('maximum' and a number),\n\
       if ([[msg objectAtIndex: 1] caseInsensitiveCompare: @"default"]
         == NSOrderedSame)
 	{
-	  [cmdDefs setCommand: nil forKey: @"Testing"];
+	  [cmdDefs setCommand: nil
+		       forKey: [cmdDefs key: @"Testing"]];
 	}
       else
         {
-	  [cmdDefs setCommand: [msg objectAtIndex: 1] forKey: @"Testing"];
+	  [cmdDefs setCommand: [msg objectAtIndex: 1]
+		       forKey: [cmdDefs key: @"Testing"]];
 	}
       [self cmdPrintf: @"Server running in testing mode: %s\n",
 	cmdFlagTesting ? "YES" : "NO"];
@@ -6471,7 +6497,7 @@ With two parameters ('maximum' and a number),\n\
         format: 0
         error: 0];
     }
-  [cmdDefs setCommand: val forKey: key];
+  [cmdDefs setCommand: val forKey: [cmdDefs key: key]];
 }
 
 @end
