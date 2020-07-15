@@ -724,6 +724,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       Regex		*e;
       NSString	        *s;
       id		o;
+      BOOL		isReminder;
 
       RELEASE(pool);
       pool = [NSAutoreleasePool new];
@@ -821,11 +822,20 @@ replaceFields(NSDictionary *fields, NSString *template)
             }
         }
 
+      if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
+	{
+	  isReminder = YES;
+	}
+      else
+	{
+	  isReminder = NO;
+	}
+
       /* The next set are matches only for alarms.
        */
       if (nil != (s = [d objectForKey: @"ReminderInterval"]))
 	{
-	  if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
+	  if (isReminder)
 	    {
 	      int	v = [s intValue];
 
@@ -849,25 +859,25 @@ replaceFields(NSDictionary *fields, NSString *template)
 	}
 
       if (nil != (s = [d objectForKey: @"DurationAbove"])
-	&& (NO == event->isAlarm || event->duration <= [s intValue]))
+	&& (NO == isReminder || event->duration <= [s intValue]))
 	{
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"DurationBelow"])
-	&& (NO == event->isAlarm || event->duration >= [s intValue]))
+	&& (NO == isReminder || event->duration >= [s intValue]))
 	{
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"ReminderAbove"])
-	&& (NO == event->isAlarm || event->reminder <= [s intValue]))
+	&& (NO == isReminder && event->reminder <= [s intValue]))
 	{
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"ReminderBelow"])
-	&& (NO == event->isAlarm || event->reminder >= [s intValue]))
+	&& (NO == isReminder || event->reminder >= [s intValue]))
 	{
 	  continue;		// Not a match.
 	}
