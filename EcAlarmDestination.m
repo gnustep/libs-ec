@@ -206,6 +206,29 @@
   [super dealloc];
 }
 
+- (NSString*) description
+{
+  NSString	*desc;
+
+  [_alarmLock lock];
+  if (_isRunning)
+    {
+      desc = [NSString stringWithFormat: @"%@ host:%@ name:%@"
+	@" queue:%u active:%u cleared:%u managed:%u",
+	[super description], _host, _name, (unsigned)[_alarmQueue count],
+	(unsigned)[_alarmsActive count],
+	(unsigned)[_alarmsCleared count],
+	(unsigned)[_managedObjects count]];
+    }
+  else
+    {
+      desc = [NSString stringWithFormat: @"%@ host:%@ name:%@ Not Running",
+	[super description], _host, _name];
+    }
+  [_alarmLock unlock];
+  return desc;
+}
+
 - (id) initWithHost: (NSString*)host name: (NSString*)name
 {
   if (nil != (self = [super init]))
