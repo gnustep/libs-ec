@@ -812,7 +812,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       s = [d objectForKey: @"Type"];
       if (s != nil && [s isEqualToString: event->type] == NO)
         {
-          /* For alarms only, the type 'Alarm' matches all three types
+          /* Special case: the type 'Alarm' matches all three types
            * of alarm event (raise, reminder, and clear).
            */
           if (NO == event->isAlarm || [s isEqualToString: @"Alarm"] == NO)
@@ -821,60 +821,68 @@ replaceFields(NSDictionary *fields, NSString *template)
             }
         }
 
-      /* The next set are performed only for alarms,
-       * since a non-alarm can never match them.
+      /* The next set are matches only for alarms.
        */
-      if (YES == event->isAlarm)
-        {
-          if (event->reminder > 0 && NO == event->isClear)
-            {
-              /* This is an alarm reminder (neither the initial alarm
-               * nor the clear), so we check the ReminderInterval.
-               * In order for a match to occur, the ReminderInterval
-               * must be set and must match the number of the reminder
-               * using division modulo the reminder interval value.
-               * NB, unlike other patterns, the absence of this one
-               * implies a match failure!
-               */
-              s = [d objectForKey: @"ReminderInterval"];
-              if (nil == s || (event->reminder % [s intValue]))
-                {
-                  continue;		// Not a match.
-                }
-            }
+      if (nil != (s = [d objectForKey: @"ReminderInterval"]))
+	{
+	  if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
+	    {
+	      int	v = [s intValue];
 
-          s = [d objectForKey: @"DurationAbove"];
-          if (s != nil && event->duration <= [s intValue])
-            {
-              continue;		// Not a match.
-            }
-          s = [d objectForKey: @"DurationBelow"];
-          if (s != nil && event->duration >= [s intValue])
-            {
-              continue;		// Not a match.
-            }
-          s = [d objectForKey: @"ReminderAbove"];
-          if (s != nil && event->reminder <= [s intValue])
-            {
-              continue;		// Not a match.
-            }
-          s = [d objectForKey: @"ReminderBelow"];
-          if (s != nil && event->reminder >= [s intValue])
-            {
-              continue;		// Not a match.
-            }
-          e = [d objectForKey: @"SeverityTextRegex"];
-          if (e != nil && [e match: event->severityText] == nil)
-            {
-              continue;		// Not a match.
-            }
+	      /* This is an alarm reminder (neither the initial alarm
+	       * nor the clear), so we check the ReminderInterval.
+	       * In order for a match to occur, the ReminderInterval
+	       * must be set and must match the number of the reminder
+	       * using division modulo the reminder interval value.
+	       * NB, unlike other patterns, the absence of this one
+	       * implies a match failure!
+	       */
+	      if (v < 1 || (event->reminder % v) != 0)
+		{
+		  continue;		// Not a match.
+		}
+	    }
+	  else
+	    {
+	      continue;		// Not a reminder
+	    }
+	}
 
-          s = [d objectForKey: @"SeverityCode"];
-          if (s != nil && [s intValue] != event->severity)
-            {
-              continue;		// Not a match.
-            }
-        }
+      if (nil != (s = [d objectForKey: @"DurationAbove"])
+	&& (NO == event->isAlarm || event->duration <= [s intValue]))
+	{
+	  continue;		// Not a match.
+	}
+
+      if (nil != (s = [d objectForKey: @"DurationBelow"])
+	&& (NO == event->isAlarm || event->duration >= [s intValue]))
+	{
+	  continue;		// Not a match.
+	}
+
+      if (nil != (s = [d objectForKey: @"ReminderAbove"])
+	&& (NO == event->isAlarm || event->reminder <= [s intValue]))
+	{
+	  continue;		// Not a match.
+	}
+
+      if (nil != (s = [d objectForKey: @"ReminderBelow"])
+	&& (NO == event->isAlarm || event->reminder >= [s intValue]))
+	{
+	  continue;		// Not a match.
+	}
+
+      if (nil != (e = [d objectForKey: @"SeverityTextRegex"])
+	&& (NO == event->isAlarm || [e match: event->severityText] == nil))
+	{
+	  continue;		// Not a match.
+	}
+
+      if (nil != (s = [d objectForKey: @"SeverityCode"])
+	&& (NO == event->isAlarm || [s intValue] != event->severity))
+	{
+	  continue;		// Not a match.
+	}
 
       e = [d objectForKey: @"ServerRegex"];
       if (e != nil && [e match: event->serverName] == nil)
