@@ -210,17 +210,17 @@ desiredName(Desired state)
    */ 
   EcClientI		*client;
 
-  /* Flag set at the point when a previously registered process is shutting
-   * down and drops the connection to the Command server.  It indicates an
-   * unintentional shutdown of the process (a failure).
+  /* Set at the point when a previously registered process is shutting
+   * down and drops the connection to the Command server.  It indicates
+   * an unintentional shutdown of the process (a failure).
    */
-  BOOL                  clientLost;
+  NSTimeInterval	clientLostDate;
 
-  /* Flag set at the point when a previously registered process is shutting
-   * down and cleanly unregisters with the Command server.  It indicates an
-   * intentional shutdown of the process.
+  /* Set at the point when a previously registered process is shutting
+   * down and cleanly unregisters with the Command server.  It indicates
+   * an intentional shutdown of the process.
    */
-  BOOL                  clientQuit;
+  NSTimeInterval        clientQuitDate;
 
   NSTimeInterval	fib0;	// fibonacci sequence for delays
   NSTimeInterval	fib1;	// fibonacci sequence for delays
@@ -283,6 +283,7 @@ desiredName(Desired state)
    * process termination status, this variqable is used to record it.
    */
   int                   terminationStatus;      // Last exit status
+  BOOL			terminationStatusKnown;
 
   /** The timestamp at which the process registered with the Command server.
    * or zero if it has not registered.
@@ -312,6 +313,13 @@ desiredName(Desired state)
    * be elegible for immediate autolaunch.
    */
   NSTimeInterval	stableDate;	        // Has been running for a while
+
+  /* On process registration this is set to the timestamp at which the
+   * process may be considered stable.  Normally this is a short while
+   * after the startup, but if the process was lost it will be set to
+   * a later date.
+   */
+  NSTimeInterval	nextStableDate;
 
   /** The timestamp at which we last launched this process.
    */
@@ -358,6 +366,7 @@ desiredName(Desired state)
 - (BOOL) isStarting;
 - (BOOL) isStopping;
 - (BOOL) launch;
+- (BOOL) mayBecomeStable;
 - (BOOL) mayCoreDump;
 - (NSString*) name;
 - (int) processIdentifier;
@@ -468,7 +477,10 @@ desiredName(Desired state)
 - (void) alarmCode: (AlarmCode)ac
           procName: (NSString*)name
            addText: (NSString*)additional;
-- (void) clear: (NSString*)name addText: (NSString*)additional;
+- (void) clearAll: (NSString*)name addText: (NSString*)additional;
+- (void) clearCode: (AlarmCode)ac
+          procName: (NSString*)name
+           addText: (NSString*)additional;
 - (oneway void) cmdGnip: (id <CmdPing>)from
                sequence: (unsigned)num
                   extra: (NSData*)data;
@@ -733,7 +745,23 @@ desiredName(Desired state)
 
 + (void) remove: (NSString*)name
 {
-  [launchInfo removeObjectForKey: name];
+  LaunchInfo	*l = [launchInfo objectForKey: name];
+
+  if (l != nil)
+    {
+      /* Detach the removed object from its client, destroy the task,
+       * and cancel timers/notifications so that the removed object
+       * will not try to manage anything before it is deallocated.
+       */
+      [[NSNotificationCenter defaultCenter] removeObserver: l];
+      l->client = nil;
+      DESTROY(l->task);
+      [l->startingTimer invalidate];
+      l->startingTimer = nil;
+      [l->stoppingTimer invalidate];
+      l->stoppingTimer = nil;
+      [launchInfo removeObjectForKey: name];
+    }
 }
 
 - (BOOL) autolaunch
@@ -829,14 +857,17 @@ desiredName(Desired state)
   DESTROY(client);
   if (unregisteredOrTransient)
     {
-      clientQuit = YES;
-      clientLost = NO;
+      clientQuitDate = [NSDate timeIntervalSinceReferenceDate];
+      clientLostDate = 0.0;
     }
   else
     {
-      clientQuit = NO;
-      clientLost = YES;
+      clientQuitDate = 0.0;
+      clientLostDate = [NSDate timeIntervalSinceReferenceDate];
     }
+  registrationDate = 0.0;
+  awakenedDate = 0.0;
+  stableDate = 0.0;
   /* The connection to the client went away, which implies that the process
    * was connected/registered and we must either be stopping already or need
    * to stop (expect the process to die soon).
@@ -864,6 +895,7 @@ desiredName(Desired state)
 
 - (void) dealloc
 {
+  [[NSNotificationCenter defaultCenter] removeObserver: self];
   [startingTimer invalidate];
   [stoppingTimer invalidate];
   RELEASE(restartReason);
@@ -931,21 +963,36 @@ desiredName(Desired state)
     {
       [m appendFormat: @"  Registered since %@\n",
 	date(registrationDate)];
-    }
-  if (awakenedDate > 0.0)
-    {
-      [m appendFormat: @"  Awakened since %@\n",
-	date(awakenedDate)];
-    }
-  if (stableDate > 0.0)
-    {
-      [m appendFormat: @"  Stable since %@\n",
-	date(stableDate)];
+      if (awakenedDate > 0.0)
+	{
+	  [m appendFormat: @"  Awakened since %@\n",
+	    date(awakenedDate)];
+	}
+      if (stableDate > 0.0)
+	{
+	  [m appendFormat: @"  Stable since %@\n",
+	    date(stableDate)];
+	}
+      else if (nextStableDate > 0.0)
+	{
+	  [m appendFormat: @"  Will be considered stable at %@\n",
+	    date(nextStableDate)];
+	}
     }
   if (hungDate > 0.0)
     {
       [m appendFormat: @"  Unresponsive since %@\n",
 	date(hungDate)];
+    }
+  if (clientLostDate > 0.0)
+    {
+      [m appendFormat: @"  Last lost/crashed at %@\n",
+	date(clientLostDate)];
+    }
+  if (clientQuitDate > 0.0)
+    {
+      [m appendFormat: @"  Last unregistered at %@\n",
+	date(clientQuitDate)];
     }
   if (pingDate > 0.0)
     {
@@ -1239,6 +1286,16 @@ desiredName(Desired state)
   return reason;
 }
 
+- (BOOL) mayBecomeStable
+{
+  if (nextStableDate <= 0.0
+    || nextStableDate <= [NSDate timeIntervalSinceReferenceDate])
+    {
+      return YES;
+    }
+  return NO;
+}
+
 - (NSString*) name
 {
   return name;
@@ -1286,7 +1343,7 @@ desiredName(Desired state)
                   [self stop];
                 }
             }
-          else if ([self autolaunch] && NO == clientQuit)
+          else if ([self autolaunch] && 0.0 == clientQuitDate)
             {
               /* If the config says we autolaunch and the last process
                * didn't shut down cleanly, we should start.
@@ -1326,8 +1383,16 @@ desiredName(Desired state)
 - (void) started
 {
 NSLog(@"startup completed for %@", self);
-  clientLost = NO;
-  clientQuit = NO;
+  terminationCount = 0;
+  terminationDate = 0.0;
+  terminationStatusKnown = NO;
+  nextStableDate = [NSDate timeIntervalSinceReferenceDate] + 10.0;
+  if (clientLostDate > 0.0)
+    {
+      nextStableDate += 250.0;
+    }
+  clientLostDate = 0.0;
+  clientQuitDate = 0.0;
   [launchQueue removeObject: self];
   pingDate = 0.0;
   hungDate = 0.0;
@@ -1391,9 +1456,17 @@ NSLog(@"startup completed for %@", self);
 
 - (void) setConfiguration: (NSDictionary*)c
 {
+  BOOL	wasDisabled = [self disabled];
+
   ASSIGNCOPY(conf, c);
   if ([self disabled])
     {
+      if (NO == wasDisabled)
+	{
+          EcCommand	*command = (EcCommand*)EcProc;
+
+	  [command clearAll: name addText: @"process disabled in config"];
+	}
       [self setDesired: Dead];
     }
   else if ([self autolaunch])
@@ -1536,11 +1609,6 @@ NSLog(@"startup completed for %@", self);
     {
       NSLog(@"-start called for %@", self);
       [self resetDelay];
-      terminationCount = 0;
-      terminationDate = 0.0;
-      terminationStatus = -1;
-      clientLost = NO;
-      clientQuit = NO;
       startingAlarm = NO;
       startingDate = [NSDate timeIntervalSinceReferenceDate];
       startingTimer = [NSTimer
@@ -1605,10 +1673,10 @@ NSLog(@"startup completed for %@", self);
         }
       if (startingAlarm)
         {
-          EcCommand	        *command = (EcCommand*)EcProc;
+          EcCommand	*command = (EcCommand*)EcProc;
 
           startingAlarm = NO;
-          [command clear: name addText: @"process manually stopped"];
+          [command clearAll: name addText: @"process manually stopped"];
         }
       [self progress];
     }
@@ -1652,6 +1720,8 @@ NSLog(@"startup completed for %@", self);
            */
           [launchQueue removeObject: self];
           queuedDate = 0.0;
+	  terminationDate = 0.0;
+	  terminationStatusKnown = NO;
           if (NO == [self launch])
             {
               ti = [self delay];        // delay between launch attempts
@@ -1830,28 +1900,30 @@ NSLog(@"startup completed for %@", self);
   [stoppingTimer invalidate];
   stoppingTimer = nil;
   stoppingDate = 0.0;
+  registrationDate = 0.0;
   awakenedDate = 0.0;
+  stableDate = 0.0;
   abortDate = 0.0;
   DESTROY(terminateBy);         // Termination completed
-  if (YES == clientLost)
+  if (clientLostDate > 0.0)
     {
       NSString      *text;
 
-      if (terminationStatus != 0)
+      if (terminationStatusKnown)
         {
-          text = [NSString stringWithFormat: @"process lost (termination"
-            @" status %d)", terminationStatus];
+          text = [NSString stringWithFormat: @"termination status %d",
+	    terminationStatus];
         }
       else
         {
-          text = @"process lost";
+          text = @"termination status unknown";
         }
       [command alarmCode: ACProcessLost
                 procName: name
                  addText: text];
       [command update];
     }
-  else if (YES == clientQuit)
+  else if (clientQuitDate > 0.0)
     {
       /* Clean shutdown (process unregistered itself).
        */
@@ -1978,6 +2050,7 @@ NSLog(@"startup completed for %@", self);
     {
       terminationCount++;
       terminationStatus = [task terminationStatus];
+      terminationStatusKnown = YES;
       terminationDate = [NSDate timeIntervalSinceReferenceDate];
       launchDate = 0.0;
       DESTROY(task);
@@ -2039,7 +2112,7 @@ NSLog(@"startup completed for %@", self);
   NS_ENDHANDLER
 }
 
-/* Raise or clear an alarm for a named process.
+/* Raise an alarm for a named process.
  */
 - (void) alarmCode: (AlarmCode)ac
           procName: (NSString*)name
@@ -2051,7 +2124,7 @@ NSLog(@"startup completed for %@", self);
   EcAlarm	*a;
 
   ENTER_POOL
-  managedObject = EcMakeManagedObject(host, name, nil);
+  managedObject = EcMakeManagedObject(host, @"Command", name);
   ACStrings(ac, &problem, &repair);
   a = [EcAlarm alarmForManagedObject: managedObject
     at: nil
@@ -2065,7 +2138,7 @@ NSLog(@"startup completed for %@", self);
   LEAVE_POOL
 }
 
-- (void) clear: (NSString*)name addText: (NSString*)additional
+- (void) clearAll: (NSString*)name addText: (NSString*)additional
 {
   NSString	*managedObject;
   NSString      *problem;
@@ -2074,8 +2147,8 @@ NSLog(@"startup completed for %@", self);
   AlarmCode     c;
 
   ENTER_POOL
-  managedObject = EcMakeManagedObject(host, name, nil);
-  for (c = ACLaunchFailed; c < ACProcessLost; c++)
+  managedObject = EcMakeManagedObject(host, @"Command", name);
+  for (c = ACLaunchFailed; c <= ACProcessLost; c++)
     {
       ACStrings(c, &problem, &repair);
       repair = @"cleared";
@@ -2089,6 +2162,32 @@ NSLog(@"startup completed for %@", self);
         additionalText: additional];
       [self alarm: a];
     }
+  LEAVE_POOL
+}
+
+/* Clear an  alarm for a named process.
+ */
+- (void) clearCode: (AlarmCode)ac
+          procName: (NSString*)name
+           addText: (NSString*)additional
+{
+  NSString	*managedObject;
+  NSString      *problem;
+  NSString      *repair;
+  EcAlarm	*a;
+
+  ENTER_POOL
+  managedObject = EcMakeManagedObject(host, @"Command", name);
+  ACStrings(ac, &problem, &repair);
+  a = [EcAlarm alarmForManagedObject: managedObject
+    at: nil
+    withEventType: EcAlarmEventTypeProcessingError
+    probableCause: EcAlarmSoftwareProgramError
+    specificProblem: problem
+    perceivedSeverity: EcAlarmSeverityCleared
+    proposedRepairAction: repair
+    additionalText: additional];
+  [self alarm: a];
   LEAVE_POOL
 }
 
@@ -2541,6 +2640,24 @@ NSLog(@"Problem %@", localException);
 
                   if ((l = [LaunchInfo launchInfo: k]) != nil)
                     {
+		      if (nil == [l client])
+			{
+			  EcClientI	*c;
+
+			  /* Due to the config change, we may have a new
+			   * LaunchInfo object.  There is also a possibility
+			   * that the process has already been launched
+			   * manually (or the config for the process was
+			   * removed and then restored).  We must therefore
+			   * check and associate any existing registration
+			   * with the new launch info.
+			   */
+			  c = [self findIn: clients byName: [l name]];
+			  if (c != nil)
+			    {
+			      [l setClient: c];
+			    }
+			}
                       [l setConfiguration: [conf objectForKey: k]];
                       [missing removeObject: k];
                     }
@@ -2548,11 +2665,13 @@ NSLog(@"Problem %@", localException);
             }
 
 	  /* Now any process names which have no configuration must be
-	   * removed from the list of launchable processes.
+	   * removed from the list of launchable processes and have any
+	   * alarms cleared.
 	   */
 	  e = [missing objectEnumerator];
 	  while (nil != (k = [e nextObject]))
 	    {
+	      [self clearAll: k addText: @"process removed from config"];
 	      [LaunchInfo remove: k];
 	    }
 
@@ -2743,7 +2862,7 @@ NSLog(@"Problem %@", localException);
 	       * a delay between launch attempts.
 	       */
 	      [l resetDelay];
-	      if (NO == [l stable])
+	      if (NO == [l stable] && [l mayBecomeStable])
 		{
 		  /* After the first few ping responses from a client we assume
 		   * that client has completed startup and is running OK.
@@ -2752,7 +2871,7 @@ NSLog(@"Problem %@", localException);
 		   * or fatal configuration alarms.
 		   */
 		  [l setStable: YES];
-		  [self clear: [l name] addText: @"process is now stable"];
+		  [self clearAll: [l name] addText: @"process is now stable"];
 		}
 	    }
 	}
@@ -3261,6 +3380,8 @@ NSLog(@"Problem %@", localException);
                               [l setDesired: Dead];
                               [l checkAbandonedStartup];
                             }
+			  [self clearAll: [c name]
+				 addText: @"manually stopped"];
 			  found = YES;
 			}
 		      NS_HANDLER
@@ -3295,6 +3416,8 @@ NSLog(@"Problem %@", localException);
 				    @"Suspended %@\n", key];
 				}
                               [l checkAbandonedStartup];
+			      [self clearAll: [l name]
+				     addText: @"manually stopped"];
 			    }
 			}
 		    }
@@ -4336,7 +4459,7 @@ NSLog(@"Problem %@", localException);
       [self logChange: @"re-registered" for: [l name]];
       if ([l stable] == YES)
         {
-          [self clear: [l name] addText: @"process re-registered"];
+          [self clearAll: [l name] addText: @"process re-registered"];
         }
       return [obj config];
     }
