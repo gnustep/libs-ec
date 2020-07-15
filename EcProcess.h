@@ -515,10 +515,10 @@ extern NSString*	cmdVersion(NSString *ver);
  * </p>
  * <p>
  *   In addition to the standard alarm destination behavior, the
- *   process automates some thngs:<br />
+ *   process automates some things:<br />
  *   On successful startup and registration with the Command server,
  *   a -domanage: message is automatically sent for the default
- *   managed object, clearing any outrstanding alarms.<br />
+ *   managed object, clearing any outstanding alarms.<br />
  *   On successful shutdown (ie when -cmdQuit: is called with zero
  *   as its argument), an -unmanage: message is automatically sent
  *   to clear any outstanding alarms for the default managed object.<br />
