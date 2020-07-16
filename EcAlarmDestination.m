@@ -56,6 +56,28 @@
 
 @implementation	EcAlarmDestination
 
+- (void) activePut: (EcAlarm*)alarm
+{
+  if (_monitor != self)
+    {
+      [_monitor activePut: alarm];
+    }
+  [_alarmLock lock];
+  [_alarmsActive addObject: alarm];
+  [_alarmLock unlock];
+}
+
+- (void) activeRemove: (EcAlarm*)alarm
+{
+  if (_monitor != self)
+    {
+      [_monitor activeRemove: alarm];
+    }
+  [_alarmLock lock];
+  [_alarmsActive removeObject: alarm];
+  [_alarmLock unlock];
+}
+
 - (oneway void) alarm: (in bycopy EcAlarm*)event
 {
   if (NO == [event isKindOfClass: [EcAlarm class]])
@@ -187,22 +209,49 @@
   return [a autorelease];
 }
 
+- (NSArray*) clears
+{
+  NSArray	*a;
+
+  [_alarmLock lock];
+  a = [_alarmsCleared allObjects];
+  [_alarmLock unlock];
+  return a;
+}
+
+- (void) clearsPut: (EcAlarm*)alarm
+{
+  if (_monitor != self)
+    {
+      [_monitor clearsPut: alarm];
+    }
+  [_alarmLock lock];
+  [_alarmsCleared addObject: alarm];
+  [_alarmLock unlock];
+}
+
+- (void) clearsRemove: (EcAlarm*)alarm
+{
+  if (_monitor != self)
+    {
+      [_monitor clearsRemove: alarm];
+    }
+  [_alarmLock lock];
+  [_alarmsCleared removeObject: alarm];
+  [_alarmLock unlock];
+}
+
 - (void) dealloc
 {
   [self shutdown];
-  [_backups release];
-  [(id)_destination release];
-  _destination = nil;
-  [_alarmQueue release];
-  _alarmQueue = nil;
-  [_alarmsActive release];
-  _alarmsActive = nil;
-  [_alarmsCleared release];
-  _alarmsCleared = nil;
-  [_managedObjects release];
-  _managedObjects = nil;
-  [_alarmLock release];
-  _alarmLock = nil;
+  DESTROY(_backups);
+  DESTROY(_destination);
+  DESTROY(_monitor);
+  DESTROY(_alarmQueue);
+  DESTROY(_alarmsActive);
+  DESTROY(_alarmsCleared);
+  DESTROY(_managedObjects);
+  DESTROY(_alarmLock);
   [super dealloc];
 }
 
@@ -325,6 +374,38 @@
   return result;
 }
 
+- (NSArray*) managed
+{
+  NSArray	*a;
+
+  [_alarmLock lock];
+  a = [_managedObjects allObjects];
+  [_alarmLock unlock];
+  return a;
+}
+
+- (void) managePut: (NSString*)name
+{
+  if (_monitor != self)
+    {
+      [_monitor managePut: name];
+    }
+  [_alarmLock lock];
+  [_managedObjects addObject: name];
+  [_alarmLock unlock];
+}
+
+- (void) manageRemove: (NSString*)name
+{
+  if (_monitor != self)
+    {
+      [_monitor manageRemove: name];
+    }
+  [_alarmLock lock];
+  [_managedObjects removeObject: name];
+  [_alarmLock unlock];
+}
+
 - (void) run
 {
   NSAutoreleasePool	*pool = [NSAutoreleasePool new];
@@ -417,9 +498,27 @@
     }
   [_alarmLock lock];
   old = (id)_destination;
-  _destination = (id<EcAlarmDestination>)[(id)destination retain];
+  _destination = RETAIN(destination);
   [_alarmLock unlock];
-  return (id<EcAlarmDestination>)[old autorelease];
+  return AUTORELEASE(old);
+}
+
+- (id<EcAlarmMonitor>) setMonitor: (id<EcAlarmMonitor>)monitor
+{
+  id	old;
+
+  if (nil != (id)monitor && NO == [(id)monitor
+    conformsToProtocol: @protocol(EcAlarmMonitor)])
+    {
+      [NSException raise: NSInvalidArgumentException
+	format: @"[%@-%@] arg does not conform to EcAlarmMonitor protocol",
+	NSStringFromClass([self class]), NSStringFromSelector(_cmd)];
+    }
+  [_alarmLock lock];
+  old = (id)_monitor;
+  _monitor = RETAIN(monitor);
+  [_alarmLock unlock];
+  return AUTORELEASE(old);
 }
 
 - (void) shutdown
@@ -597,7 +696,7 @@
 
 			  if (nil == [_managedObjects member: m])
 			    {
-			      [_managedObjects addObject: m];
+			      [self managePut: m];
                               [_alarmLock unlock];
 			      [self domanageFwd: m];
                               [_alarmLock lock];
@@ -668,7 +767,7 @@
                               /* Alarm previously active ...
                                * remove old copy and forward clear.
                                */
-			      [_alarmsActive removeObject: prev];
+			      [self activeRemove: prev];
                               shouldForward = YES;
 			    }
                           if (nil == [_alarmsCleared member: next])
@@ -676,7 +775,7 @@
                               /* Alarm not previously cleared ...
                                * add to cleared set and forward clear.
                                */
-                              [_alarmsCleared addObject: next];
+			      [self clearsPut: next];
                               shouldForward = YES;
                             }
 			}
@@ -685,7 +784,7 @@
                           /* If there was a previous version of the alarm
                            * cleared, remove that so it's re-raised.
                            */
-                          [_alarmsCleared removeObject: next];
+			  [self clearsRemove: next];
 
 			  /* If the alarm is new or of changed severity,
 			   * update the records and pass it on.
@@ -693,7 +792,7 @@
 			  if (nil == prev || [next perceivedSeverity]
 			    != [prev perceivedSeverity])
 			    {
-			      [_alarmsActive addObject: next];
+			      [self activePut: next];
                               shouldForward = YES;
 			    }
 			}
@@ -705,7 +804,7 @@
 			   */
 			  if (nil == [_managedObjects member: m])
 			    {
-			      [_managedObjects addObject: m];
+			      [self managePut: m];
 			    }
                           else
                             {
@@ -767,7 +866,7 @@
         {
           if ([[a managedObject] isEqual: m])
             {
-              [_alarmsActive removeObject: a];
+	      [self activeRemove: a];
             }
         }
       e = [[_alarmsCleared allObjects] objectEnumerator];
@@ -775,10 +874,10 @@
         {
           if ([[a managedObject] isEqual: m])
             {
-              [_alarmsCleared removeObject: a];
+	      [self clearsRemove: a];
             }
         }
-      [_managedObjects removeObject: m];
+      [self manageRemove: m];
     }
 }
 

@@ -44,7 +44,7 @@
  * for a long time or raise an exception.
  * </p>
  */
-@protocol	EcAlarmDestination
+@protocol	EcAlarmDestination <NSObject>
 
 /** Passes an alarm to the destination.
  */
@@ -66,6 +66,18 @@
 
 @end
 
+/** These methods are called to inform an object monitoring the alarm
+ * destination about changes to its state.
+ */
+@protocol	EcAlarmMonitor <NSObject>
+- (void) activePut: (EcAlarm*)alarm;
+- (void) activeRemove: (EcAlarm*)alarm;
+- (void) clearsPut: (EcAlarm*)alarm;
+- (void) clearsRemove: (EcAlarm*)alarm;
+- (void) managePut: (NSString*)name;
+- (void) manageRemove: (NSString*)name;
+@end
+
 
 
 /**
@@ -81,7 +93,8 @@
  * destination.
  * </p>
  */
-@interface	EcAlarmDestination : NSObject <EcAlarmDestination>
+@interface	EcAlarmDestination : NSObject
+  <EcAlarmDestination,EcAlarmMonitor>
 {
   NSRecursiveLock		*_alarmLock;
   NSMutableArray		*_alarmQueue;
@@ -96,9 +109,18 @@
   NSString			*_host;
   NSString			*_name;
   id<EcAlarmDestination>	_destination;
+  id<EcAlarmMonitor>		_monitor;
   NSArray			*_backups;
   BOOL                          _debug;
 }
+
+/** Internal use only.
+ */
+- (void) activePut: (EcAlarm*)alarm;
+
+/** Internal use only.
+ */
+- (void) activeRemove: (EcAlarm*)alarm;
 
 /** Passes an alarm to the destination by adding it to a queue of alarm
  * events which will be processed in the receivers running thread.
@@ -113,6 +135,18 @@
  * See -setBackups: for more information.
  */
 - (NSArray*) backups;
+
+/** Returns an array containing all the latest cleared alarms.
+ */
+- (NSArray*) clears;
+
+/** Internal use only.
+ */
+- (void) clearsPut: (EcAlarm*)alarm;
+
+/** Internal use only.
+ */
+- (void) clearsRemove: (EcAlarm*)alarm;
 
 /** Inform the destination of the existence of a managed object.<br />
  * This is an indicator of a 'cold start' of that object ... meaning that the
@@ -149,6 +183,18 @@
 /** Returns a flag indicating whether the receiver is actually operating.
  */
 - (BOOL) isRunning;
+
+/** Returns an array containing the known managed objects.
+ */
+- (NSArray*) managed;
+
+/** Internal use only.
+ */
+- (void) managePut: (NSString*)name;
+
+/** Internal use only.
+ */
+- (void) manageRemove: (NSString*)name;
 
 /** This method is called from -init in a secondary thread to start handling
  * of alarms by the receiver.  Do not call it yourself.
@@ -187,6 +233,13 @@
  * Returns the previously set destination.
  */
 - (id<EcAlarmDestination>) setDestination: (id<EcAlarmDestination>)destination;
+
+/** Sets the monitoring object to which state changes are sent.<br />
+ * If nil this turns off monitoring.<br />
+ * The monitoring object is retained by the receiver.<br />
+ * Returns the previously set monitor.
+ */
+- (id<EcAlarmMonitor>) setMonitor: (id<EcAlarmMonitor>)monitor;
 
 /** Requests that the receiver's running thread should shut down.  This method
  * waits for a short while for the thread to shut down, but the process of

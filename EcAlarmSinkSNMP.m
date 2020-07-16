@@ -1501,7 +1501,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 
 	  /* Remove from the ObjC table.
 	   */
-	  [_alarmsActive removeObject: alarm];
+	  [self activeRemove: alarm];
 
 	  /* Find and remove the SNMP table entry.
 	   */
@@ -1573,7 +1573,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			      /* Remove from the ObjC table.
 			       */
 			      [prev retain];
-			      [_alarmsActive removeObject: prev];
+			      [self activeRemove: prev];
 
 			      /* Find and remove the SNMP table entry.
 			       */
@@ -1607,6 +1607,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			  if (NO == [managedObjects containsObject: m])
 			    {
 			      objectsTable_createEntry(m);
+			      [self managePut: m];
 			      [managedObjects addObject: m];
 			      managedObjectsCount = [managedObjects count];
 			      [self domanageFwd: m];
@@ -1630,7 +1631,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			      else
 				{
 				  prev = [[prev retain] autorelease];
-				  [_alarmsActive removeObject: prev];
+				  [self activeRemove: prev];
 				  row = (netsnmp_tdata_row*)[prev extra];
 				  /* send the clear for the entry.
 				   */
@@ -1643,7 +1644,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			       * and send new severity trap.
 			       */
 			      setAlarmTableEntry(row, next);
-			      [_alarmsActive addObject: next];
+			      [self activePut: next];
 			      [alarmSink _trap: next forceClear: NO];
 			      [self alarmFwd: next];
 			      changed = YES;
@@ -1662,6 +1663,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			  if (NO == [managedObjects containsObject: m])
 			    {
 			      objectsTable_createEntry(m);
+			      [self managePut: m];
 			      [managedObjects addObject: m];
 			      managedObjectsCount = [managedObjects count];
 			      changed = YES;
@@ -1694,6 +1696,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 				    }
 				  row = netsnmp_tdata_row_next(objectsTable, row);
 				}
+			      [self manageRemove: m];
 			      [managedObjects removeObject: m];
 			      if (YES == [m hasSuffix: @"_"])
 				{
@@ -1706,6 +1709,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 				    {
 				      if (YES == [s hasPrefix: m])
 					{
+					  [self manageRemove: s];
 					  [managedObjects removeObject: s];
 					}
 				    }
