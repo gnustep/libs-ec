@@ -74,6 +74,12 @@
  *   will match raising, clearing, and also (if ReminderInterval is set)
  *   reminders about the alarm.
  *   </desc>
+ *   <term>Component</term>
+ *   <desc>For [EcAlarm] messages, this may be used to match messages by
+ *   the alarm component.  Specifying an empty value matches only alarms
+ *   with an empty component part.
+ *   If this is not specified, alarms with any component may match.
+ *   </desc>
  *   <term>DurationAbove</term>
  *   <desc>For [EcAlarm] messages, this may be used to match any message
  *   whose duration in minutes is greater than the supplied integer value.

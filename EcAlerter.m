@@ -116,6 +116,7 @@
   NSString              *serverName;
   NSString              *severityText;
   NSString              *text;
+  NSString              *component;
   NSDate                *timestamp;
   NSString              *type;
   int                   duration;
@@ -148,6 +149,7 @@
   RELEASE(severityText);
   RELEASE(text);
   RELEASE(timestamp);
+  RELEASE(component);
   RELEASE(type);
   [super dealloc];
 }
@@ -833,6 +835,13 @@ replaceFields(NSDictionary *fields, NSString *template)
 
       /* The next set are matches only for alarms.
        */
+      if (nil != (s = [d objectForKey: @"Component"]))
+	{
+	  if (NO == [s isEqual: event->component])
+	    {
+	      continue;
+	    }
+	}
       if (nil != (s = [d objectForKey: @"ReminderInterval"]))
 	{
 	  if (isReminder)
@@ -1276,6 +1285,7 @@ replaceFields(NSDictionary *fields, NSString *template)
           event->isAlarm = NO;
           event->isClear = NO;
           event->reminder = -1;
+	  event->component = nil;
           if (nil != identifier)
             {
               event->type = @"Alert";
@@ -1292,6 +1302,7 @@ replaceFields(NSDictionary *fields, NSString *template)
             [EcAlarm stringFromSeverity: event->severity]);
           event->isAlarm = YES;
           event->reminder = reminder;
+	  ASSIGN(event->component, [alarm moComponent]);
           if ([@"Clear" isEqual: [alarm extra]])
             {
               event->isClear = YES;
