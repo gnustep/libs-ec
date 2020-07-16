@@ -870,14 +870,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else if (comp(wd, @"clear") >= 0)
 	{
 	  NSArray	*a = [sink alarms];
+	  unsigned	index = 1;
 
-	  wd = cmdWord(cmd, 1);
-	  if ([wd length] > 0 && [wd intValue] > 0)
+	  m = @"";
+	  while ([(wd = cmdWord(cmd, index++)) length] > 0)
 	    {
 	      EcAlarm	*alarm = nil;
 	      int	n = [wd intValue];
 	      int	i = [a count];
 
+	      if (n <= 0)
+		{
+		}
 	      while (i-- > 0)
 		{
 		  alarm = [a objectAtIndex: i];
@@ -889,16 +893,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      if (nil == alarm)
 		{
-		  m = @"No alarm found with that notificationID\n";
+		  m = [NSString stringWithFormat:
+		    @"%@No alarm found with ID %@\n", m, wd];
 		}
 	      else
 		{
-		  m = [NSString stringWithFormat: @"Clearing %@\n", alarm];
+		  m = [NSString stringWithFormat:
+		    @"%@Clearing %@\n", m, alarm];
 		  alarm = [alarm clear];
 		  [self alarm: alarm];
 		}
 	    }
-	  else
+	  if (0 == [m length])
 	    {
 	      m = @"The 'clear' command requires an alarm notificationID\n"
 	        @"This is the unique identifier used for working with\n"
@@ -1013,9 +1019,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  m = @"Clear\n\n"
                       @"Instructs the Control server to clear "
-		      @"an alarm (identified by numeric\n"
-                      @"notificationID).\n\n"
-		      @"NB. This command clears the alarm in the "
+		      @"one or more alarms (identified by numeric\n"
+                      @"notificationIDs).\n\n"
+		      @"NB. This command clears the alarm(s) in the "
 		      @"central records of the Control server,\n"
                       @"NOT in the originating process.\n"
                       @"This feature means that you can clear "
@@ -1029,7 +1035,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                       @"the central system.\n"
                       @"To reset things so the alarm may be "
                       @"raised again you must issue a 'clear'\n"
-                      @"command directly to the originatig process itsself.\n";
+                      @"command directly to the originating process itsself.\n";
 		}
 	      else if (comp(wd, @"Config") >= 0)
 		{
@@ -1286,6 +1292,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
 	    {
+	      [sink setMonitor: nil];
               [alerter shutdown];
 	      DESTROY(alerter);
 	      exit(0);
@@ -1605,6 +1612,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (void) dealloc
 {
+  [sink setMonitor: nil];
   [alerter shutdown];
   DESTROY(alerter);
   [self cmdLogEnd: logname];
@@ -3112,6 +3120,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         }
       else if ([alerter class] != alerterClass)
         {
+	  [sink setMonitor: nil];
           [alerter shutdown];
           DESTROY(alerter);
         }
@@ -3119,6 +3128,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
         {
           alerter = [alerterClass new];
         }
+
+      /* An alerter which confrms t the correct protocol is assumed to
+       * want to monitor alarms.
+       */
+      if ([alerter conformsToProtocol: @protocol(EcAlarmMonitor)])
+	{
+	  [sink setMonitor: (id<EcAlarmMonitor>)alerter];
+	}
 
       dict = [NSMutableDictionary dictionaryWithCapacity: 3];
 
