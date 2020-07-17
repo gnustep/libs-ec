@@ -113,7 +113,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
 {
   if (self == [EcAlarm class])
     {
-      [self setVersion: 2];
+      [self setVersion: 3];
     }
 }
 
@@ -387,6 +387,11 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
   return _additionalText;
 }
 
+- (BOOL) audit
+{
+  return _audit;
+}
+
 - (Class) classForCoder
 {
   return [EcAlarm class];
@@ -549,7 +554,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
 
 - (void) encodeWithCoder: (NSCoder*)aCoder
 {
-  [aCoder encodeValuesOfObjCTypes: "iiiii@@@@@@@",
+  [aCoder encodeValuesOfObjCTypes: "iiiii@@@@@@@c",
     &_eventType,
     &_notificationID,
     &_perceivedSeverity,
@@ -561,7 +566,8 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
     &_specificProblem,
     &_proposedRepairAction,
     &_additionalText,
-    &_userInfo];
+    &_userInfo,
+    &_audit];
 }
 
 - (NSDate*) eventDate
@@ -750,7 +756,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
         &_proposedRepairAction,
         &_additionalText];
     }
-  else
+  else if (version < 3)
     {
       [aCoder decodeValuesOfObjCTypes: "iiiii@@@@@@@",
         &_eventType,
@@ -765,6 +771,23 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
         &_proposedRepairAction,
         &_additionalText,
         &_userInfo];
+    }
+  else
+    {
+      [aCoder decodeValuesOfObjCTypes: "iiiii@@@@@@@c",
+        &_eventType,
+        &_notificationID,
+        &_perceivedSeverity,
+        &_probableCause,
+        &_trendIndicator,
+        &_managedObject,
+        &_eventDate,
+        &_firstEventDate,
+        &_specificProblem,
+        &_proposedRepairAction,
+        &_additionalText,
+        &_userInfo,
+	&_audit];
     }
   return self;
 }
@@ -877,6 +900,17 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
 - (id) replacementObjectForPortCoder: (NSPortCoder*)aCoder
 {
   return self;
+}
+
+- (void) setAudit: (BOOL)flag
+{
+  if (YES == _frozen)
+    {
+      [NSException raise: NSInternalInconsistencyException
+		  format: @"[%@-%@] called for frozen instance",
+	NSStringFromClass([self class]), NSStringFromSelector(_cmd)];
+    }
+  _audit = (flag ? YES : NO);
 }
 
 - (void) setDelay: (uint8_t)delay

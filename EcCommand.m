@@ -1351,10 +1351,10 @@ desiredName(Desired state)
             }
           else if ([self autolaunch] && 0.0 == clientQuitDate)
             {
+	      ASSIGN(desiredReason, @"autolaunch");
               /* If the config says we autolaunch and the last process
                * didn't shut down cleanly, we should start.
                */
-                
               if (nil == client)
                 {
                   [self start];
@@ -1382,7 +1382,7 @@ desiredName(Desired state)
     }
   if (desired != Live)
     {
-      [self setDesired: Live reason: @"restart requested"];
+      [self setDesired: Live reason: @"Console restart command"];
     }
 }
 
@@ -2197,12 +2197,12 @@ desiredName(Desired state)
    */
   if ([l isActive])
     {
-      problem = @"Started (audit, not a problem)";
+      problem = @"Started (audit information)";
       NSLog(@"Started %@", l);
     }
   else
     {
-      problem = @"Stopped (audit, not a problem)";
+      problem = @"Stopped (audit information)";
       NSLog(@"Stopped %@", l);
     }
   managedObject = EcMakeManagedObject(host, @"Command", [l name]);
@@ -2214,6 +2214,7 @@ desiredName(Desired state)
     perceivedSeverity: EcAlarmSeverityCleared
     proposedRepairAction: @"none"
     additionalText: additional];
+  [a setAudit: YES];
   [self alarm: a];
   [self update];
 }
@@ -3230,7 +3231,8 @@ NSLog(@"Problem %@", localException);
                           [s appendFormat:
                             @"  %-32.32s is stopping (will restart)\n",
                             [key UTF8String]];
-                          [l setDesired: Live reason: @"manual launch"];
+                          [l setDesired: Live
+			         reason: @"Console launch command"];
                         }
                       else
                         {
@@ -3238,7 +3240,8 @@ NSLog(@"Problem %@", localException);
                             @"  %-32.32s will be started\n",
                             [key UTF8String]];
                           [l resetDelay];
-                          [l setDesired: Live reason: @"manual launch"];
+                          [l setDesired: Live
+				 reason: @"Console launch command"];
                         }
                     }
 
@@ -3457,7 +3460,8 @@ NSLog(@"Problem %@", localException);
                             }
                           else
                             {
-                              [l setDesired: Dead reason: @"manual quit"];
+                              [l setDesired: Dead
+				     reason: @"Console quit command"];
                               [l checkAbandonedStartup];
                             }
 			  [self clearAll: [c name]
@@ -3491,7 +3495,8 @@ NSLog(@"Problem %@", localException);
 				}
 			      else
 				{
-                                  [l setDesired: Dead reason: @"manual quit"];
+                                  [l setDesired: Dead
+					 reason: @"Console quit command"];
 				  m = [m stringByAppendingFormat:
 				    @"Suspended %@\n", key];
 				}
@@ -4354,7 +4359,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      [l setDesired: Live reason: @"launch by remote request"];
+      [l setDesired: Live reason: @"remote API request"];
     }
   return YES;
 }

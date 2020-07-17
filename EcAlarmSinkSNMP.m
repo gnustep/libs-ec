@@ -1640,16 +1640,19 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			  [prev release];
 			  changed = YES;
 			}
-		      /* Keep a record of clears which have been acted
-		       * upon.  The SNMP stuff doesn't need that, but
-		       * any monitoring object may need to be kept
-		       * informed.
-		       */
-		      if (nil != (prev = [_alarmsCleared member: next]))
+		      if (nil != prev || [next audit])
 			{
-			  [self clearsRemove: prev];
+			  /* Keep a record of clears which have been used
+			   * or which need to be recorded for audit purposes.
+			   * The SNMP stuff doesn't need that, but any
+			   * monitoring object may need to be kept informed.
+			   */
+			  if (nil != (prev = [_alarmsCleared member: next]))
+			    {
+			      [self clearsRemove: prev];
+			    }
+			  [self clearsPut: next];
 			}
-		      [self clearsPut: next];
 		    }
 		  else
 		    {

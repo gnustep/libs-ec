@@ -351,6 +351,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
   void			*_extra;
   BOOL			_frozen;
   uint8_t               _delay;
+  BOOL			_audit;
 }
 
 /** Creates and returns an autoreleased instance by calling the
@@ -402,6 +403,11 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
  * and alarm an an aid to the human operator for the monitoring system.
  */
 - (NSString*) additionalText;
+
+/** Returns YES if this alarm is flagged as an audit object: a clear which
+ * should be recorded/monitored even without a matching raise of the alarm.
+ */
+- (BOOL) audit;
 
 /** Compares the other object with the receiver for sorting/ordering.<br />
  * If both objects have a notificationID set then the result of the
@@ -465,7 +471,7 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
 
 /** Freeze the state of the receiver;
  * no more calls to setters are permitted.<br />
- * Then a frozen alarm is copied, the new copy is <em>not</em> frozen.
+ * When a frozen alarm is copied, the new copy is <em>not</em> frozen.
  */
 - (void) freeze;
 
@@ -557,6 +563,11 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
 /** Returns the probableCause set when the receiver was initialised.
  */
 - (EcAlarmProbableCause) probableCause;
+
+/** Specified if this alarm is to be flagged as an audit object: a clear which
+ * should be recorded/monitored even without a matching raise of the alarm.
+ */
+- (void) setAudit: (BOOL)flag;
 
 /** Sets the number of seconds for which this alarm should be delayed in the
  * queue to allow coalescing with other matching alarms.  This defaults to
