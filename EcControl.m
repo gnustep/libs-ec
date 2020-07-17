@@ -1877,8 +1877,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSDictionary *alertConf = [[self cmdDefaults] dictionaryForKey: @"Alerter"];
   NSString *host = [alertConf objectForKey: @"SNMPMasterAgentHost"];
   NSString *port = [alertConf objectForKey: @"SNMPMasterAgentPort"];
+
   lastAlertInfo = [NSMutableDictionary new];
   sink = [[EcAlarmSinkSNMP alloc] initWithHost: host name: port];
+  /* An alerter which confrms to the correct protocol is assumed to
+   * want to monitor alarms.
+   */
+  if ([alerter conformsToProtocol: @protocol(EcAlarmMonitor)])
+    {
+      [sink setMonitor: (id<EcAlarmMonitor>)alerter];
+    }
 
   result = [super ecRun];
 
@@ -3129,7 +3137,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           alerter = [alerterClass new];
         }
 
-      /* An alerter which confrms t the correct protocol is assumed to
+      /* An alerter which confrms to the correct protocol is assumed to
        * want to monitor alarms.
        */
       if ([alerter conformsToProtocol: @protocol(EcAlarmMonitor)])
