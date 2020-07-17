@@ -233,10 +233,6 @@ desiredName(Desired state)
    */
   Desired		desired;	// If process *should* be live/dead
 
-  /** Records the readson for the desired state.
-   */
-  NSString		*desiredReason;
-
   /** The timestamp at which the current startup operation began, or zero
    * if the process is not currently starting.
    */
@@ -338,6 +334,14 @@ desiredName(Desired state)
    * to the process so that it can log why it was restarted.
    */
   NSString              *restartReason;         // Reason for restart or nil
+
+  /** Records the reason we desire the process to be started.
+   */
+  NSString		*startedReason;
+
+  /** Records the reason we desire the process to be stopped.
+   */
+  NSString		*stoppedReason;
 
   /** Records the names of other processes which must be active in order for
    * this process to work.  Any attempt to start this process will result in
@@ -903,7 +907,8 @@ desiredName(Desired state)
   [[NSNotificationCenter defaultCenter] removeObserver: self];
   [startingTimer invalidate];
   [stoppingTimer invalidate];
-  RELEASE(desiredReason);
+  RELEASE(startedReason);
+  RELEASE(stoppedReason);
   RELEASE(restartReason);
   RELEASE(dependencies);
   RELEASE(client);
@@ -1351,7 +1356,7 @@ desiredName(Desired state)
             }
           else if ([self autolaunch] && 0.0 == clientQuitDate)
             {
-	      ASSIGN(desiredReason, @"autolaunch");
+	      ASSIGN(startedReason, @"autolaunch");
               /* If the config says we autolaunch and the last process
                * didn't shut down cleanly, we should start.
                */
@@ -1377,6 +1382,7 @@ desiredName(Desired state)
       if (NO == [self isStopping])
         {
           ASSIGNCOPY(restartReason, reason);
+          ASSIGNCOPY(stoppedReason, @"Console restart command");
           [self stop];
         }
     }
@@ -1389,9 +1395,9 @@ desiredName(Desired state)
 - (void) started
 {
   EcCommand	*command = (EcCommand*)EcProc;
-  NSString	*reason = AUTORELEASE(desiredReason);
+  NSString	*reason = AUTORELEASE(startedReason);
 
-  desiredReason = nil;
+  startedReason = nil;
   if (nil == reason)
     {
       reason = @"started externally";
@@ -1512,8 +1518,15 @@ desiredName(Desired state)
 {
   Desired       old = desired;
 
-  ASSIGNCOPY(desiredReason, reason);
   desired = state;
+  if (Live == desired)
+    {
+      ASSIGNCOPY(startedReason, reason);
+    }
+  if (Dead == desired)
+    {
+      ASSIGNCOPY(stoppedReason, reason);
+    }
   if (terminateBy != nil && desired != Dead)
     {
       desired = Dead;
@@ -1942,12 +1955,24 @@ desiredName(Desired state)
 
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
-      NSString	*reason = AUTORELEASE(desiredReason);
+      NSString	*reason = AUTORELEASE(stoppedReason);
 
-      desiredReason = nil;
+      stoppedReason = nil;
       if (nil == reason)
 	{
-	  reason = @"stopped externally";
+	  if (terminationStatusKnown && terminationStatus != 0)
+	    {
+	      reason = [NSString stringWithFormat:
+		@"stopped (died with signal %d)", terminationStatus];
+	    }
+	  else if (clientLostDate > 0.0)
+	    {
+	      reason = @"stopped (process lost)";
+	    }
+	  else
+	    {
+	      reason = @"stopped externally";
+	    }
 	}
 
       if (clientLostDate > 0.0)
