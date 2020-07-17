@@ -531,6 +531,12 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
  */
 - (NSString*) moInstance;
 
+/** Returns the process name of the managed object including the instance
+ * separated from the main name by a hyphen.  If the managed object has no
+ * process instance, this method simply returns the process name.
+ */
+- (NSString*) moInstancedProcess;
+
 /** Returns the process name of the managed object.
  */
 - (NSString*) moProcess;

@@ -835,6 +835,18 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
   return [s objectAtIndex: 2];
 }
 
+- (NSString*) moInstancedProcess
+{
+  NSArray	*s = [_managedObject componentsSeparatedByString: @"_"];
+  NSString	*i = [s objectAtIndex: 2];
+
+  if ([i length] > 0)
+    {
+      return [NSString stringWithFormat: @"%@-%@", [s objectAtIndex: 1], i];
+    }
+  return [s objectAtIndex: 1];
+}
+
 - (NSString*) moProcess
 {
   NSArray	*s = [_managedObject componentsSeparatedByString: @"_"];

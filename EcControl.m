@@ -2242,7 +2242,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
   [alerter handleEvent: message
               withHost: [alarm moHost]
-             andServer: [alarm moProcess]
+             andServer: [alarm moInstancedProcess]
              timestamp: [alarm eventDate]
             identifier: identifier
                  alarm: alarm
