@@ -1530,6 +1530,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 
 - (void) snmpHousekeeping
 {
+  ENTER_POOL
   time_t	now;
   BOOL	changed = NO;
 
@@ -1541,6 +1542,54 @@ objectsTable_handler(netsnmp_mib_handler *handler,
       _inTimeout = YES;
       NS_DURING
 	{
+	  /* If we have too many clears, remove the oldest one.
+	   */
+	  while ([_alarmsCleared count] > 1000)
+	    {
+	      NSEnumerator	*e = [_alarmsCleared objectEnumerator];
+	      EcAlarm		*o = nil;
+	      NSDate		*d = nil;
+	      EcAlarm		*a;
+
+	      while (nil != (a = [e nextObject]))
+		{
+		  if (nil == o)
+		    {
+		      o = a;
+		      d = [a eventDate];
+		    }
+		  else
+		    {
+		      NSDate	*n = [a eventDate];
+
+		      if ([d earlierDate: n] != d)
+			{
+			  o = a;
+			  d = n;
+			}
+		    }
+		}
+	      [self clearsRemove: o];
+	    }
+	  /* Purge clears over an hour old.
+	   */
+	  if ([_alarmsCleared count] > 0)
+	    {
+	      NSArray		*c = [self clears];
+	      NSUInteger	index = [c count];
+	      NSDate		*now = [NSDate date];
+
+	      while (index-- > 0)
+		{
+		  EcAlarm	*a = [c objectAtIndex: index];
+
+		  if ([[a eventDate] timeIntervalSinceDate: now] < -3600.0)
+		    {
+		      [self clearsRemove: a];
+		    }
+		}
+	    }
+
 	  if (0 == resyncFlag)
 	    {
 	      /* Check for alarms.
@@ -1599,6 +1648,16 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 			      [prev release];
 			      changed = YES;
 			    }
+			  /* Keep a record of clears which have been acted
+			   * upon.  The SNMP stuff doesn't need that, but
+			   * any monitoring object may need to be kept
+			   * informed.
+			   */
+			  if (nil != (prev = [_alarmsCleared member: next]))
+			    {
+			      [self clearsRemove: prev];
+			    }
+			  [self clearsPut: next];
 			}
 		      else
 			{
@@ -1749,6 +1808,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
     {
       [alarmSink _store];
     }
+  LEAVE_POOL
 }
 
 @end
