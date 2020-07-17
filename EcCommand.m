@@ -233,6 +233,10 @@ desiredName(Desired state)
    */
   Desired		desired;	// If process *should* be live/dead
 
+  /** Records the readson for the desired state.
+   */
+  NSString		*desiredReason;
+
   /** The timestamp at which the current startup operation began, or zero
    * if the process is not currently starting.
    */
@@ -375,7 +379,7 @@ desiredName(Desired state)
 - (void) resetDelay;
 - (void) setClient: (EcClientI*)c;
 - (void) setConfiguration: (NSDictionary*)c;
-- (void) setDesired: (Desired)state;
+- (void) setDesired: (Desired)state reason: (NSString*)reason;
 - (void) setHung;
 - (void) setPing;
 - (void) setProcessIdentifier: (int)p;
@@ -477,6 +481,7 @@ desiredName(Desired state)
 - (void) alarmCode: (AlarmCode)ac
           procName: (NSString*)name
            addText: (NSString*)additional;
+- (void) auditState: (LaunchInfo*)l reason: (NSString*)additional;
 - (void) clearAll: (NSString*)name addText: (NSString*)additional;
 - (void) clearCode: (AlarmCode)ac
           procName: (NSString*)name
@@ -898,6 +903,7 @@ desiredName(Desired state)
   [[NSNotificationCenter defaultCenter] removeObserver: self];
   [startingTimer invalidate];
   [stoppingTimer invalidate];
+  RELEASE(desiredReason);
   RELEASE(restartReason);
   RELEASE(dependencies);
   RELEASE(client);
@@ -1376,13 +1382,21 @@ desiredName(Desired state)
     }
   if (desired != Live)
     {
-      [self setDesired: Live];
+      [self setDesired: Live reason: @"restart requested"];
     }
 }
 
 - (void) started
 {
-NSLog(@"startup completed for %@", self);
+  EcCommand	*command = (EcCommand*)EcProc;
+  NSString	*reason = AUTORELEASE(desiredReason);
+
+  desiredReason = nil;
+  if (nil == reason)
+    {
+      reason = @"started externally";
+    }
+
   terminationCount = 0;
   terminationDate = 0.0;
   terminationStatusKnown = NO;
@@ -1407,6 +1421,9 @@ NSLog(@"startup completed for %@", self);
       startingTimer = nil;
       startingDate = 0.0;
     }
+
+  [command auditState: self reason: reason];
+
   if (Dead == desired)
     {
       /* It is not desired that this process should be running:
@@ -1467,25 +1484,35 @@ NSLog(@"startup completed for %@", self);
 
 	  [command clearAll: name addText: @"process disabled in config"];
 	}
-      [self setDesired: Dead];
+      if (desired != Dead)
+	{
+	  [self setDesired: Dead reason: @"process disabled in config"];
+	}
     }
   else if ([self autolaunch])
     {
-      [self setDesired: Live];
+      if (desired != Live)
+	{
+	  [self setDesired: Live reason: @"autolaunch"];
+	}
     }
   else
     {
-      [self setDesired: None];
+      if (desired != None)
+	{
+	  [self setDesired: None reason: nil];
+	}
     }
 }
 
 /* Called when a manual change is made to specify what state a process should
  * be in (also called to set configured state).
  */
-- (void) setDesired: (Desired)state
+- (void) setDesired: (Desired)state reason: (NSString*)reason
 {
   Desired       old = desired;
 
+  ASSIGNCOPY(desiredReason, reason);
   desired = state;
   if (terminateBy != nil && desired != Dead)
     {
@@ -1905,34 +1932,47 @@ NSLog(@"startup completed for %@", self);
   stableDate = 0.0;
   abortDate = 0.0;
   DESTROY(terminateBy);         // Termination completed
-  if (clientLostDate > 0.0)
-    {
-      NSString      *text;
 
-      if (terminationStatusKnown)
-        {
-          text = [NSString stringWithFormat: @"termination status %d",
-	    terminationStatus];
-        }
-      else
-        {
-          text = @"termination status unknown";
-        }
-      [command alarmCode: ACProcessLost
-                procName: name
-                 addText: text];
-      [command update];
-    }
-  else if (clientQuitDate > 0.0)
+  if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
-      /* Clean shutdown (process unregistered itself).
-       */
-      [self resetDelay];
-      [command update];
+      NSString	*reason = AUTORELEASE(desiredReason);
+
+      desiredReason = nil;
+      if (nil == reason)
+	{
+	  reason = @"stopped externally";
+	}
+
+      if (clientLostDate > 0.0)
+	{
+	  NSString      *text;
+
+	  if (terminationStatusKnown)
+	    {
+	      text = [NSString stringWithFormat: @"termination status %d",
+		terminationStatus];
+	    }
+	  else
+	    {
+	      text = @"termination status unknown";
+	    }
+	  [command alarmCode: ACProcessLost
+		    procName: name
+		     addText: text];
+	  [command auditState: self reason: reason];
+	}
+      else if (clientQuitDate > 0.0)
+	{
+	  /* Clean shutdown (process unregistered itself).
+	   */
+	  [self resetDelay];
+	  [command auditState: self reason: reason];
+	}
     }
   else
     {
       /* Loss of a process which hadn't connected/registered.
+       * This should not be audited as a stop since it did not start.
        */
     }
   [self progress];
@@ -2138,12 +2178,45 @@ NSLog(@"startup completed for %@", self);
   LEAVE_POOL
 }
 
-- (void) clearAll: (NSString*)name addText: (NSString*)additional
+- (void) auditState: (LaunchInfo*)l reason: (NSString*)additional
 {
   NSString	*managedObject;
+  NSString	*problem;
+  EcAlarm	*a;
+
+  /* For audit purposes we generate alarm clears without a corresponding
+   * alarm raise.  The SpecificProblem field therefore does not describe
+   * a problem in these cases.
+   */
+  if ([l isActive])
+    {
+      problem = @"Started (audit, not a problem)";
+      NSLog(@"Started %@", l);
+    }
+  else
+    {
+      problem = @"Stopped (audit, not a problem)";
+      NSLog(@"Stopped %@", l);
+    }
+  managedObject = EcMakeManagedObject(host, @"Command", [l name]);
+  a = [EcAlarm alarmForManagedObject: managedObject
+    at: nil
+    withEventType: EcAlarmEventTypeProcessingError
+    probableCause: EcAlarmSoftwareProgramError
+    specificProblem: problem
+    perceivedSeverity: EcAlarmSeverityCleared
+    proposedRepairAction: @"none"
+    additionalText: additional];
+  [self alarm: a];
+  [self update];
+}
+
+- (void) clearAll: (NSString*)name addText: (NSString*)additional
+{
+  NSString      *managedObject;
   NSString      *problem;
   NSString      *repair;
-  EcAlarm	*a;
+  EcAlarm       *a;
   AlarmCode     c;
 
   ENTER_POOL
@@ -3150,7 +3223,7 @@ NSLog(@"Problem %@", localException);
                           [s appendFormat:
                             @"  %-32.32s is stopping (will restart)\n",
                             [key UTF8String]];
-                          [l setDesired: Live];
+                          [l setDesired: Live reason: @"manual launch"];
                         }
                       else
                         {
@@ -3158,7 +3231,7 @@ NSLog(@"Problem %@", localException);
                             @"  %-32.32s will be started\n",
                             [key UTF8String]];
                           [l resetDelay];
-                          [l setDesired: Live];
+                          [l setDesired: Live reason: @"manual launch"];
                         }
                     }
 
@@ -3377,7 +3450,7 @@ NSLog(@"Problem %@", localException);
                             }
                           else
                             {
-                              [l setDesired: Dead];
+                              [l setDesired: Dead reason: @"manual quit"];
                               [l checkAbandonedStartup];
                             }
 			  [self clearAll: [c name]
@@ -3411,7 +3484,7 @@ NSLog(@"Problem %@", localException);
 				}
 			      else
 				{
-                                  [l setDesired: Dead];
+                                  [l setDesired: Dead reason: @"manual quit"];
 				  m = [m stringByAppendingFormat:
 				    @"Suspended %@\n", key];
 				}
@@ -4250,7 +4323,7 @@ NSLog(@"Problem %@", localException);
     {
       int       p = [l processIdentifier];
 
-      [l setDesired: Dead];
+      [l setDesired: Dead reason: @"killed shutdown/remote"];
       if (p > 0)
         {
           kill(p, SIGKILL);
@@ -4274,7 +4347,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      [l setDesired: Live];
+      [l setDesired: Live reason: @"launch by remote request"];
     }
   return YES;
 }
@@ -4378,7 +4451,7 @@ NSLog(@"Problem %@", localException);
   e = [launchInfo objectEnumerator];
   while (nil != (l = [e nextObject]))
     {
-      [l setDesired: Dead];
+      [l setDesired: Dead reason: @"quit all instruction"];
     }
 
   e = [[self unconfiguredClients] objectEnumerator];
