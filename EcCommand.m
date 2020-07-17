@@ -1831,11 +1831,18 @@ desiredName(Desired state)
       [startingTimer invalidate];
       EcExceptionMajor(nil, @"startingTimer reset %@", self);
     }
-  startingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
-                                                   target: self
-                                                 selector: _cmd
-                                                 userInfo: name
-                                                  repeats: NO];
+  if (startingDate > 0.0)
+    {
+      startingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
+						       target: self
+						     selector: _cmd
+						     userInfo: name
+						      repeats: NO];
+    }
+  else
+    {
+      NSLog(@"Startup cancelled in -starting: for %@", self);
+    }
 }
 
 - (NSDate*) startingDate
