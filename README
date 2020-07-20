@@ -24,18 +24,32 @@ look there to diagnose problems.
 ~xxx/Data/Command/AlertConfig.plist before the Control server will start.
 There are examples in the same directory as this README
 
+The Control server reads the configuration information and acts as a central
+point to which Command servers running on different hosts will connect (in
+order to obtain configuration and in order to report problems to a central
+point).  The Control server is also contacted by Console processes, which
+provide a command line to control the operation of the system as a whole.
+The Control server acts as an alarm destination for the entire system and
+interfaces to SNMP.  It also provides email alerting facilities according
+to alert rules defined in AlertConfig.plist 
+
 The Command server handles launching and shutting down of processes and
 monitoring their state.  When a process starts up it registers itself with
 the Command server, and when it shuts down it unregisters itself.
 A process is considered stable if it starts up, registers itself, and then
 responds to the 'pings' that the Command server sends to it at intervals.
-A process has to be working for long enough to respond to at least three of
-the periodic pings before it is considered stable.
+A process has to be working and registered with the Command server for some
+time before it is considered stable.
 
 In connection with this process management, the server will raise and clear
 some alarms.
 These alarms are all created with the 'processingError' event type
-and the 'softwareProgramError' probable cause.
+and the 'softwareProgramError' probable cause.  The alarms will have managed
+object values consisting of the host the server is running on, the process
+name 'Command', an empty instance value, and a component value consisting
+of the full name of the process (process name and instance) to which they
+apply.
+
 The individual specific problems are:
 
 Launch failed
@@ -46,7 +60,7 @@ Launch failed
   (eg if the program crashes immediately), or at the end of the permitted
   time (eg the program fails to connect to and register itself with the
   Command server).
-  This alarm shoudl be cleared automatically once the process launches or if
+  This alarm should be cleared automatically once the process launches or if
   the process is told to quit from the Console.
 
 Process hung
@@ -63,4 +77,26 @@ Process lost
   down before it does so).
   If the process is started again (and becomes stable), the alarm should
   automatically be cleared.
+
+Started (audit information)
+  An audit alarm clear, generated whenever a process launch completes, as an
+  informational message.  The additional text part says why the process started:
+
+  autolaunch
+  Console launch command
+  Console restart command
+  started externally
+  remote API request
+
+Stopped (audit information)
+  An audit alarm clear, generated whenever a process shutdown completes, as an
+  informational message.  The additional text part says why the process stopped:
+
+  process disabled in config
+  Console quit command
+  Console restart command
+  quit all instruction
+  stopped externally
+  stopped (process lost)
+  stopped (died with signal X)
 

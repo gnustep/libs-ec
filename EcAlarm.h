@@ -5,7 +5,7 @@
 
    Written by: Richard Frith-Macdonald <rfm@gnu.org>
    Date: Febrary 2010
-   Originally developed from 1996 to 2012 by Brainstorm, and donated to
+   Originally developed from 1996 to 2020 by Brainstorm, and donated to
    the FSF.
 
    This file is part of the GNUstep project.
@@ -332,6 +332,14 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
  * an external monitoring system.  The central coordination system is
  * responsible for ensuring that alarms for the same issue are updated
  * to contain the first event date, notification ID and a trend indicator.
+ * </p>
+ * <p>Alarms which have been raised (by passing them to an alarm destination)
+ * remain raised until they are cleared (by passign a matching alarm with
+ * a cleared severity status) to the destination.  Alarm clears sent with
+ * no earlier matching raise are generally ignored, but a clear may be
+ * flagged as a special audit alarm: one which is passed on and logged
+ * for audit porposes.  This is a rare situation where the alarm does not
+ * actually represent a problem (or even the suspicion of a problem).
  * </p>
  */
 @interface	EcAlarm : NSObject <NSCoding,NSCopying>
