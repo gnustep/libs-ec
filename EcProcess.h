@@ -1390,5 +1390,7 @@ extern NSString         *cmdDetailDbg;	/* Debug stuff in more detail.	*/
 /* Deprecated synonym for cmdBasicDbg.	*/
 extern NSString         *cmdDefaultDbg;
 
+extern NSString * const EcDidQuitNotification;	/* Posted in -ecDidQuit */
+extern NSString * const EcWillQuitNotification;	/* Posted in -ecWillQuit */
 
 #endif /* INCLUDED_ECPROCESS_H */

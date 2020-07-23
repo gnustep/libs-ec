@@ -95,6 +95,8 @@
 
 #include <stdio.h>
 
+NSString * const EcDidQuitNotification = @"EcDidQuitNotification";
+NSString * const EcWillQuitNotification = @"EcWillQuitNotification";
 
 #ifndef __MINGW__
 static int              reservedPipe[2] = { 0, 0 };
@@ -2640,6 +2642,10 @@ static BOOL     ecDidAwaken = NO;
       [self ecLogEnd: [keys objectAtIndex: index] to: now];
     }
 
+  [[NSNotificationCenter defaultCenter]
+    postNotificationName: EcDidQuitNotification
+		  object: self];
+
   exit(status);
 }
 
@@ -2877,6 +2883,10 @@ static BOOL     ecDidAwaken = NO;
         {
           NSLog(@"will quit: %@", ecQuitReason);
         }
+
+      [[NSNotificationCenter defaultCenter]
+	postNotificationName: EcWillQuitNotification
+		      object: self];
     }
   else
     {
