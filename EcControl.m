@@ -2742,18 +2742,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (nil == bundle)
     {
       [[self cmdLogFile: logname] printf: 
-       @"Couldn't load bundle '%@'", bundleName];
+       @"Couldn't load bundle '%@'\n", bundleName];
     }
   else if (Nil == (c = [bundle principalClass]))
     {
       [[self cmdLogFile: logname] printf: 
         @"Couldn't load principal class from %@"
-        @" at %@.", bundleName, path];
+        @" at %@.\n", bundleName, path];
     }
   else if (NO == [c isSubclassOfClass: [EcAlerter class]])
     {
       [[self cmdLogFile: logname] printf: 
-        @"%@ is not a subclass of EcAlerter", 
+        @"%@ is not a subclass of EcAlerter\n", 
         NSStringFromClass(c)];
       c = Nil;
     }
@@ -2907,7 +2907,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       if ([controlKey length] > 0 && nil == digest)
         {
           ASSIGN(configFailed,
-            @"EcControlKey supplied on startup but not in Control.plist");
+            @"EcControlKey supplied on startup but not in Control.plist\n");
           [[self cmdLogFile: logname] printf: @"%@", configFailed];
           return NO;
         }
@@ -2926,7 +2926,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           else
             {
               ASSIGN(configFailed,
-                @"EcControlKey configured but no value supplied on startup");
+                @"EcControlKey configured but no value supplied on startup\n");
               [[self cmdLogFile: logname] printf: @"%@", configFailed];
               return NO;
             }
@@ -2944,7 +2944,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           if (NO == [digest isEqual: hex])
             {
               ASSIGN(configFailed,
-                @"EcControlKey is not the MD5 digest of value from startup");
+                @"EcControlKey is not the MD5 digest of value from startup\n");
               [[self cmdLogFile: logname] printf: @"%@", configFailed];
               return NO;
             }
@@ -3196,7 +3196,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      NS_HANDLER
 		{
 		  [[self cmdLogFile: logname]
-		    printf: @"Updating config for '%@':%@",
+		    printf: @"Updating config for '%@':%@\n",
 		    [c name], localException];
 		}
 	      NS_ENDHANDLER
