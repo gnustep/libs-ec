@@ -1817,7 +1817,7 @@ desiredName(Desired state)
             }
         }
     }
-  if (0.0 == ti)
+  if (0.0 == ti && startingDate > 0.0)
     {
       ti = [NSDate timeIntervalSinceReferenceDate];
       if (ti - startingDate < 30.0)
