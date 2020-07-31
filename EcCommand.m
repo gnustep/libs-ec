@@ -349,6 +349,10 @@ desiredName(Desired state)
    * have been met.
    */
   NSArray               *dependencies;
+
+  /** Records the alarms currently raised for this process.
+   */
+  NSMutableArray	*alarms;
 }
 + (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
@@ -358,6 +362,17 @@ desiredName(Desired state)
 + (NSArray*) names;
 + (void) processQueue;
 + (void) remove: (NSString*)name;
+/** Adds an alarm to the list raised (removes if a clear is passed in)
+ * creating the array if it does not exist (even if a clear is passed in).
+ * This behavior ensures that the -alarms method returns nil if neither
+ * raises nor clears have taken place, but an array otherwise.
+ */
+- (void) alarm: (EcAlarm*)alarm;
+/** Returns the alarms raised for this process, an empty array if none are
+ * currently raised, and nil if this is not known (eg if the process raised
+ * and alarm and then failed to clear the alarm when restarting).
+ */
+- (NSArray*) alarms;
 - (BOOL) autolaunch;
 - (void) awakened;
 - (BOOL) checkActive;
@@ -486,7 +501,8 @@ desiredName(Desired state)
           procName: (NSString*)name
            addText: (NSString*)additional;
 - (void) auditState: (LaunchInfo*)l reason: (NSString*)additional;
-- (void) clearAll: (NSString*)name addText: (NSString*)additional;
+- (void) clearAll: (NSString*)name
+	  addText: (NSString*)additional;
 - (void) clearCode: (AlarmCode)ac
           procName: (NSString*)name
            addText: (NSString*)additional;
@@ -543,12 +559,12 @@ desiredName(Desired state)
                 identifier: (int)p
 		      name: (NSString*)n
 		 transient: (BOOL)t;
+- (void) removeClient: (EcClientI*)o cleanly: (BOOL)ok;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
 - (void) terminate: (NSDate*)by;
 - (void) _terminate: (NSTimer*)t;
 - (NSMutableArray*) unconfiguredClients;
 - (void) unregisterByObject: (id)obj;
-- (void) unregisterClient: (EcClientI*)o;
 - (void) update;
 - (void) updateConfig: (NSData*)data;
 - (void) woken: (id)obj;
@@ -773,6 +789,40 @@ desiredName(Desired state)
     }
 }
 
+- (void) alarm: (EcAlarm*)alarm
+{
+  NSUInteger	index;
+
+  if (nil == alarms)
+    {
+      alarms = [NSMutableArray new];
+    }
+  index = [alarms indexOfObject: alarm];
+  if (EcAlarmSeverityCleared == [alarm perceivedSeverity])
+    {
+      if (NSNotFound != index)
+	{
+	  [alarms removeObjectAtIndex: index];
+	}
+    }
+  else
+    {
+      if (NSNotFound == index)
+	{
+	  [alarms addObject: alarm];
+	}
+      else
+	{
+	  [alarms replaceObjectAtIndex: index withObject: alarm];
+	}
+    }
+}
+
+- (NSArray*) alarms
+{
+  return AUTORELEASE([alarms copy]);
+}
+
 - (BOOL) autolaunch
 {
   return [[conf objectForKey: @"Auto"] boolValue];
@@ -907,6 +957,7 @@ desiredName(Desired state)
   [[NSNotificationCenter defaultCenter] removeObserver: self];
   [startingTimer invalidate];
   [stoppingTimer invalidate];
+  RELEASE(alarms);
   RELEASE(startedReason);
   RELEASE(stoppedReason);
   RELEASE(restartReason);
@@ -2222,6 +2273,7 @@ desiredName(Desired state)
     perceivedSeverity: EcAlarmSeverityCritical
     proposedRepairAction: repair
     additionalText: additional];
+  [[LaunchInfo existing: name] alarm: a];	// Update launch info
   [self alarm: a];
   LEAVE_POOL
 }
@@ -2260,29 +2312,57 @@ desiredName(Desired state)
   [self update];
 }
 
+/* Clears all alarms we have raised (or an earlier instance might have raised
+ * and failed to clear due to a crash).
+ */
 - (void) clearAll: (NSString*)name addText: (NSString*)additional
 {
   NSString      *managedObject;
   NSString      *problem;
   NSString      *repair;
   EcAlarm       *a;
+  LaunchInfo	*l;
+  NSArray	*e;
   AlarmCode     c;
 
   ENTER_POOL
   managedObject = EcMakeManagedObject(host, @"Command", name);
-  for (c = ACLaunchFailed; c <= ACProcessLost; c++)
+
+  /* Get launch info and any known existing alarms for it.  The array of
+   * alarms will be nil if we don't know  what has been raised. 
+   */
+  l = [LaunchInfo existing: name];
+  e = [l alarms];
+  if (nil == e)
     {
-      ACStrings(c, &problem, &repair);
-      repair = @"cleared";
-      a = [EcAlarm alarmForManagedObject: managedObject
-        at: nil
-        withEventType: EcAlarmEventTypeProcessingError
-        probableCause: EcAlarmSoftwareProgramError
-        specificProblem: problem
-        perceivedSeverity: EcAlarmSeverityCleared
-        proposedRepairAction: repair
-        additionalText: additional];
-      [self alarm: a];
+      for (c = ACLaunchFailed; c <= ACProcessLost; c++)
+	{
+	  ACStrings(c, &problem, &repair);
+	  repair = @"cleared";
+	  a = [EcAlarm alarmForManagedObject: managedObject
+	    at: nil
+	    withEventType: EcAlarmEventTypeProcessingError
+	    probableCause: EcAlarmSoftwareProgramError
+	    specificProblem: problem
+	    perceivedSeverity: EcAlarmSeverityCleared
+	    proposedRepairAction: repair
+	    additionalText: additional];
+	    [l alarm: a];
+	    [self alarm: a];
+	}
+    }
+  else
+    {
+      NSUInteger	count = [e count];
+
+      /* Clear any raised alarms
+       */
+      while (count-- > 0)
+	{
+	  a = [[e objectAtIndex: count] clear];
+	  [l alarm: a];
+	  [self alarm: a];
+	}
     }
   LEAVE_POOL
 }
@@ -2309,6 +2389,7 @@ desiredName(Desired state)
     perceivedSeverity: EcAlarmSeverityCleared
     proposedRepairAction: repair
     additionalText: additional];
+  [[LaunchInfo existing: name] alarm: a];	// Update launch info
   [self alarm: a];
   LEAVE_POOL
 }
@@ -3992,7 +4073,7 @@ NSLog(@"Problem %@", localException);
                   failedToUnregister = YES;
                 }
               lostClients = YES;
-	      [self unregisterClient: o];
+	      [self removeClient: o cleanly: failedToUnregister ? NO : YES];
               [l clearClient: o cleanly: failedToUnregister ? NO : YES];
 	    }
 	}
@@ -5264,7 +5345,7 @@ NSLog(@"Problem %@", localException);
   return a;
 }
 
-- (void) unregisterClient: (EcClientI*)o
+- (void) removeClient: (EcClientI*)o cleanly: (BOOL)ok
 {
   NSString      *name = AUTORELEASE(RETAIN([o name]));
   NSUInteger	i;
@@ -5275,7 +5356,14 @@ NSLog(@"Problem %@", localException);
     {
       [clients removeObjectAtIndex: i];
     }
-  [self logChange: @"unregistered" for: name];
+  if (ok)
+    {
+      [self logChange: @"unregistered" for: name];
+    }
+  else
+    {
+      [self logChange: @"lost" for: name];
+    }
 }
 
 - (void) unregisterByObject: (id)obj
@@ -5287,7 +5375,7 @@ NSLog(@"Problem %@", localException);
       LaunchInfo	*l = [launchInfo objectForKey: [o name]];
 
       [l clearClient: o cleanly: YES];
-      [self unregisterClient: o];
+      [self removeClient: o cleanly: YES];
       [l progress];
     }
   [self update];
