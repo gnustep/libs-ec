@@ -420,7 +420,7 @@ desiredName(Desired state)
  */
 - (void) stop;
 
-/** Called at the pont when a stopping process finally ceases to exist.
+/** Called at the point when a stopping process finally ceases to exist.
  */
 - (void) stopped;
 
@@ -2007,6 +2007,7 @@ desiredName(Desired state)
        * This should not be audited as a stop since it did not start.
        */
     }
+
   [self progress];
   [LaunchInfo processQueue];
 }
@@ -2019,9 +2020,24 @@ desiredName(Desired state)
   [stoppingTimer invalidate];
   stoppingTimer = nil;
 
+  /* Still alive if:
+   * a. we still have a DO network connection to the process
+   * or
+   * b. the process which registered with us is still alive
+   */
   if (nil == client && NO == [self checkAlive])
     {
-      [self stopped];
+      if (nil == task)
+        {
+          [self stopped];
+        }
+      else
+        {
+          /* Gets subprocess exit status and then recursively calls
+           * this method.
+           */
+          [task waitUntilExit];
+        }
       return;
     }
 
@@ -2052,7 +2068,6 @@ desiredName(Desired state)
                   name: NSTaskDidTerminateNotification
                 object: task];
       launchDate = 0.0;
-      DESTROY(task);
       if (identifier > 0)
         {
           kill(identifier, SIGKILL);
@@ -2062,9 +2077,16 @@ desiredName(Desired state)
         {
           [self clearClient: client cleanly: NO];
         }
-      else
+      else if (nil == task)
         {
           [self stopped];
+        }
+      else
+        {
+          /* Gets subprocess exit status and then recursively calls
+           * this method.
+           */
+          [task waitUntilExit];
         }
       return;
     }
@@ -2132,13 +2154,7 @@ desiredName(Desired state)
             terminationStatus, name, identifier);
         }
       identifier = 0;
-
-      if (client != nil)
-        {
-          [self stopping: nil];
-          return;               // Connection not yet lost
-        }
-      [self stopped];
+      [self stopping: nil];
     }
 }
 
@@ -3974,9 +3990,6 @@ NSLog(@"Problem %@", localException);
               if (NO == [o unregistered] && NO == [o transient])
                 {
                   failedToUnregister = YES;
-                  [self alarmCode: ACProcessLost
-                         procName: [l name]
-                          addText: @"lost connection to process"];
                 }
               lostClients = YES;
 	      [self unregisterClient: o];
