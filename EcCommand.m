@@ -1531,6 +1531,7 @@ desiredName(Desired state)
 - (void) setConfiguration: (NSDictionary*)c
 {
   BOOL	wasDisabled = [self disabled];
+  BOOL	wasAuto = [self autolaunch];
 
   ASSIGNCOPY(conf, c);
   if ([self disabled])
@@ -1548,7 +1549,7 @@ desiredName(Desired state)
     }
   else if ([self autolaunch])
     {
-      if (desired != Live)
+      if (NO == wasAuto && desired != Live)
 	{
 	  [self setDesired: Live reason: @"autolaunch"];
 	}
