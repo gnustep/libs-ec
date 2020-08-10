@@ -401,7 +401,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   EcAlarmSeverity	severity = [alarm perceivedSeverity];
   NSString		*desc = [alarm description];
+  NSRange		range;
 
+  /* A local copy of an alarm will have an address differing from that of the
+   * alarm in the originating process.  Avoid reporting that here.
+   */
+  if ((range = [desc rangeOfString: @"0x"]).length > 0)
+    {
+      desc = [desc substringFromIndex: NSMaxRange(range)];
+      range = [desc rangeOfString: @" "];
+      desc = [desc substringFromIndex: range.location];
+      desc = [_(@"Alarm with") stringByAppendingString: desc];
+    }
+  
   if (EcAlarmSeverityCleared != severity
     && EcAlarmSeverityIndeterminate != severity) 
     {
