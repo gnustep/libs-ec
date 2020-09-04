@@ -31,6 +31,7 @@
 #import	<Foundation/NSDictionary.h>
 #import	<Foundation/NSEnumerator.h>
 #import	<Foundation/NSLock.h>
+#import <Foundation/NSObjCRuntime.h>
 #import	<Foundation/NSRunLoop.h>
 #import	<Foundation/NSString.h>
 #import	<Foundation/NSThread.h>
@@ -44,6 +45,32 @@ static NSMutableDictionary	*toWellKnown = nil;
 static NSString			*controlName = nil;
 
 @implementation	NSHost (EcHost)
+
+typedef NSHost	*(*hwnType)(Class c, SEL s, NSString *n);
+static IMP	hwnImp;		// Original +hostWithName: implementation
+
+/* This method is used to replace +[NSHost hostWithName:]
+ * First it checks to see if the supplied name is a well known name aliasing
+ * another. Then it performs the host lookup using the original method.
+ */
++ (NSHost*) _hostWithName: (NSString*)aName
+{
+  NSHost	*found = nil;
+
+  if (YES == [aName isKindOfClass: [NSString class]])
+    {
+      NSString	*rep;
+
+      [lock lock];
+      if (nil != (rep = [fromWellKnown objectForKey: aName]))
+	{
+	  aName = [[rep retain] autorelease];
+	}
+      [lock unlock];
+      found = ((hwnType)hwnImp)(self, @selector(hostWithName:), aName); 
+    }
+  return found;
+}
 
 + (void) _EcHostSetup
 {
@@ -65,6 +92,17 @@ static NSString			*controlName = nil;
 	  lock = l;
 	  fromWellKnown = [NSMutableDictionary alloc];
 	  toWellKnown = [NSMutableDictionary alloc];
+
+	  /* We need to override the class method of NSHost so that it
+	   * knows about well known host names.
+	   */
+	  Method	m;
+	  IMP		r;
+
+	  m = class_getClassMethod(self, @selector(_hostWithName:));
+	  r = method_getImplementation(m);
+	  m = class_getClassMethod([NSHost class], @selector(hostWithName:));
+	  hwnImp = method_setImplementation(m, r);
 
 	  /* Perform initial setup of control host and current host
 	   * from user defaults system.
@@ -91,7 +129,7 @@ static NSString			*controlName = nil;
 	    }
 	  if (nil != name)
 	    {
-	      host = [self hostWithName: name];
+	      host = ((hwnType)hwnImp)(self, @selector(hostWithName:), name); 
 	      if (nil == host)
 		{
 		  /* No such host ... set up name mapping in case
@@ -116,6 +154,7 @@ static NSString			*controlName = nil;
 	      name = [host wellKnownName];
 	    }
 	  [host setWellKnownName: name];
+
 	  [lock unlock];
 	}
       else
@@ -149,7 +188,7 @@ static NSString			*controlName = nil;
       [lock unlock];
       if (nil != aName)
 	{
-	  found = [self hostWithName: aName];
+	  found = ((hwnType)hwnImp)(self, @selector(hostWithName:), aName); 
 	}
     }
   return found;
@@ -171,8 +210,9 @@ static NSString			*controlName = nil;
 	  if ([k isKindOfClass: [NSString class]]
 	    && [v isKindOfClass: [NSString class]])
 	    {
-	      NSHost	*h = [self hostWithName: k];
+	      NSHost	*h;
 
+	      h = ((hwnType)hwnImp)(self, @selector(hostWithName:), k); 
 	      if (nil == h)
 		{
 		  NSEnumerator	*e;
