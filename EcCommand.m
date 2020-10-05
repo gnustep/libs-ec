@@ -3205,8 +3205,8 @@ NSLog(@"Problem %@", localException);
 		{
 		  m = @"Launch <name>\nAdds the named program to the list "
 		      @"of programs to be launched as soon as possible.\n"
-		      @"Launch all\nAdds all unlaunched programs which do "
-		      @"not have autolaunch disabled.\n";
+		      @"Launch all\nAdds all unlaunched programs which have "
+		      @"autolaunch enabled.\n";
 		}
 	      else if (comp(wd, @"List") >= 0)
 		{
@@ -3311,7 +3311,7 @@ NSLog(@"Problem %@", localException);
                     {
                       LaunchInfo	*l = [LaunchInfo existing: key];
 
-                      if ([l disabled] == YES)
+                      if ([l disabled])
                         {
                           if (NO == all)
                             {
@@ -3320,6 +3320,12 @@ NSLog(@"Problem %@", localException);
                                 [key UTF8String]];
                             }
                         }
+		      else if (NO == [l autolaunch] && YES == all)
+			{
+			  [s appendFormat:
+			    @"  %-32.32s not autolaunchable in config\n",
+			    [key UTF8String]];
+			}
                       else if ([l isActive])
                         {
                           if (NO == all)
@@ -3543,6 +3549,7 @@ NSLog(@"Problem %@", localException);
 		{
 		  [self quitAll];
 
+#if 0
 		  if ([clients count] == 0)
 		    {
 		      m = @"All clients have been shut down.\n";
@@ -3555,6 +3562,9 @@ NSLog(@"Problem %@", localException);
 		    {
 		      m = @"Some clients did not shut down.\n";
 		    }
+#else
+		  m = @"All clients have been asked to shut down.\n";
+#endif
 		}
 	      else
 		{
