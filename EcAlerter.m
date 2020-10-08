@@ -1183,8 +1183,8 @@ replaceFields(NSDictionary *fields, NSString *template)
                   if (nil == s)
                     {
                       /* Use few spaces so that more of the
-                       * message fits into an Sms.  */
-                      s = @"{Server}({Host}):{Timestamp} {Type}-{Message}";
+                       * message fits into an Sms. Omit Timestamp */
+                      s = @"{Server}({Host}) {Type}-{Message}";
                     }
                 }
               [event->m setObject: s forKey: @"Replacement"];
@@ -1771,21 +1771,11 @@ replaceFields(NSDictionary *fields, NSString *template)
   NSEnumerator	*e = [destinations objectEnumerator];
   NSString	*d;
   NSString	*s;
-  NSString	*t;
 
   /*
-   * Perform {field-name} substitutions, but to shorten the message
-   * remove any Timestamp value from the dictionary.
+   * Perform {field-name} substitutions.
    */
-  t = RETAIN([m objectForKey: @"Timestamp"]);
-  [m removeObjectForKey: @"Timestamp"];
   s = replaceFields(m, [m objectForKey: @"Replacement"]);
-  if (t != nil)
-    {
-      [m setObject: t forKey: @"Timestamp"];
-      RELEASE(t);
-    }
-
   if (sms == nil)
     {
       sms = [NSMutableDictionary new];
