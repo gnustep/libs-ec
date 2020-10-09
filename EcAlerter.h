@@ -210,17 +210,19 @@
  * position of the capture group (from 1 to 9) within the pattern.<br />
  * A capture group is a sequence starting with '\(' and ending with '\)'.
  * </p>
- * <p>When a match is found the full message is normally sent to all the
- * destinations listed in the <em>Email</em> and <em>Sms</em> arrays in
- * the rule, and logged to all the destinations in the <em>Log</em> array.<br />
- * Before the message is sent, the <em>Rewrite</em> field may be used to
+ * <p>When a match is found a text message based on the alert is normally
+ * sent to all the destinations listed in the <em>Email</em> and <em>Sms</em>
+ * arrays in the rule, and logged to all the destinations in the <em>Log</em>
+ * array.  The alert information is also passed to a method where a subclass
+ * may send it to the destinations listed in the <em>other</em> array.<br />
+ * Before the text message is sent, the <em>Rewrite</em> field may be used to
  * change the message in the event (rewriting it for the current rule and
  * for all subsequent rules).<br />
  * Once any rewriting has been done the actual message sent out will be
  * the most recently rewritten value (or a value determined by any
  * <em>Replacement</em> field in the current rule).<br />
  * The <em>Replacement</em> field comes in three variants which may be
- * used instead of the general field, depending on the kind of alert
+ * used instead of the general field, depending on the kind of message
  * actually being sent out.  These variants are:<br />
  * <em>EmailReplacement</em>, <em>LogReplacement</em>
  * and <em>SmsReplacement</em>.<br/>
@@ -254,6 +256,8 @@
  *   <desc>The text of the original message.</desc>
  *   <term>Identifier</term>
  *   <desc>The identifier of any alarm.</desc>
+ *   <term>IsClear</term>
+ *   <desc>YES if the alert was an alarm clear, NO otherwise.</desc>
  *   <term>SeverityCode</term>
  *   <desc>The numeric severity level of any alarm.
  *   Zero if this alert is not an alarm, five if it is a clear.</desc>
@@ -283,11 +287,12 @@
  * be better used to log the actual message.
  *
  * </p>
- * <p>The <em>Sms</em> array lists phone numbers to which Sms alerts are
- * to be sent (if the alerter has been subclassed to implement SMS delivery).
+ * <p>The <em>Sms</em> value is a single phone number or an array of phone
+ * numbers to which Sms alerts are to be sent (if the alerter has been
+ * subclassed to implement SMS delivery).
  * </p>
- * <p>The <em>Email</em> array lists email addresses to which email
- * alerts are to be sent.<br />
+ * <p>The <em>Email</em> value is a single email address or an array of
+ * email addresses to which email alert messages are to be sent.<br />
  * An address with the prefix '{ResponsibleEmail}' may be used as a
  * special case.  It means that if an alarm has a ResponsibleEmail value
  * set in its userInfo dictionary, that value is used as the address,
@@ -299,12 +304,19 @@
  * NB. The value of the <em>Subject</em> field is used as a template
  * in the same way as the <em>Replacement</em> fields.
  * </p>
- * <p>The <em>Threaded</em> is just like the Email array except that
+ * <p>The <em>Threaded</em> value is just like the Email value except that
  * it is only used for alarm messages, and the messages sent to the
  * addresses in this array form a chain of linke messages referring
  * back to each other rather than all being versions of the same
  * message.  This may give a better effect for people using mail
  * clients which don't support the message-ID header well.
+ * </p>
+ * <p>The <em>Other</em> value is a single string or an array of string
+ * values that a subclass may treat as destination addresses for sending
+ * the alerts via some other mechanism.  In this case no <em>Replacement</em>
+ * processing is performed, but the alert information dictionary contains
+ * all the information required to generate a message, and additionally
+ * contains Throttled set to say whether further alerts are suppressed.
  * </p>
  *
  * <p>Configuration of the alerter is done by the 'Alerter' key in the user
@@ -370,6 +382,7 @@
 {
   NSArray		*rules; /** Rules for handling alerts */
   NSMutableDictionary	*email; /** Batching Email alerts */
+  NSMutableDictionary	*other;	/** Throttling other alerts */
   NSMutableDictionary	*sms;   /** Batching SMS alerts */
   NSTimer		*timer; /** Timer for batch flush */
   NSString		*eBase; /** Sender host name for message ID */
@@ -378,8 +391,12 @@
   NSString		*eHost; /** Host with SMTP MTA */
   NSString		*ePort; /** Port of SMTP MTA */
   GSMimeSMTPClient	*smtp;  /** Client connection to MTA */
-  NSUInteger            sentEmail;
-  NSUInteger            failEmail;
+  uint64_t            	sentEmail;
+  uint64_t            	failEmail;
+  uint64_t            	sentOther;
+  uint64_t            	failOther;
+  uint64_t            	sentSms;
+  uint64_t            	failSms;
   BOOL                  debug;  /** Debug enabled in config */
   BOOL                  supersede;  /** If a clear should replace original */
   BOOL                  eThreaded;  /** alarm reminder emails threaded */
@@ -437,9 +454,9 @@
  * <p>Each event must consist of text associated with a host name,
  * server name (usually the process on the host) and timestamp.
  * </p>
- * <p>Each message is matched against each rule in the <em>Rules</em>
+ * <p>Each alert is matched against each rule in the <em>Rules</em>
  * configuration in turn, and the first match found is used.  The
- * message is sent to the people listed in the <code>Email</code> and
+ * alert is sent to the people listed in the <code>Email</code> and
  * <code>Sms</code> entries in the rule (which may be either single
  * names or arrays of names).
  * </p>
@@ -470,21 +487,29 @@
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
  * to log a message to an array of destinations.
  */
-- (void) log: (NSMutableDictionary*)m
-  identifier: (NSString*)identifier
-     isClear: (BOOL)isClear
-          to: (NSArray*)destinations;
+- (void) log: (NSMutableDictionary*)m to: (NSArray*)destinations;
 
 /** Called by
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
- * to pass a message to an array of destinations.
+ * to pass an alert to an array of destinations.<br />
+ * This method uses the EmailReplacement value or the Replacement value
+ * from the alert dictionary
+ * (or {Server}({Host}): {Timestamp} {Type} - {Message})
+ * as a template into which it substitutes other information
+ * from that dictionary to build an email message body.<br />
  * The message is actually appended to any cached messages for those
  * destinations ... and the cache is periodically flushed.
  */
-- (void) mail: (NSMutableDictionary*)m
-   identifier: (NSString*)identifier
-      isClear: (BOOL)isClear
-           to: (NSArray*)destinations;
+- (void) mail: (NSMutableDictionary*)m to: (NSArray*)destinations;
+
+/** Called by
+ * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
+ * to pass an alert to a single destination.
+ * Should return YES if the alert was passed on to the destination,
+ * NO if it was not (the default implementation simply returns NO).
+ * The calling code records success/failure stats from this.
+ */
+- (BOOL) other: (NSMutableDictionary*)m to: (NSString*)destination;
 
 /** Cache a copy of the Rules with modifications to store information
  * so we don't need to regenerate it every time we check a message.
@@ -497,15 +522,19 @@
 
 /** Called by
  * -handleEvent:withHost:andServer:timestamp:identifier:alarm:reminder:
- * to pass a message to an array of destinations.
+ * to pass an alert to an array of destinations.<br />
+ * This method uses the SmsReplacement value or the Replacement value
+ * from the alert dictionary (or {Server}({Host}) {Type}-{Message})
+ * as a template into which it substitutes other information
+ * from that dictionary to build a text message.<br />
  * The message replaces any cached messages for those
  * destinations (and has a count of the lost messages noted) ... and
- * the cache is periodically flushed.
+ * the cache is periodically flushed.<br />
+ * Any replaced message is recorded as a failure, but other than that
+ * it is the responsibility of a subclass to override the -smsFlush
+ * method and record success/failure stats.
  */
-- (void) sms: (NSMutableDictionary*)m
-  identifier: (NSString*)identifier
-     isClear: (BOOL)isClear
-          to: (NSArray*)destinations;
+- (void) sms: (NSMutableDictionary*)m to: (NSArray*)destinations;
 
 /** Responsible for the periodic calling of -flushEmail and -flushSms
  */

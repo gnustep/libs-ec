@@ -36,7 +36,7 @@
 #import "EcAlerter.h"
 #import "NSFileHandle+Printf.h"
 
-@interface Regex: NSObject
+@interface EcAlertRegex: NSObject
 {
   NSRegularExpression	*regex;
 }
@@ -45,7 +45,7 @@
 - (NSArray*) matches: (NSString*)string;
 @end
 
-@implementation	Regex
+@implementation	EcAlertRegex
 - (void) dealloc
 {
   [regex release];
@@ -106,6 +106,128 @@
   return matches;
 }
 @end
+
+@interface	EcAlertThrottle : NSObject
+{
+  uint32_t	counts[60];
+  uint64_t	base;
+  BOOL		throttled;
+}
+/** Tracks actions performed agains a limit per hour.
+ * Returns YES if the current alert must not be sent, NO otherwise.
+ * If the limit is with the current alert or an earlier one, returns
+ * the time at which alerting may resume.
+ */
+- (BOOL) shouldThrottle: (NSDate**)until;
+@end
+
+@implementation	EcAlertThrottle
+
+static uint32_t	throttleAt = 12;
+
+- (NSString*) description
+{
+  char		buf[BUFSIZ];
+  unsigned	slot;
+  unsigned	i;
+
+  slot = (((uint64_t)[NSDate timeIntervalSinceReferenceDate]) - base) / 60;
+  buf[0] = '\0';
+  for (i = 0; i <= slot; i++)
+    {
+      if (i > 0)
+	{
+	  if (i%6 == 0)
+	    {
+	      strcat(buf, "\n");
+	    }
+	  else
+	    {
+	      strcat(buf, ", ");
+	    }
+	}
+      sprintf(buf + strlen(buf), "%u", (unsigned)counts[i]);
+    }
+  return [[super description] stringByAppendingFormat:
+    @"Base: %@, Throttled: %@, Counts:\n%s\n",
+    [NSDate dateWithTimeIntervalSinceReferenceDate: (NSTimeInterval)base],
+    throttled ? @"Yes" : @"No", buf];
+}
+
+- (BOOL) shouldThrottle: (NSDate**)until
+{
+  uint64_t	now = (uint64_t)[NSDate timeIntervalSinceReferenceDate];
+  uint32_t	sum = 0;
+  uint32_t	slot;
+  uint32_t	index;
+  BOOL		wasThrottled;
+
+  if (0 == base)
+    {
+      base = now;		// Starting throttling period.
+    }
+
+  /* The number of minutes sinse the base time gives us the slot
+   * into which we should be recording the new event.
+   */
+  slot = (now - base) / 60;
+
+  if (slot >= 120)
+    {
+      /* As it's at least an hour since the last event, we can simply
+       * start a new recording period.
+       */ 
+      base = now;
+      memset(counts, '\0', 60 * 8);
+      slot = 0;
+    }
+  else if (slot > 59)
+    {
+      int	move = slot - 59;
+      
+      /* The recording period started over an hour ago, so we must adjust
+       * it forward so that the current time is in its 59th minute.
+       */
+      memmove(counts, counts + (60 - move), move * 8);
+      memset(counts + move, '\0', (60 - move) * 8);
+      base += move * 60;
+      slot = 59;
+    }
+  for (index = 0; index <= slot; index++)
+    {
+      sum += counts[index];
+    }
+  if (NO == (wasThrottled = throttled))
+    {
+      counts[slot]++;
+      sum++;
+    }
+
+  if (sum >= throttleAt)
+    {
+      throttled = YES;
+      /* The time at which unthrottling occurs is an hour after the
+       * first alert in the current recording period.
+       */
+      for (index = 0; index <= slot; index++)
+	{
+	  if (counts[index] > 0)
+	    {
+	      break;
+	    }
+	}
+      *until = [NSDate dateWithTimeIntervalSinceReferenceDate:
+	(NSTimeInterval)(base + 60*(index+1) + 3600)];
+    }
+  else
+    {
+      throttled = NO;
+      *until = nil;
+    }
+  return wasThrottled;
+}
+@end
+
 
 @interface      EcAlerterEvent : NSObject
 {
@@ -279,7 +401,9 @@ replaceFields(NSDictionary *fields, NSString *template)
   [lock lock];
   [self _setEFrom: [c objectForKey: @"EmailFrom"]];
   ASSIGNCOPY(eHost, [c objectForKey: @"EmailHost"]);
+  if (nil == eHost) eHost = @"localhost";
   ASSIGNCOPY(ePort, [c objectForKey: @"EmailPort"]);
+  if (nil == ePort) ePort = @"25";
   [lock unlock];
   [self setRules: [c objectForKey: @"Rules"]];
   return YES;
@@ -295,7 +419,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       NSMutableDictionary	*md;
       NSObject                  *obj;
       NSString			*str;
-      Regex			*val;
+      EcAlertRegex		*val;
 
       md = [[r objectAtIndex: i] mutableCopy];
       [r replaceObjectAtIndex: i withObject: md];
@@ -305,7 +429,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"HostRegex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (nil == val)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -319,7 +443,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"PatternRegex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (val == nil)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -333,7 +457,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"ServerRegex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (val == nil)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -347,7 +471,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"SeverityTextRegex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (val == nil)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -361,7 +485,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"Extra1Regex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (val == nil)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -375,7 +499,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [md removeObjectForKey: @"Extra2Regex"];
       if (str != nil)
         {
-	  val = [[Regex alloc] initWithString: str];
+	  val = [[EcAlertRegex alloc] initWithString: str];
 	  if (val == nil)
 	    {
 	      [r removeObjectAtIndex: i--];
@@ -615,6 +739,7 @@ replaceFields(NSDictionary *fields, NSString *template)
   [smtp flush: [NSDate dateWithTimeIntervalSinceNow: 30.0]];
   RELEASE(smtp);
   RELEASE(email);
+  RELEASE(other);
   RELEASE(sms);
   RELEASE(rules);
   RELEASE(eBase);
@@ -633,10 +758,14 @@ replaceFields(NSDictionary *fields, NSString *template)
   [lock lock];
   s = [NSString stringWithFormat: @"%@ -\nConfigured with %u rules\n"
     @"With SMTP %@:%@ as %@\n"
-    @"Email sent: %"PRIuPTR", fail: %"PRIuPTR", pending:%@\n"
-    @"SMS pending:%@",
-    [super description], (unsigned)[rules count], eHost, ePort,
-    eFrom, sentEmail, failEmail, email, sms];
+    @"Email sent: %"PRIu64", fail: %"PRIu64", pending:%@\n"
+    @"Other sent: %"PRIu64", fail: %"PRIu64"\n"
+    @"SMS   sent: %"PRIu64", fail: %"PRIu64", pending:%@\n",
+    [super description], (unsigned)[rules count],
+    eHost, ePort, eFrom,
+    sentEmail, failEmail, email ? email : @"none",
+    sentOther, failOther,
+    sentSms, failSms, sms ? sms : @"none"];
   [lock unlock];
   return s;
 }
@@ -723,7 +852,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       NSDictionary	*times;
       NSDictionary	*d;
       NSString	        *match = nil;
-      Regex		*e;
+      EcAlertRegex	*e;
       NSString	        *s;
       id		o;
       BOOL		isReminder;
@@ -1036,10 +1165,7 @@ replaceFields(NSDictionary *fields, NSString *template)
                     }
                 }
               [event->m setObject: s forKey: @"Replacement"];
-              [self log: event->m
-             identifier: event->identifier
-                isClear: event->isClear
-                     to: o];
+              [self log: event->m to: o];
             }
         }
       NS_HANDLER
@@ -1084,10 +1210,7 @@ replaceFields(NSDictionary *fields, NSString *template)
                 {
                   NSLog(@"Send Email for %@ to %@", [event alarmText], o);
                 }
-              [self mail: event->m
-              identifier: event->identifier
-                 isClear: event->isClear
-                      to: o];
+              [self mail: event->m to: o];
             }
         }
       NS_HANDLER
@@ -1144,10 +1267,7 @@ replaceFields(NSDictionary *fields, NSString *template)
                 {
                   NSLog(@"Send Email for %@ to %@", [event alarmText], o);
                 }
-              [self mail: event->m
-              identifier: event->identifier
-                 isClear: event->isClear
-                      to: o];
+              [self mail: event->m to: o];
             }
         }
       NS_HANDLER
@@ -1158,6 +1278,69 @@ replaceFields(NSDictionary *fields, NSString *template)
       NS_ENDHANDLER
       [event->m removeObjectForKey: @"Replacement"];
       [event->m removeObjectForKey: @"ReminderInterval"];
+
+      NS_DURING
+        {
+          o = [d objectForKey: @"Other"];
+          if ([o isKindOfClass: [NSString class]] == YES)
+            {
+              if ([o hasPrefix: @"("])
+                {
+                  o = [(NSString*)o propertyList];
+                }
+              else
+                {
+                  o = [NSArray arrayWithObject: o];
+                }
+            }
+          if (o != nil)
+            {
+	      EcAlertThrottle	*t;
+	      NSDate		*until;
+
+              if (YES == event->isAlarm && NO == quiet)
+                {
+                  NSLog(@"Other alert for %@ to %@", [event alarmText], o);
+                }
+	      if (nil == other)
+		{
+		  other = [NSMutableDictionary new];
+		}
+	      if (nil == (t = [other objectForKey: o]))
+		{
+		  t = [EcAlertThrottle new];
+		  [other setObject: t forKey: o];
+		  RELEASE(t);
+		}
+	      if ([t shouldThrottle: &until])
+		{
+		  failOther++;
+		} 
+	      else
+		{
+		  if (nil != until)
+		    {
+		      [event->m setObject: until forKey: @"Throttled"];
+		    }
+		  if ([self other: event->m to: o])
+		    {
+		      sentOther++;
+		    }
+		  else
+		    {
+		      failOther++;
+		    }
+		  [event->m removeObjectForKey: @"Throttled"];
+		}
+            }
+        }
+      NS_HANDLER
+        {
+          NSLog(@"Exception handling Other action for rule: %@",
+            localException);
+        }
+      NS_ENDHANDLER
+      [event->m removeObjectForKey: @"Replacement"];
 
       NS_DURING
         {
@@ -1192,10 +1375,7 @@ replaceFields(NSDictionary *fields, NSString *template)
                 {
                   NSLog(@"Send SMS for %@ to %@", [event alarmText], o);
                 }
-              [self sms: event->m
-             identifier: event->identifier
-                isClear: event->isClear
-                     to: o];
+              [self sms: event->m to: o];
             }
         }
       NS_HANDLER
@@ -1331,6 +1511,7 @@ replaceFields(NSDictionary *fields, NSString *template)
             forKey: @"SeverityCode"];
       [m setObject: event->severityText forKey: @"SeverityText"];
       [m setObject: [event->timestamp description] forKey: @"Timestamp"];
+      [m setObject: (event->isClear ? @"YES" : @"NO") forKey: @"IsClear"];
       if (event->reminder >= 0)
         {
           [m setObject: [NSString stringWithFormat: @"%d", event->reminder]
@@ -1516,10 +1697,7 @@ replaceFields(NSDictionary *fields, NSString *template)
   return self;
 }
 
-- (void) log: (NSMutableDictionary*)m
-  identifier: (NSString*)identifier
-     isClear: (BOOL)isClear
-          to: (NSArray*)destinations
+- (void) log: (NSMutableDictionary*)m to: (NSArray*)destinations
 {
   NSEnumerator	*e = [destinations objectEnumerator];
   NSString	*d;
@@ -1536,12 +1714,16 @@ replaceFields(NSDictionary *fields, NSString *template)
     }
 }
 
-- (void) mail: (NSMutableDictionary*)m
-   identifier: (NSString*)identifier
-      isClear: (BOOL)isClear
-           to: (NSArray*)destinations
+- (BOOL) other: (NSMutableDictionary*)m to: (NSString*)destination
+{
+  return NO;
+}
+
+- (void) mail: (NSMutableDictionary*)m to: (NSArray*)destinations
 {
   NSEnumerator	*e = [destinations objectEnumerator];
+  NSString	*identifier = [m objectForKey: @"Identifier"];
+  BOOL		isClear = [[m objectForKey: @"IsClear"] boolValue];
   NSString	*d;
   NSString	*text;
   NSString	*subject;
@@ -1763,10 +1945,7 @@ replaceFields(NSDictionary *fields, NSString *template)
   [self flushEmail];
 }
 
-- (void) sms: (NSMutableDictionary*)m
-  identifier: (NSString*)identifier
-     isClear: (BOOL)isClear
-          to: (NSArray*)destinations
+- (void) sms: (NSMutableDictionary*)m to: (NSArray*)destinations
 {
   NSEnumerator	*e = [destinations objectEnumerator];
   NSString	*d;
@@ -1784,7 +1963,7 @@ replaceFields(NSDictionary *fields, NSString *template)
     {
       NSString	*msg = [sms objectForKey: d];
 
-      if (msg == nil)
+      if (nil == msg)
         {
 	  msg = s;
 	}
@@ -1792,6 +1971,7 @@ replaceFields(NSDictionary *fields, NSString *template)
         {
 	  int	missed = 0;
 
+	  failSms++;	// Replacing an existing message 
 	  if ([msg hasPrefix: @"Missed("] == YES)
 	    {
 	      NSRange	r = [msg rangeOfString: @")"];
