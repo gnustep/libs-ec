@@ -36,7 +36,7 @@
 #import "EcAlerter.h"
 #import "NSFileHandle+Printf.h"
 
-static uint32_t	throttleAt = 12;
+static unsigned	throttleAt = 12;
 
 @interface EcAlertRegex: NSObject
 {
@@ -763,12 +763,12 @@ replaceFields(NSDictionary *fields, NSString *template)
   s = [NSString stringWithFormat: @"%@ -\nConfigured with %u rules\n"
     @"With SMTP %@:%@ as %@\n"
     @"Email sent: %"PRIu64", fail: %"PRIu64", pending:%@\n"
-    @"Other sent: %"PRIu64", fail: %"PRIu64"\n"
+    @"Other sent: %"PRIu64", fail: %"PRIu64", throttle:%u\n"
     @"SMS   sent: %"PRIu64", fail: %"PRIu64", pending:%@\n",
     [super description], (unsigned)[rules count],
     eHost, ePort, eFrom,
     sentEmail, failEmail, email ? email : @"none",
-    sentOther, failOther,
+    sentOther, failOther, throttleAt,
     sentSms, failSms, sms ? sms : @"none"];
   [lock unlock];
   return s;
