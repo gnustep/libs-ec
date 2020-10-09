@@ -346,6 +346,10 @@
  *   <desc>A boolean saying whether a clear alert should supersede the
  *     original message or simply act as a new version with the same
  *     message identifier.</desc>
+ *   <term>ThrottleAt</term>
+ *   <desc>An integer in the range 1 to 3600 saying how many alerts may
+ *     be sent to an <em>Other</em> destination per hour.  Any configuration
+ *     outside this range results in the default of 12 being used.</desc>
  * </deflist>
  *
  * <p>When an EcAlerter instance is used by a Control server process,

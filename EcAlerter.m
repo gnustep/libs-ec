@@ -36,6 +36,8 @@
 #import "EcAlerter.h"
 #import "NSFileHandle+Printf.h"
 
+static uint32_t	throttleAt = 12;
+
 @interface EcAlertRegex: NSObject
 {
   NSRegularExpression	*regex;
@@ -122,8 +124,6 @@
 @end
 
 @implementation	EcAlertThrottle
-
-static uint32_t	throttleAt = 12;
 
 - (NSString*) description
 {
@@ -395,6 +395,10 @@ replaceFields(NSDictionary *fields, NSString *template)
 
 - (BOOL) configureWithDefaults: (NSDictionary*)c
 {
+  int	i = [[c objectForKey: @"ThrottleAt"] intValue];
+
+  if (i <= 0 || i > 3600) i = 12;
+  throttleAt = i;
   debug = [[c objectForKey: @"Debug"] boolValue];
   quiet = [[c objectForKey: @"Quiet"] boolValue];
   supersede = [[c objectForKey: @"Supersede"] boolValue];
