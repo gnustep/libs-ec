@@ -1297,46 +1297,53 @@ replaceFields(NSDictionary *fields, NSString *template)
                   o = [NSArray arrayWithObject: o];
                 }
             }
-          if (o != nil)
+          if ([o isKindOfClass: [NSArray class]])
             {
-	      EcAlertThrottle	*t;
-	      NSDate		*until;
+	      NSEnumerator	*e = [o objectEnumerator];
+	      NSString		*s;
 
-              if (YES == event->isAlarm && NO == quiet)
-                {
-                  NSLog(@"Other alert for %@ to %@", [event alarmText], o);
-                }
-	      if (nil == other)
+	      while (nil != (s = [e nextObject]))
 		{
-		  other = [NSMutableDictionary new];
-		}
-	      if (nil == (t = [other objectForKey: o]))
-		{
-		  t = [EcAlertThrottle new];
-		  [other setObject: t forKey: o];
-		  RELEASE(t);
-		}
-	      if ([t shouldThrottle: &until])
-		{
-		  failOther++;
-		} 
-	      else
-		{
-		  if (nil != until)
+		  EcAlertThrottle	*t;
+		  NSDate		*until;
+
+		  s = [s description];
+		  if (YES == event->isAlarm && NO == quiet)
 		    {
-		      [event->m setObject: until forKey: @"Throttled"];
+		      NSLog(@"Other alert for %@ to %@", [event alarmText], s);
 		    }
-		  if ([self other: event->m to: o])
+		  if (nil == other)
 		    {
-		      sentOther++;
+		      other = [NSMutableDictionary new];
 		    }
-		  else
+		  if (nil == (t = [other objectForKey: s]))
+		    {
+		      t = [EcAlertThrottle new];
+		      [other setObject: t forKey: s];
+		      RELEASE(t);
+		    }
+		  if ([t shouldThrottle: &until])
 		    {
 		      failOther++;
+		    } 
+		  else
+		    {
+		      if (nil != until)
+			{
+			  [event->m setObject: until forKey: @"Throttled"];
+			}
+		      if ([self other: event->m to: s])
+			{
+			  sentOther++;
+			}
+		      else
+			{
+			  failOther++;
+			}
+		      [event->m removeObjectForKey: @"Throttled"];
 		    }
-		  [event->m removeObjectForKey: @"Throttled"];
 		}
-            }
+	    }
         }
       NS_HANDLER
         {
