@@ -1549,6 +1549,20 @@ replaceFields(NSDictionary *fields, NSString *template)
       [m setObject: event->text forKey: @"Message"];
       [m setObject: event->text forKey: @"Original"];
 
+      if (alarm)
+	{
+	  [m setObject: [alarm moComponent]
+		forKey: @"AlarmComponent"];
+	  [m setObject: [EcAlarm stringFromProbableCause: [alarm probableCause]]
+		forKey: @"AlarmProbableCause"];
+	  [m setObject: [alarm specificProblem]
+		forKey: @"AlarmSpecificProblem"];
+	  [m setObject: [alarm proposedRepairAction]
+		forKey: @"AlarmProposedRepairAction"];
+	  [m setObject: [alarm additionalText]
+		forKey: @"AlarmAdditionalText"];
+	}
+
       if (YES == event->isAlarm && NO == quiet)
         {
           NSLog(@"Handling %@ ... %@", [event alarmText], alarm);
