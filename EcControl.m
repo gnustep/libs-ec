@@ -879,7 +879,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
 	}
-      else if (comp(wd, @"clear") >= 0)
+      else if (comp(wd, @"clear") >= 0 || comp(wd, @"suppress") >= 0)
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -911,15 +911,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else
 		{
 		  m = [NSString stringWithFormat:
-		    @"%@Clearing %@\n", m, alarm];
+		    @"%@Suppressing %@\n", m, alarm];
 		  alarm = [alarm clear];
 		  [self alarm: alarm];
 		}
 	    }
 	  if (0 == [m length])
 	    {
-	      m = @"The 'clear' command requires an alarm notificationID\n"
-	        @"This is the unique identifier used for working with\n"
+	      m = @"The 'suppress' command requires one or more IDs\n"
+	        @"These are the unique identifiers used for working with\n"
 	        @"external SNMP monitoring systems.\n";
 	    }
 	}
@@ -983,9 +983,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  if ([wd length] == 0)
 	    {
 	      m = @"Commands are -\n"
-	      @"Help\tAlarms\tArchive\tClear\tConfig\tConnect\t"
+	      @"Help\tAlarms\tArchive\tConfig\tConnect\t"
 	      @"Flush\tHost\tList\tMemory\tOn\t"
-	      @"Password\tRepeat\tRestart\tQuit\tSet\tStatus\tTell\tUnset\n\n"
+	      @"Password\tRepeat\tRestart\tQuit\tSet\tStatus\t"
+	      @"Suppress\tTell\tUnset\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"Use 'tell xxx help' to get help for a specific client.\n"
 	      @"A command line consists of a sequence of words, "
@@ -1026,28 +1027,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"file is stored in a subdirectory whose name is of "
 		      @"the form YYYY-MM-DD being the date at "
 		      @"which the archive was created.\n";
-		}
-	      else if (comp(wd, @"Clear") >= 0)
-		{
-		  m = @"Clear\n\n"
-                      @"Instructs the Control server to clear "
-		      @"one or more alarms (identified by numeric\n"
-                      @"notificationIDs).\n\n"
-		      @"NB. This command clears the alarm(s) in the "
-		      @"central records of the Control server,\n"
-                      @"NOT in the originating process.\n"
-                      @"This feature means that you can clear "
-                      @"an alarm centrally while the underlying\n"
-                      @"problem has not been corrected and, "
-                      @"because the originating process has\n"
-                      @"already forwarded the alarm it will "
-                      @"not re-raise it with the central system.\n"
-                      @"This can be useful where you wish to "
-                      @"suppress some sort of repeated nagging by\n"
-                      @"the central system.\n"
-                      @"To reset things so the alarm may be "
-                      @"raised again you must issue a 'clear'\n"
-                      @"command directly to the originating process itsself.\n";
 		}
 	      else if (comp(wd, @"Config") >= 0)
 		{
@@ -1150,6 +1129,28 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  m = @"Status\nInstructs the Control server to report its "
 		      @"current status ... mostly the buffered alert and "
 		      @"error messages waiting to be sent out.\n";
+		}
+	      else if (comp(wd, @"Suppress") >= 0)
+		{
+		  m = @"Suppress\n\n"
+                      @"Instructs the Control server to clear "
+		      @"one or more alarms (identified by numeric\n"
+                      @"notificationIDs).\n\n"
+		      @"NB. This command clears the alarm(s) in the "
+		      @"central records of the Control server,\n"
+                      @"NOT in the originating process.\n"
+                      @"This feature means that you can clear "
+                      @"an alarm centrally while the underlying\n"
+                      @"problem has not been corrected and, "
+                      @"because the originating process has\n"
+                      @"already forwarded the alarm it will "
+                      @"not re-raise it with the central system.\n"
+                      @"This can be useful where you wish to "
+                      @"suppress some sort of repeated nagging by\n"
+                      @"the central system.\n"
+                      @"To reset things so the alarm may be "
+                      @"raised again you must issue a 'clear'\n"
+                      @"command directly to the originating process itsself.\n";
 		}
 	      else if (comp(wd, @"Tell") >= 0)
 		{
