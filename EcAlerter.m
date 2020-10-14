@@ -109,9 +109,11 @@ static unsigned	throttleAt = 12;
 }
 @end
 
+#define	MINUTES	60
+
 @interface	EcAlertThrottle : NSObject
 {
-  uint32_t	counts[60];
+  uint32_t	mins[MINUTES];
   uint64_t	base;
   BOOL		throttled;
 }
@@ -128,12 +130,16 @@ static unsigned	throttleAt = 12;
 - (NSString*) description
 {
   char		buf[BUFSIZ];
-  unsigned	slot;
+  unsigned	minute;
   unsigned	i;
 
-  slot = (((uint64_t)[NSDate timeIntervalSinceReferenceDate]) - base) / 60;
+  minute = (((uint64_t)[NSDate timeIntervalSinceReferenceDate]) - base) / 60;
+  if (minute >= MINUTES)
+    {
+      minute = MINUTES-1;
+    }
   buf[0] = '\0';
-  for (i = 0; i <= slot; i++)
+  for (i = 0; i <= minute; i++)
     {
       if (i > 0)
 	{
@@ -146,7 +152,7 @@ static unsigned	throttleAt = 12;
 	      strcat(buf, ", ");
 	    }
 	}
-      sprintf(buf + strlen(buf), "%u", (unsigned)counts[i]);
+      sprintf(buf + strlen(buf), "%u", (unsigned)mins[i]);
     }
   return [[super description] stringByAppendingFormat:
     @"Base: %@, Throttled: %@, Counts:\n%s\n",
@@ -158,7 +164,7 @@ static unsigned	throttleAt = 12;
 {
   uint64_t	now = (uint64_t)[NSDate timeIntervalSinceReferenceDate];
   uint32_t	sum = 0;
-  uint32_t	slot;
+  uint32_t	minute;
   uint32_t	index;
   BOOL		wasThrottled;
 
@@ -167,57 +173,57 @@ static unsigned	throttleAt = 12;
       base = now;		// Starting throttling period.
     }
 
-  /* The number of minutes sinse the base time gives us the slot
+  /* The number of minutes since the base time gives us the minute
    * into which we should be recording the new event.
    */
-  slot = (now - base) / 60;
+  minute = (now - base) / 60;
 
-  if (slot >= 120)
+  if (minute >= 2*MINUTES)
     {
       /* As it's at least an hour since the last event, we can simply
        * start a new recording period.
        */ 
       base = now;
-      memset(counts, '\0', 60 * sizeof(*counts));
-      slot = 0;
+      memset(mins, '\0', MINUTES * sizeof(*mins));
+      minute = 0;
     }
-  else if (slot > 59)
+  else if (minute > (MINUTES-1))
     {
-      int	move = slot - 59;
+      int	move = minute - (MINUTES-1);
       
       /* The recording period started over an hour ago, so we must adjust
        * it forward so that the current time is in its 59th minute.
        */
-      memmove(counts, counts + (60 - move), move * sizeof(*counts));
-      memset(counts + move, '\0', (60 - move) * sizeof(*counts));
+      memmove(mins, mins + move, (MINUTES - move) * sizeof(*mins));
+      memset(mins + (MINUTES - move), '\0', move * sizeof(*mins));
       base += move * 60;
-      slot = 59;
+      minute = (MINUTES-1);
     }
-  for (index = 0; index <= slot; index++)
+  for (index = 0; index <= minute; index++)
     {
-      sum += counts[index];
+      sum += mins[index];
     }
   if (NO == (wasThrottled = throttled))
     {
-      counts[slot]++;
+      mins[minute]++;
       sum++;
     }
 
   if (sum >= throttleAt)
     {
       throttled = YES;
-      /* The time at which unthrottling occurs is an hour after the
+      /* The time at which unthrottling occurs is MINUTES after the
        * first alert in the current recording period.
        */
-      for (index = 0; index <= slot; index++)
+      for (index = 0; index <= minute; index++)
 	{
-	  if (counts[index] > 0)
+	  if (mins[index] > 0)
 	    {
 	      break;
 	    }
 	}
       *until = [NSDate dateWithTimeIntervalSinceReferenceDate:
-	(NSTimeInterval)(base + 60*(index+1) + 3600)];
+	(NSTimeInterval)(base + 60*(index+1) + 60*MINUTES)];
     }
   else
     {
@@ -1306,6 +1312,8 @@ replaceFields(NSDictionary *fields, NSString *template)
 		{
 		  EcAlertThrottle	*t;
 		  NSDate		*until;
+		  BOOL			throttled;
+		  NSString		*before = nil;
 
 		  s = [s description];
 		  if (YES == event->isAlarm && NO == quiet)
@@ -1322,7 +1330,17 @@ replaceFields(NSDictionary *fields, NSString *template)
 		      [other setObject: t forKey: s];
 		      RELEASE(t);
 		    }
-		  if ([t shouldThrottle: &until])
+		  if (debug)
+		    {
+		      before = [t description];
+		    }
+		  throttled = [t shouldThrottle: &until];
+		  if (debug)
+		    {
+		      NSLog(@"Other destination: %@\nBefore %@\nAfter %@",
+			s, before, [t description]);
+		    }
+		  if (throttled)
 		    {
 		      failOther++;
 		    } 
