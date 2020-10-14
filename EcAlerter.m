@@ -178,7 +178,7 @@ static unsigned	throttleAt = 12;
        * start a new recording period.
        */ 
       base = now;
-      memset(counts, '\0', 60 * 8);
+      memset(counts, '\0', 60 * sizeof(*counts));
       slot = 0;
     }
   else if (slot > 59)
@@ -188,8 +188,8 @@ static unsigned	throttleAt = 12;
       /* The recording period started over an hour ago, so we must adjust
        * it forward so that the current time is in its 59th minute.
        */
-      memmove(counts, counts + (60 - move), move * 8);
-      memset(counts + move, '\0', (60 - move) * 8);
+      memmove(counts, counts + (60 - move), move * sizeof(*counts));
+      memset(counts + move, '\0', (60 - move) * sizeof(*counts));
       base += move * 60;
       slot = 59;
     }
