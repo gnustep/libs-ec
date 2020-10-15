@@ -254,6 +254,10 @@
  *   <desc>The text matched by the latest <em>Pattern</em> if any</desc>
  *   <term>Original</term>
  *   <desc>The text of the original message.</desc>
+ *   <term>RuleID</term>
+ *   <desc>The identifier (if any) of the matched rule.</desc>
+ *   <term>Position</term>
+ *   <desc>The position of the matched rule in the list of rules.</desc>
  *   <term>Identifier</term>
  *   <desc>The identifier of any alarm.</desc>
  *   <term>IsClear</term>
@@ -264,6 +268,16 @@
  *   <term>SeverityText</term>
  *   <desc>The text severity level of any alarm.
  *   An empty string if this alert is not an alarm</desc>
+ *   <term>AlarmComponent</term>
+ *   <desc>The managed object component part if the alert is an alarm</desc>
+ *   <term>AlarmProbableCause</term>
+ *   <desc>The probable cause if the alert is an alarm</desc>
+ *   <term>AlarmSpecificProblem</term>
+ *   <desc>The specific problem if the alert is an alarm</desc>
+ *   <term>AlarmProposedRepairAction</term>
+ *   <desc>The proposed repair action if the alert is an alarm</desc>
+ *   <term>AlarmAdditionalText</term>
+ *   <desc>The additional text if the alert is an alarm</desc>
  *   <term>Duration</term>
  *   <desc>The duration (minutes) if the event is an alarm.</desc>
  *   <term>Hours</term>

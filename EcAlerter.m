@@ -1066,9 +1066,20 @@ replaceFields(NSDictionary *fields, NSString *template)
 
 
       found = YES;
+      s = [NSString stringWithFormat: @"%u", (unsigned)i];
+      [event->m setObject: s forKey: @"Position"];
       if (YES == debug)
         {
-          NSLog(@"Rule %u matched %@ with %@", (unsigned)i, d, event->m);
+	  if (nil == (s = [event->m objectForKey: @"RuleID"]))
+	    {
+	      NSLog(@"Rule (pos %u) matched %@ with %@",
+		(unsigned)i, d, event->m);
+	    }
+	  else
+	    {
+	      NSLog(@"Rule %@ (pos %u) matched %@ with %@",
+		s, (unsigned)i, d, event->m);
+	    }
         }
 
       /*
