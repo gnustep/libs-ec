@@ -865,6 +865,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       EcAlertRegex	*e;
       NSString	        *s;
       id		o;
+      int		ri;
       BOOL		isReminder;
 
       RELEASE(pool);
@@ -963,46 +964,32 @@ replaceFields(NSDictionary *fields, NSString *template)
             }
         }
 
+      /* The next set are matches only for alarms.
+       */
+
+      ri = [[d objectForKey: @"ReminderInterval"] intValue];
       if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
 	{
 	  isReminder = YES;
+	  /* This is an alarm reminder (neither the initial alarm
+	   * nor the clear), so we check the ReminderInterval.
+	   * In order for a match to occur, the ReminderInterval
+	   * must be set and must match the number of the reminder
+	   * using division modulo the reminder interval value.
+	   * NB, unlike other patterns, the absence of this one
+	   * implies a match failure!
+	   */
+	  if (ri < 1 || (event->reminder % ri) != 0)
+	    {
+	      continue;		// Not a match.
+	    }
 	}
       else
 	{
 	  isReminder = NO;
-	}
-
-      /* The next set are matches only for alarms.
-       */
-      if (nil != (s = [d objectForKey: @"Component"]))
-	{
-	  if (NO == [s isEqual: event->component])
+	  if (ri > 0)
 	    {
-	      continue;
-	    }
-	}
-      if (nil != (s = [d objectForKey: @"ReminderInterval"]))
-	{
-	  if (isReminder)
-	    {
-	      int	v = [s intValue];
-
-	      /* This is an alarm reminder (neither the initial alarm
-	       * nor the clear), so we check the ReminderInterval.
-	       * In order for a match to occur, the ReminderInterval
-	       * must be set and must match the number of the reminder
-	       * using division modulo the reminder interval value.
-	       * NB, unlike other patterns, the absence of this one
-	       * implies a match failure!
-	       */
-	      if (v < 1 || (event->reminder % v) != 0)
-		{
-		  continue;		// Not a match.
-		}
-	    }
-	  else
-	    {
-	      continue;		// Not a reminder
+	      continue;	// Rule matches only reminders
 	    }
 	}
 
@@ -1028,6 +1015,14 @@ replaceFields(NSDictionary *fields, NSString *template)
 	&& (NO == isReminder || event->reminder >= [s intValue]))
 	{
 	  continue;		// Not a match.
+	}
+
+      if (nil != (s = [d objectForKey: @"Component"]))
+	{
+	  if (NO == [s isEqual: event->component])
+	    {
+	      continue;
+	    }
 	}
 
       if (nil != (e = [d objectForKey: @"SeverityTextRegex"])
