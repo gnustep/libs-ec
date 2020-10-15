@@ -104,11 +104,10 @@
  *   <desc>For [EcAlarm] messages, this may be used to match every Nth
  *   reminder (where the value N is a positive integer).<br />
  *   Setting a value of 1 matches all reminders.<br />
- *   Setting a value of 0 (or failing to set a positive integer value)
- *   matches no reminders.<br />
+ *   Failing to set a positive integer value matches no reminders.<br />
  *   NB. This is unlike other match conditions in that the absence of
  *   this condition implies that the rule does NOT match any alarm
- *   reminder.
+ *   reminder, and the presence of a positive integer matches only reminders.
  *   </desc>
  *   <term>SeverityCode</term>
  *   <desc>For [EcAlarm] messages, this may be used to match an integer alarm
