@@ -865,7 +865,6 @@ replaceFields(NSDictionary *fields, NSString *template)
       EcAlertRegex	*e;
       NSString	        *s;
       id		o;
-      int		ri;
       BOOL		isReminder;
 
       RELEASE(pool);
@@ -967,9 +966,10 @@ replaceFields(NSDictionary *fields, NSString *template)
       /* The next set are matches only for alarms.
        */
 
-      ri = [[d objectForKey: @"ReminderInterval"] intValue];
       if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
 	{
+	  int	ri;
+
 	  isReminder = YES;
 	  /* This is an alarm reminder (neither the initial alarm
 	   * nor the clear), so we check the ReminderInterval.
@@ -979,6 +979,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	   * NB, unlike other patterns, the absence of this one
 	   * implies a match failure!
 	   */
+	  ri = [[d objectForKey: @"ReminderInterval"] intValue];
 	  if (ri < 1 || (event->reminder % ri) != 0)
 	    {
 	      continue;		// Not a match.
@@ -986,11 +987,12 @@ replaceFields(NSDictionary *fields, NSString *template)
 	}
       else
 	{
+	  /* Not a reminder, so the ReminderInterval is ignored.
+	   * Rules can match both alerts which are not reminders *and*
+	   * alerts which are reminders, with the reminder interval
+	   * being used only where applicable.
+	   */
 	  isReminder = NO;
-	  if (ri > 0)
-	    {
-	      continue;	// Rule matches only reminders
-	    }
 	}
 
       if (nil != (s = [d objectForKey: @"DurationAbove"])
