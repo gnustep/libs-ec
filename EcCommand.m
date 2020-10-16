@@ -280,8 +280,9 @@ desiredName(Desired state)
   unsigned              terminationCount;
 
   /** Where the Command server launched the process and is able to get the
-   * process termination status, this variqable is used to record it.
+   * process termination status, these variables are used to record it.
    */
+  int			terminationSignal;	// Last exit signal
   int                   terminationStatus;      // Last exit status
   BOOL			terminationStatusKnown;
 
@@ -870,8 +871,8 @@ desiredName(Desired state)
               [c setReplyTimeout: 10.0];
               proxy = (id<CmdClient>)[c rootProxy];
 
-              /* Sending an ecReconnect message to thge client process should
-               * result in our 'client' ivar beng set.
+              /* Sending an ecReconnect message to the client process should
+               * result in our 'client' ivar being set.
                */
               [proxy ecReconnect];
               [c setRequestTimeout: 0.0];
@@ -1405,7 +1406,10 @@ desiredName(Desired state)
                   [self stop];
                 }
             }
-          else if ([self autolaunch] && 0.0 == clientQuitDate)
+          else if ([self autolaunch]
+	    && (0.0 == clientQuitDate
+	      || (terminationStatusKnown
+		&& (terminationSignal || terminationStatus))))
             {
 	      ASSIGN(startedReason, @"autolaunch");
               /* If the config says we autolaunch and the last process
@@ -2008,14 +2012,28 @@ desiredName(Desired state)
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
       NSString	*reason = AUTORELEASE(stoppedReason);
+      BOOL	failed = NO;
 
       stoppedReason = nil;
       if (nil == reason)
 	{
-	  if (terminationStatusKnown && terminationStatus != 0)
+	  if (terminationStatusKnown && terminationSignal != 0)
 	    {
+	      /* If the process died due to a signal, it was lost rather
+	       * than shutting down normally.
+	       */
+	      failed = YES;
 	      reason = [NSString stringWithFormat:
-		@"stopped (died with signal %d)", terminationStatus];
+		@"stopped (died with signal %d)", terminationSignal];
+	    }
+	  else if (terminationStatusKnown && terminationStatus != 0)
+	    {
+	      /* If the process died with a non-zero exit status it
+	       * failed rather than shutting down normally.
+	       */
+	      failed = YES;
+	      reason = [NSString stringWithFormat:
+		@"stopped (with exit status %d)", terminationStatus];
 	    }
 	  else if (clientLostDate > 0.0)
 	    {
@@ -2027,14 +2045,22 @@ desiredName(Desired state)
 	    }
 	}
 
-      if (clientLostDate > 0.0)
+      if (failed || clientLostDate > 0.0)
 	{
 	  NSString      *text;
 
 	  if (terminationStatusKnown)
 	    {
-	      text = [NSString stringWithFormat: @"termination status %d",
-		terminationStatus];
+	      if (terminationSignal != 0)
+		{
+		  text = [NSString stringWithFormat: @"termination signal %d",
+		    terminationSignal];
+		}
+	      else
+		{
+		  text = [NSString stringWithFormat: @"termination status %d",
+		    terminationStatus];
+		}
 	    }
 	  else
 	    {
@@ -2195,12 +2221,34 @@ desiredName(Desired state)
   if (t == task)
     {
       terminationCount++;
-      terminationStatus = [task terminationStatus];
+      if (NSTaskTerminationReasonUncaughtSignal == [task terminationReason])
+	{
+	  terminationSignal = [task terminationStatus];
+	  terminationStatus = 0;
+	}
+      else
+	{
+	  terminationSignal = 0;
+	  terminationStatus = [task terminationStatus];
+	  /* This is an 8-bit value for the OS on Linux and won't have
+	   * been sign-extended when placed in an integer.  So lets
+	   * convert it to a negative integer when necessary.
+	   */
+	  if (terminationStatus > 127 && terminationStatus < 256)
+	    {
+	      terminationStatus = terminationStatus - 256;
+	    }
+	}
       terminationStatusKnown = YES;
       terminationDate = [NSDate timeIntervalSinceReferenceDate];
       launchDate = 0.0;
       DESTROY(task);
-      if (terminationStatus != 0)
+      if (terminationSignal != 0)
+        {
+          NSLog(@"Termination signal %d for %@ (pid %d)",
+            terminationSignal, name, identifier);
+        }
+      else if (terminationStatus != 0)
         {
           NSLog(@"Termination status %d for %@ (pid %d)",
             terminationStatus, name, identifier);
