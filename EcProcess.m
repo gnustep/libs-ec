@@ -2550,7 +2550,9 @@ static BOOL     ecDidAwaken = NO;
         additionalText: err];
       [self alarm: a];
       [[self ecAlarmDestination] shutdown];
-      [self ecQuitFor: @"configuration error" with: 1];
+      /* Fatal configuration error should be -3 so the Command server knows
+       */
+      [self ecQuitFor: @"configuration error" with: -3];
     }
   else
     {
@@ -2848,7 +2850,7 @@ static BOOL     ecDidAwaken = NO;
     }
   [self cmdAudit: @"Restarting '%@' (%@)", [self cmdName], reason];
   [auditLogger flush];
-  [self ecQuitFor: reason with: -1];
+  [self ecQuitFor: reason with: -1];	// -1 tells Command to relaunch
 }
 
 - (void) ecLoggersChanged: (NSNotification*)n
@@ -3510,8 +3512,10 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 			[r objectForKey: @"rejected"]];
 		      NSLog(@"Unable to connect to Command server ... %@",
 			shutdown);
-		      /* Rejected by server.	*/
-                      [self ecQuitFor: shutdown with: 0];
+		      /* Rejected by Command server.
+		       * NB. The Command server should expect a -4 exit
+		       */
+                      [self ecQuitFor: shutdown with: -4];
 		    }
 		  else if ([r objectForKey: @"back-off"] != nil)
 		    {
@@ -3694,7 +3698,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               close(reservedPipe[0]); reservedPipe[0] = 0;
               close(reservedPipe[1]); reservedPipe[1] = 0;
             }
-          [self ecQuitFor: shutdown with: -1];
+          [self ecQuitFor: shutdown with: -1];	// relaunch
           return;
         }
     }
@@ -3778,7 +3782,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
         additionalText: _(@"Process probably already running (possibly hung/delayed) or problem in name registration with distributed objects system (gdomap)")];
       [self alarm: a];
       [[self ecAlarmDestination] shutdown];
-      [self ecQuitFor: @"unable to register with name server" with: 2];
+      /* NB. The Command server knowns that -2 means a name server failure.
+       */
+      [self ecQuitFor: @"unable to register with name server" with: -2];
       [self cmdFlushLogs];
       [arp release];
       return 2;

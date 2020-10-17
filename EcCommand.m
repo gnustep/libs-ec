@@ -1406,15 +1406,26 @@ desiredName(Desired state)
                   [self stop];
                 }
             }
+          else if (terminationStatusKnown && -1 == terminationStatus)
+	    {
+	      /* The process exited with a -1 status code.
+	       * That means it wanted to be restarted.
+	       */
+	      ASSIGN(startedReason, @"restart");
+              if (nil == client)
+                {
+                  [self start];
+                }
+	    }
           else if ([self autolaunch]
-	    && (0.0 == clientQuitDate
-	      || (terminationStatusKnown
-		&& (terminationSignal || terminationStatus))))
+	    && (NO == terminationStatusKnown
+	      || (terminationStatus != 0 || terminationSignal != 0)))
             {
-	      ASSIGN(startedReason, @"autolaunch");
-              /* If the config says we autolaunch and the last process
-               * didn't shut down cleanly, we should start.
+              /* The config says we autolaunch and the last process
+               * did not shut down gracefully.
+               * So we should autolaunch again.
                */
+	      ASSIGN(startedReason, @"autolaunch");
               if (nil == client)
                 {
                   [self start];
@@ -2032,8 +2043,33 @@ desiredName(Desired state)
 	       * failed rather than shutting down normally.
 	       */
 	      failed = YES;
-	      reason = [NSString stringWithFormat:
-		@"stopped (with exit status %d)", terminationStatus];
+	      if (-1 == terminationStatus)
+		{
+		  reason = @"stopped (restart required: exit code -1)";
+		}
+	      else if (-2 == terminationStatus)
+		{
+		  reason = @"stopped (configuration error: exit code -2)";
+		}
+	      else if (-3 == terminationStatus)
+		{
+		  reason = @"stopped (gdomap rejection: exit code -3)";
+		}
+	      else if (-4 == terminationStatus)
+		{
+		  reason = @"stopped (Command rejection: exit code -4)";
+		}
+	      else if (terminationStatus > 0)
+		{
+		  reason = [NSString stringWithFormat:
+		    @"stopped (probably caught signal: exit code %d)",
+		    terminationStatus];
+		}
+	      else
+		{
+		  reason = [NSString stringWithFormat:
+		    @"stopped (with exit code %d)", terminationStatus];
+		}
 	    }
 	  else if (clientLostDate > 0.0)
 	    {
@@ -2055,6 +2091,22 @@ desiredName(Desired state)
 		{
 		  text = [NSString stringWithFormat: @"termination signal %d",
 		    terminationSignal];
+		}
+	      else if (-1 == terminationStatus)
+		{
+		  text = @"termination status -1 (restart required)";
+		}
+	      else if (-2 == terminationStatus)
+		{
+		  text = @"termination status -2 (configuration error)";
+		}
+	      else if (-3 == terminationStatus)
+		{
+		  text = @"termination status -3 (gdomap rejection)";
+		}
+	      else if (-4 == terminationStatus)
+		{
+		  text = @"termination status -4 (Command rejection)";
 		}
 	      else
 		{

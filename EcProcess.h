@@ -715,7 +715,28 @@ extern NSString*	cmdVersion(NSString *ver);
  * Subclasses should not normally override this method. Instead override
  * the -ecHandleQuit method.<br />
  * For backward compatibility, this will call the -cmdQuit: method if a
- * subclass has overridden it.
+ * subclass has overridden it.<br />
+ * NB. On unix the possible range of status values is actually from -128
+ * to 127 and we have certain conventions:
+ * <deflist>
+ *  <term>0</term>
+ *  <desc>A clean/normal shutdown, no restart required</desc>
+ *  <term>-1</term>
+ *  <desc>An intentional shutdown where restart is required</desc>
+ *  <term>-2</term>
+ *  <desc>Process unable to register with name server</desc>
+ *  <term>-3</term>
+ *  <desc>Fatal error in process configuration information</desc>
+ *  <term>-4</term>
+ *  <desc>Process registration was rejected by the Command server</desc>
+ *  <term>-5 to -9</term>
+ *  <desc>Reserved for possible expansion</desc>
+ *  <term>-10 to -128</term>
+ *  <desc>Unused/free</desc>
+ *  <term>positive integer</term>
+ *  <desc>Process caught a unix signal and shut down; the exist status
+ *  is the number of that signal</desc>
+ * </deflist>
  */
 - (oneway void) ecQuitFor: (NSString*)reason with: (NSInteger)status; 
 
