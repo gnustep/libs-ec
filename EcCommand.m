@@ -2049,11 +2049,11 @@ desiredName(Desired state)
 		}
 	      else if (-2 == terminationStatus)
 		{
-		  reason = @"stopped (configuration error: exit code -2)";
+		  reason = @"stopped (gdomap rejection: exit code -2)";
 		}
 	      else if (-3 == terminationStatus)
 		{
-		  reason = @"stopped (gdomap rejection: exit code -3)";
+		  reason = @"stopped (configuration error: exit code -3)";
 		}
 	      else if (-4 == terminationStatus)
 		{
@@ -2098,11 +2098,11 @@ desiredName(Desired state)
 		}
 	      else if (-2 == terminationStatus)
 		{
-		  text = @"termination status -2 (configuration error)";
+		  text = @"termination status -2 (gdomap rejection)";
 		}
 	      else if (-3 == terminationStatus)
 		{
-		  text = @"termination status -3 (gdomap rejection)";
+		  text = @"termination status -3 (configuration error)";
 		}
 	      else if (-4 == terminationStatus)
 		{
