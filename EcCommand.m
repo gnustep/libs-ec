@@ -1004,7 +1004,7 @@ desiredName(Desired state)
 - (NSString*) description
 {
   NSMutableString	*m = [[super description] mutableCopy];
-  NSString	*status = [self status];
+  NSString		*status = [self status];
 
   [m appendFormat: @" for process '%@'\n", name];
   if (startingDate > 0.0)
@@ -4694,6 +4694,7 @@ NSLog(@"Problem %@", localException);
   while (nil != (l = [e nextObject]))
     {
       [l setDesired: Dead reason: @"quit all instruction"];
+      [l checkAbandonedStartup];
     }
 
   e = [[self unconfiguredClients] objectEnumerator];
