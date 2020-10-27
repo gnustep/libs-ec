@@ -1785,6 +1785,13 @@ desiredName(Desired state)
           startingAlarm = NO;
           [command clearAll: name addText: @"process manually stopped"];
         }
+      /* Being deliberately shut down before launch completed is equivalent
+       * to a clean shutdown of a running process, so we must set variables
+       * to let the -progress method know that.
+       */
+      terminationStatusKnown = YES;
+      terminationSignal = 0;
+      terminationStatus = 0;
       [self progress];
     }
   return abandon;
