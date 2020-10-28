@@ -1760,6 +1760,9 @@ desiredName(Desired state)
     }
   if (YES == abandon)
     {
+      /* Cleanup all the information associated with process startup since
+       * we are not actually goinf to start the process.
+       */
       [startingTimer invalidate];
       startingTimer = nil;
       startingDate = 0.0;
@@ -1787,12 +1790,14 @@ desiredName(Desired state)
         }
       /* Being deliberately shut down before launch completed is equivalent
        * to a clean shutdown of a running process, so we must set variables
-       * to let the -progress method know that.
+       * to let the -stopped method know that.
+       * We call the -stopped method to do all the work associated with the
+       * process end, and making it ready to start again is required.
        */
       terminationStatusKnown = YES;
       terminationSignal = 0;
       terminationStatus = 0;
-      [self progress];
+      [self stopped];
     }
   return abandon;
 }
