@@ -43,41 +43,65 @@
  * alarm.
  */
 #define EcExceptionCritical(cause, format, args...) \
+({ if (nil == EcProc) NSLog(@"%@",\
+  [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
+  (nil == (cause) ? "Code/Data Error (critical)" : "Exception"), \
+  [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
+  [NSString stringWithFormat: (format), ##args]]); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error (critical)" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityCritical \
-	      message: (format), ##args ]
+	      message: (format), ##args ]; \
+})
 
 #define EcExceptionMajor(cause, format, args...) \
+({ if (nil == EcProc) NSLog(@"%@",\
+  [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
+  (nil == (cause) ? "Code/Data Error" : "Exception"), \
+  [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
+  [NSString stringWithFormat: (format), ##args]]); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityMajor \
-	      message: (format), ##args ]
+	      message: (format), ##args ]; \
+})
 
 #define EcExceptionMinor(cause, format, args...) \
+({ if (nil == EcProc) NSLog(@"%@",\
+  [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
+  (nil == (cause) ? "Code/Data Error (minor)" : "Exception"), \
+  [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
+  [NSString stringWithFormat: (format), ##args]]); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error (minor)" : "Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityMinor \
-	      message: (format), ##args ]
+	      message: (format), ##args ]; \
+})
 
 /* Diagnostic logging including a stack trace (either from an exception or,
  * if the exception is nil, from the point at which the log is generated.
- * This list like the other EcException macros, except that it does not
+ * This is like the other EcException macros, except that it does not
  * generate an alarm.
  */
 #define EcExceptionDebug(cause, format, args...) \
+({ if (nil == EcProc) NSLog(@"%@",\
+  [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
+  (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
+  [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
+  [NSString stringWithFormat: (format), ##args]]); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
     [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__] \
     perceivedSeverity: EcAlarmSeverityClear \
-	      message: (format), ##args ]
+	      message: (format), ##args ]; \
+})
 
 
 @class	NSFileHandle;
