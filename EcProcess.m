@@ -5489,7 +5489,7 @@ With two parameters ('maximum' and a number),\n\
 	    {
 	      RELEASE(self);
 	      [ecLock unlock];
-	      return nil;
+	      exit(-2);		// Unable to register with name server
 	    }
 	}
 
