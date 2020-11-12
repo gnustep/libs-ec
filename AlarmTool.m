@@ -172,7 +172,7 @@ main()
   repr = [defs stringForKey: @"Repair"];
   if (severity != EcAlarmSeverityCleared && [repr length] == 0)
     {
-      repr = @"nothng to do";
+      repr = @"nothing to do";
     }
 
   text = [defs stringForKey: @"Text"];
