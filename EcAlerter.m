@@ -1835,7 +1835,7 @@ replaceFields(NSDictionary *fields, NSString *template)
               rep = [NSString stringWithFormat: @"<alrm%@@%@>",
                 identifier, base];
               [doc setHeader: @"In-Reply-To" value: rep parameters: nil];
-              ref = [rep mutableCopy];
+              ref = AUTORELEASE([rep mutableCopy]);
 #if 0
               if (threadID > 1)
                 {
