@@ -764,16 +764,21 @@ replaceFields(NSDictionary *fields, NSString *template)
 - (NSString*) description
 {
   NSString      *s;
+  NSString	*err;
 
+  if (nil == (err = [[[self _smtp] lastError] description]))
+    {
+      err = @"";
+    }
   [lock lock];
   s = [NSString stringWithFormat: @"%@ -\nConfigured with %u rules\n"
     @"With SMTP %@:%@ as %@\n"
-    @"Email sent: %"PRIu64", fail: %"PRIu64", pending:%@\n"
+    @"Email sent: %"PRIu64", fail: %"PRIu64", pending:%@ %@\n"
     @"Other sent: %"PRIu64", fail: %"PRIu64", throttle:%u\n"
     @"SMS   sent: %"PRIu64", fail: %"PRIu64", pending:%@\n",
     [super description], (unsigned)[rules count],
     eHost, ePort, eFrom,
-    sentEmail, failEmail, email ? email : @"none",
+    sentEmail, failEmail, email ? email : @"none", err,
     sentOther, failOther, throttleAt,
     sentSms, failSms, sms ? sms : @"none"];
   [lock unlock];
