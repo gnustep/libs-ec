@@ -50,6 +50,9 @@
          * KeepStandardInput = (boolean)     Don't close stdin
          * KeepStandardOutput = (boolean)    Don't close stdout
          * KeepStandardError = (boolean)     Don't close stderr
+	 *
+	 * ValgrindPath = (string)	Run under valgrind (unless empty)
+	 * ValgrindArgs = (array)	Run under valgrind using these args
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
@@ -93,6 +96,15 @@
        * By default this is NO.
        */
       LaunchStartSuspended = NO;
+
+      /* Configure all tasks to be run under valgrind specifying the path
+       * to the process, which may be overridden on a per-process basis
+       * in the Launch config.  Setting ValgrindPath to an empty string
+       * in the launch config ensures that the process is NOT launched
+       * under valgrind.  
+       * ValgrindArgs = (...);
+       * ValgrindPath = "...";
+       */
     };
   };
   /* Section specific for the Control server itself.

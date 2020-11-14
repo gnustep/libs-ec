@@ -1104,6 +1104,69 @@ desiredName(Desired state)
   return (stoppingDate > 0.0) ? YES : NO;
 }
 
+static NSFileHandle*
+valgrindLog(NSString *name)
+{
+  NSFileManager	*mgr = [NSFileManager defaultManager];
+  NSString	*base = [EcProc ecUserDirectory];
+  NSString      *path;
+  BOOL		flag;
+
+  base = [base stringByAppendingPathComponent: @"DebugLogs"];
+  base = [base stringByAppendingPathComponent: @"Valgrind"];
+  if ([mgr fileExistsAtPath: base isDirectory: &flag] == NO)
+    {
+      if ([mgr createDirectoryAtPath: base
+         withIntermediateDirectories: YES
+                          attributes: nil
+                               error: NULL] == NO)
+	{
+	  if ([mgr fileExistsAtPath: base isDirectory: &flag] == NO)
+	    {
+	      NSLog(@"Unable to create directory - %@", base);
+	      return nil;
+	    }
+	}
+      else
+	{
+	  flag = YES;
+	}
+    }
+  if (flag == NO)
+    {
+      NSLog(@"The path '%@' is not a directory", base);
+      return nil;
+    }
+
+  path = [base stringByAppendingPathComponent: name];
+  path = [path stringByAppendingPathExtension: @"log"];
+  if ([mgr fileExistsAtPath: path])
+    {
+      NSString  *nxt = [path stringByAppendingPathExtension: @"99"];
+      NSString  *old;
+ 
+      [mgr removeFileAtPath: nxt handler: nil];
+      for (int i = 99; i > 0; i--)
+        {
+          old = nxt;
+          nxt = [path stringByAppendingPathExtension:
+            [NSString stringWithFormat: @"%d", i]];
+          [mgr movePath: nxt toPath: old handler: nil];
+        }
+      old = [path stringByAppendingPathExtension: @"0"];
+      [mgr movePath: path toPath: old handler: nil];
+    }
+  if ([mgr createFileAtPath: path
+                   contents: nil
+                 attributes: nil] == NO)
+    {
+      NSLog(@"Log file '%@' is not writable and can't be created", path);
+      return nil;
+    }
+
+  return [NSFileHandle fileHandleForUpdatingAtPath: path];
+}
+
 /* This method should only ever be called from the -starting: method (when
  * the instance has permission to launch).  To initiate the startup process
  * the -start method is called, and to progress startup the -starting: method
@@ -1112,8 +1175,10 @@ desiredName(Desired state)
 - (BOOL) launch
 {
   EcCommand		*command = (EcCommand*)EcProc;
+  NSUserDefaults        *defs = [command cmdDefaults];
   NSMutableDictionary	*env;
-  NSMutableArray	*args;
+  NSArray               *vgArgs;
+  NSString              *vgPath;
   NSString		*home = [conf objectForKey: @"Home"];
   NSString		*prog = [conf objectForKey: @"Prog"];
   NSDictionary		*addE = [conf objectForKey: @"AddE"];
@@ -1128,6 +1193,33 @@ desiredName(Desired state)
       return YES;       // Client registered; no need to launch
     }
 
+  /* ValgrindPath and ValgrindArgs may be used.  The values from the launch
+   * info take precedence over the generic values from the main config.
+   * An explicit empty path setting in ther launch info disables valgrind
+   * for this process.
+   */
+  if (NO == [(vgArgs = [conf objectForKey: @"ValgrindArgs"])
+    isKindOfClass: [NSArray class]])
+    {
+      vgArgs = [defs arrayForKey: @"ValgrindArgs"];
+    }
+  if (NO == [(vgPath = [conf objectForKey: @"ValgrindPath"])
+    isKindOfClass: [NSString class]])
+    {
+      vgPath = [defs stringForKey: @"ValgrindPath"];
+    }
+  else if ([@"" isEqual: vgPath])
+    {
+      /* Use of valgrind disabled.
+       */
+      vgArgs = nil;
+      vgPath = nil;
+    }
+  if (nil != vgArgs && nil == vgPath)
+    {
+      vgPath = @"valgrind";
+    }
+
   ENTER_POOL
   if (nil == (env = AUTORELEASE([[command environment] mutableCopy])))
     {
@@ -1138,34 +1230,31 @@ desiredName(Desired state)
 	  env = [NSMutableDictionary dictionary];
 	}
     }
-  if (nil == (args = AUTORELEASE([[conf objectForKey: @"Args"] mutableCopy])))
-    {
-      args = [NSMutableArray array];
-    }
-
-  /* As a convenience, the 'Home' option sets the -HomeDirectory
-   * for the process.
-   */
-  if ([home length] > 0)
-    {
-      [args addObject: @"-HomeDirectory"];
-      [args addObject: home];
-    }
-
-  /* If we do not want the process to core-dump, we need to add
-   * the argument to tell it.
-   */
-  if ([self mayCoreDump] == NO)
-    {
-      [args addObject: @"-CoreSize"];
-      [args addObject: @"0"];
-    }
 
   if (prog != nil && [prog length] > 0)
     {
       NS_DURING
 	{
-	  NSFileHandle	*hdl;
+	  NSFileHandle	        *hdl;
+          NSMutableArray        *args;
+
+          args = [NSMutableArray array];
+
+          /* Insert valgrind stuff if necessary.
+           */
+          if (vgPath != nil)
+            {
+              if ([vgArgs count] > 0)
+                {
+                  [args addObjectsFromArray: vgArgs];
+                }
+              [args addObject: prog];
+              prog = vgPath;
+            }
+          if ([[conf objectForKey: @"Args"] isKindOfClass: [NSArray class]])
+            {
+              [args addObjectsFromArray: [conf objectForKey: @"Args"]];
+            }
 
 	  if (setE != nil)
 	    {
@@ -1179,8 +1268,11 @@ desiredName(Desired state)
 
 	  task = [NSTask new];
 	  [task setEnvironment: env];
-	  hdl = [NSFileHandle fileHandleWithNullDevice];
 	  [task setLaunchPath: prog];
+          if (home != nil && [home length] > 0)
+            {
+              [task setCurrentDirectoryPath: home];
+            }
 
 	  if ([task validatedLaunchPath] == nil)
 	    {
@@ -1194,32 +1286,59 @@ desiredName(Desired state)
 	    {
 	      NSString  *s;
 
-	      s = [conf objectForKey: @"KeepStandardInput"];
-	      if (NO == [s respondsToSelector: @selector(boolValue)]
-		|| NO == [s boolValue])
-		{
-		  [task setStandardInput: hdl];
-		}
-	      s = [conf objectForKey: @"KeepStandardOutput"];
-	      if (NO == [s respondsToSelector: @selector(boolValue)]
-		|| NO == [s boolValue])
-		{
-		  [task setStandardOutput: hdl];
-		}
-	      s = [conf objectForKey: @"KeepStandardError"];
-	      if (NO == [s respondsToSelector: @selector(boolValue)]
-		|| NO == [s boolValue])
-		{
-		  [task setStandardError: hdl];
-		}
-	      if (home != nil && [home length] > 0)
-		{
-		  [task setCurrentDirectoryPath: home];
-		}
-	      if (args != nil)
-		{
-		  [task setArguments: args];
-		}
+              /* As a convenience, the 'Home' option sets the -HomeDirectory
+               * for the process.
+               */
+              if ([home length] > 0)
+                {
+                  [args addObject: @"-HomeDirectory"];
+                  [args addObject: home];
+                }
+
+              /* If we do not want the process to core-dump, we need to add
+               * the argument to tell it.
+               */
+              if ([self mayCoreDump] == NO)
+                {
+                  [args addObject: @"-CoreSize"];
+                  [args addObject: @"0"];
+                }
+
+              [task setArguments: args];
+
+              hdl = [NSFileHandle fileHandleWithNullDevice];
+              s = [conf objectForKey: @"KeepStandardInput"];
+              if (NO == [s respondsToSelector: @selector(boolValue)]
+                || NO == [s boolValue])
+                {
+                  [task setStandardInput: hdl];
+                }
+
+              if (nil == vgPath)
+                {
+                  s = [conf objectForKey: @"KeepStandardOutput"];
+                  if (NO == [s respondsToSelector: @selector(boolValue)]
+                    || NO == [s boolValue])
+                    {
+                      [task setStandardOutput: hdl];
+                    }
+                  s = [conf objectForKey: @"KeepStandardError"];
+                  if (NO == [s respondsToSelector: @selector(boolValue)]
+                    || NO == [s boolValue])
+                    {
+                      [task setStandardError: hdl];
+                    }
+                }
+              else
+                {
+                  NSFileHandle  *vgl = valgrindLog(name);
+
+                  if (vgl != nil)
+                    {
+                      [task setStandardOutput: vgl];
+                      [task setStandardError: vgl];
+                    }
+                }
 
 	      /* Record time of launch start
 	       */
