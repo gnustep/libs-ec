@@ -1554,18 +1554,12 @@ findMode(NSDictionary* d, NSString* s)
   NSProcessInfo *pi;
   id		objects[2];
   id		keys[2];
-  NSString	*prefix;
 
   pi = [NSProcessInfo processInfo];
   objects[0] = [pi processName];
   objects[1] = @".";
-  prefix = EC_DEFAULTS_PREFIX;
-  if (nil == prefix)
-    {
-      prefix = @"";
-    }
-  keys[0] = [prefix stringByAppendingString: @"ProgramName"];
-  keys[1] = [prefix stringByAppendingString: @"HomeDirectory"];
+  keys[0] = @"ProgramName";
+  keys[1] = @"HomeDirectory";
 
   return [NSMutableDictionary dictionaryWithObjects: objects
                                             forKeys: keys

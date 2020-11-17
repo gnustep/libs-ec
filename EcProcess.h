@@ -600,8 +600,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * This method is used by -init and its return value is passed to
  * -initWithDefaults: method.<br />
  * The default implementation simply sets the ProgramName and
- * HomeDirectory defaults (with the default prefix configured
- * when the library was built) to the current program name and
+ * HomeDirectory defaults to the current program name and
  * the current directory ('.').<br />
  * Subclasses may override this method to provide additional
  * default configuration for processes using them. The returned
@@ -1207,11 +1206,11 @@ extern NSString*	cmdVersion(NSString *ver);
 /** [-initWithDefaults:] is the Designated initialiser<br />
  * It adds the defaults specified to the defaults system.<br />
  * It sets the process name to be that specified in the
- * 'EcProgramName' default with an '-id' affix if EcInstance is used
+ * 'ProgramName' default with an '-id' affix if Instance is used
  * to provide an instance id.<br />
  * Moves to the directory (relative to the current user's home directory)
- * given in 'EcHomeDirectory'.<br />
- * If 'EcHomeDirectory' is not present in the defaults system (or is
+ * given in 'HomeDirectory'.<br />
+ * If 'HomeDirectory' is not present in the defaults system (or is
  * an empty string) then no directory change is done.<br />
  * Please note, that the base implementation of this method may
  * cause other methods (eg -cmdUpdated and -cmdDefaultsChanged:) to be called,
