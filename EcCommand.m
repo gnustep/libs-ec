@@ -354,6 +354,10 @@ desiredName(Desired state)
   /** Records the alarms currently raised for this process.
    */
   NSMutableArray	*alarms;
+
+  /* Flag to detect recursive call to -starting:
+   */
+  BOOL		inStarting;
 }
 + (NSString*) description;
 + (LaunchInfo*) existing: (NSString*)name;
@@ -1833,7 +1837,15 @@ valgrindLog(NSString *name)
     }
   else
     {
-      NSLog(@"-start called for %@", self);
+      if (startingTimer != nil)
+	{
+	  NSLog(@"-start called for %@ with timer already present at %@",
+	    self, [NSThread callStackSymbols]);
+	}
+      else
+	{
+	  NSLog(@"-start called for %@", self);
+	}
       [self resetDelay];
       startingAlarm = NO;
       startingDate = [NSDate timeIntervalSinceReferenceDate];
@@ -1923,137 +1935,158 @@ valgrindLog(NSString *name)
 
 - (void) starting: (NSTimer*)t
 {
-  EcCommand	        *command = (EcCommand*)EcProc;
-  NSTimeInterval	ti = 0.0;
-
   /* On entry t is either a one-shot timer which will automatically
    * be invalidated after the method completes, or nil (method called
    * explicitly, so the timer must be invalidated here).
    * Either way the timer is no longer valid and a new one will need
    * to be created unless startup has completed.
    */
-  [startingTimer invalidate];
-  startingTimer = nil;
-  if (NO == [self isStarting])
-    {
-      EcExceptionMajor(nil, @"-starting: when not starting for %@", self);
-      return;
-    }
-  if (client != nil)
-    {
-      EcExceptionMajor(nil, @"-starting: when already registered for %@", self);
-      return;
-    }
-  if ([self checkAbandonedStartup])
-    {
-      return;
-    }
-  if (0 == identifier)
-    {
-      NSString  *r = [self reasonToPreventLaunch];
 
-      if (nil == r)
-        {
-          /* We are able to launch now
-           */
-          [launchQueue removeObject: self];
-          queuedDate = 0.0;
-	  terminationDate = 0.0;
-	  terminationStatusKnown = NO;
-          if (NO == [self launch])
-            {
-              ti = [self delay];        // delay between launch attempts
-              [launchQueue addObject: self];
-              queuedDate = [NSDate timeIntervalSinceReferenceDate];
-              [command logChange: @"queued (launch failed)" for: name];
-            }
-          else
-            {    
-              if (client != nil)
-                {
-                  return;       // Connection established.
-                }
-              ti = 0.0;         // Calculate the time to wait below
-              [command logChange: @"launched" for: name];
-            }
-        }
-      else
-        {
-          BOOL  alreadyQueued = [launchQueue containsObject: self];
-          NSTimeInterval        now = [NSDate timeIntervalSinceReferenceDate];
+  if (inStarting)
+    {
+      return;	// Re-entrant call ignored.
+    }
+  inStarting = YES;
+  NS_DURING
+    {
+      EcCommand	        *command = (EcCommand*)EcProc;
+      NSTimeInterval	ti = 0.0;
 
-          if (deferredDate > 0.0 && now < deferredDate)
-            {
-              /* We are waiting for a retry at a specific time.
-               * If we are not already queued, add to queue.
-               */
-              ti = deferredDate - now;
-              if (NO == alreadyQueued)
-                {
-                  [launchQueue addObject: self];
-                  queuedDate = [NSDate timeIntervalSinceReferenceDate];
-                }
-            }
-          else
-            {
-              /* Launching is prevented for a non-time-based reason,
-               * so we reset the time from which we count launching as
-               * started and specify a timer for checking again.
-               */
-              startingDate = [NSDate timeIntervalSinceReferenceDate];
-              ti = 1.0;
-              if (NO == alreadyQueued)
-                {
-                  [launchQueue addObject: self];
-                  queuedDate = [NSDate timeIntervalSinceReferenceDate];
-                }
-            }
-          if (NO == alreadyQueued)
-            {
-              r = [NSString stringWithFormat: @"queued (%@)", r];
-              [command logChange: r for: name];
-            }
-        }
-    }
-  if (0.0 == ti && startingDate > 0.0)
-    {
-      ti = [NSDate timeIntervalSinceReferenceDate];
-      if (ti - startingDate < 30.0)
-        {
-          /* We need to raise an alarm if it takes longer than 30 seconds
-           * to start up the process.
-           */
-          ti = 30.0 - (ti - startingDate);
-        }
-      else
-        {
-          if (NO == startingAlarm)
-            {
-              startingAlarm = YES;
-              [command alarmCode: ACLaunchFailed
-                        procName: name
-                         addText: @"Client not active after launch attempt"];
-            }
-          ti = 60.0;
-        }
-    }
-  if (nil != startingTimer)
-    {
       [startingTimer invalidate];
-      EcExceptionMajor(nil, @"startingTimer reset %@", self);
+      startingTimer = nil;
+      if (NO == [self isStarting])
+	{
+	  EcExceptionMajor(nil, @"-starting: when not starting for %@", self);
+	  inStarting = NO;
+	  NS_VOIDRETURN;
+	}
+      if (client != nil)
+	{
+	  EcExceptionMajor(nil, @"-starting: after registered for %@", self);
+	  inStarting = NO;
+	  NS_VOIDRETURN;
+	}
+      if ([self checkAbandonedStartup])
+	{
+	  inStarting = NO;
+	  NS_VOIDRETURN;
+	}
+      if (0 == identifier)
+	{
+	  NSString  *r = [self reasonToPreventLaunch];
+
+	  if (nil == r)
+	    {
+	      /* We are able to launch now
+	       */
+	      [launchQueue removeObject: self];
+	      queuedDate = 0.0;
+	      terminationDate = 0.0;
+	      terminationStatusKnown = NO;
+	      if (NO == [self launch])
+		{
+		  ti = [self delay];        // delay between launch attempts
+		  [launchQueue addObject: self];
+		  queuedDate = [NSDate timeIntervalSinceReferenceDate];
+		  [command logChange: @"queued (launch failed)" for: name];
+		}
+	      else
+		{    
+		  if (client != nil)
+		    {
+		      inStarting = NO;
+		      NS_VOIDRETURN;       // Connection established.
+		    }
+		  ti = 0.0;         // Calculate the time to wait below
+		  [command logChange: @"launched" for: name];
+		}
+	    }
+	  else
+	    {
+	      BOOL  		alreadyQueued;
+	      NSTimeInterval    now;
+
+	      alreadyQueued = [launchQueue containsObject: self];
+	      now = [NSDate timeIntervalSinceReferenceDate];
+	      if (deferredDate > 0.0 && now < deferredDate)
+		{
+		  /* We are waiting for a retry at a specific time.
+		   * If we are not already queued, add to queue.
+		   */
+		  ti = deferredDate - now;
+		  if (NO == alreadyQueued)
+		    {
+		      [launchQueue addObject: self];
+		      queuedDate = [NSDate timeIntervalSinceReferenceDate];
+		    }
+		}
+	      else
+		{
+		  /* Launching is prevented for a non-time-based reason,
+		   * so we reset the time from which we count launching as
+		   * started and specify a timer for checking again.
+		   */
+		  startingDate = [NSDate timeIntervalSinceReferenceDate];
+		  ti = 1.0;
+		  if (NO == alreadyQueued)
+		    {
+		      [launchQueue addObject: self];
+		      queuedDate = [NSDate timeIntervalSinceReferenceDate];
+		    }
+		}
+	      if (NO == alreadyQueued)
+		{
+		  r = [NSString stringWithFormat: @"queued (%@)", r];
+		  [command logChange: r for: name];
+		}
+	    }
+	}
+      if (0.0 == ti && startingDate > 0.0)
+	{
+	  ti = [NSDate timeIntervalSinceReferenceDate];
+	  if (ti - startingDate < 30.0)
+	    {
+	      /* We need to raise an alarm if it takes longer than 30 seconds
+	       * to start up the process.
+	       */
+	      ti = 30.0 - (ti - startingDate);
+	    }
+	  else
+	    {
+	      if (NO == startingAlarm)
+		{
+		  startingAlarm = YES;
+		  [command alarmCode: ACLaunchFailed
+		    procName: name
+		    addText: @"Client not active after launch attempt"];
+		}
+	      ti = 60.0;
+	    }
+	}
+      if (nil != startingTimer)
+	{
+	  [startingTimer invalidate];
+	  EcExceptionMajor(nil, @"startingTimer reset %@", self);
+	}
+      if (startingDate > 0.0)
+	{
+	  startingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
+							   target: self
+							 selector: _cmd
+							 userInfo: name
+							  repeats: NO];
+	}
+      else
+	{
+	  NSLog(@"Startup cancelled in -starting: for %@", self);
+	}
     }
-  if (startingDate > 0.0)
+  NS_HANDLER
     {
-      startingTimer = [NSTimer scheduledTimerWithTimeInterval: ti
-						       target: self
-						     selector: _cmd
-						     userInfo: name
-						      repeats: NO];
+      EcExceptionMajor(localException, @"Problem -starting: %@", self); 
     }
-  else
-    {
-      NSLog(@"Startup cancelled in -starting: for %@", self);
-    }
+  NS_ENDHANDLER
+  inStarting = NO;
 }
 
 - (NSDate*) startingDate
