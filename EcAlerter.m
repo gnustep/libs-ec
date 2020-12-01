@@ -360,7 +360,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 - (void) smtpClient: (GSMimeSMTPClient*)client mimeUnsent: (GSMimeDocument*)doc
 {
   failEmail++;
-  NSLog(@"Message dropped on SMTP client shutdown: %@", doc);
+  NSLog(@"Message dropped: %@", doc);
 }
 
 - (GSMimeSMTPClient*) _smtp
@@ -862,6 +862,10 @@ replaceFields(NSDictionary *fields, NSString *template)
   NSUInteger            dayOfWeek = 0;
   NSUInteger            i;
 
+  if (YES == debug)
+    {
+      NSLog(@"Apply %u rules to %@", (unsigned)[rulesArray count], event);
+    }
   for (i = 0; i < [rulesArray count]; i++)
     {
       NSDictionary	*times;
@@ -1065,7 +1069,6 @@ replaceFields(NSDictionary *fields, NSString *template)
             }
           [event->m setObject: match forKey: @"Match"];
         }
-
 
       found = YES;
       s = [NSString stringWithFormat: @"%u", (unsigned)i];
