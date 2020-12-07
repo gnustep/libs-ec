@@ -59,6 +59,9 @@ static NSTimeInterval	pingDelay = 240.0;
 static int      alertAlarmThreshold = EcAlarmSeverityMajor;
 static int      reminderInterval = 0;
 
+static uint64_t	alarmsAlerted = 0;
+static uint64_t	alarmsIgnored = 0;
+
 static int	comp_len = 0;
 
 static int	comp(NSString *s0, NSString *s1)
@@ -506,8 +509,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (NSString*) description
 {
-  return [NSString stringWithFormat: @"%@ running since %@\n%@\n%@",
-    [super description], [self ecStarted], alerter, sink];
+  return [NSString stringWithFormat: @"%@ running since %@\n"
+    @"  Alarms which generated alerts: %"PRIu64"\n"
+    @"  Alarms ignored (low severity): %"PRIu64"\n%@\n%@",
+    [super description], [self ecStarted],
+    alarmsAlerted, alarmsIgnored, alerter, sink];
 }
 
 - (oneway void) domanage: (NSString*)name
@@ -2285,10 +2291,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   enumerator = [a objectEnumerator];
   while (nil != (alarm = [enumerator nextObject]))
     {
-      int               notificationID = [alarm notificationID];
-      EcAlarmSeverity	severity = [alarm perceivedSeverity];
+      int	notificationID = [alarm notificationID];
 
-      if (notificationID > 0 && severity <= alertAlarmThreshold)
+      if (notificationID > 0)
         {
           NSDictionary          *info;
           NSDate                *when;
@@ -2313,9 +2318,25 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           if (nil == when
             || (ti > 0.0 && [now timeIntervalSinceDate: when] > ti))
             {
-              [self reportAlarm: alarm
-                       severity: [alarm perceivedSeverity]
-                       reminder: reminder];
+	      EcAlarmSeverity	severity = [alarm perceivedSeverity];
+
+	      if (severity <= alertAlarmThreshold)
+		{
+		  if (nil == when)
+		    {
+		      alarmsAlerted++;
+		    }
+		  [self reportAlarm: alarm
+			   severity: [alarm perceivedSeverity]
+			   reminder: reminder];
+		}
+	      else
+		{
+		  if (nil == when)
+		    {
+		      alarmsIgnored++;
+		    }
+		}
               info = [NSDictionary dictionaryWithObjectsAndKeys:
                 now, @"When",
                 [NSNumber numberWithInt: reminder + 1], @"Reminder",
@@ -3101,6 +3122,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       alertConfig = [dict objectForKey: @"Alerter"];
       alerterDef = [alertConfig objectForKey: @"AlerterBundle"]; 
       str = [alertConfig objectForKey: @"AlertAlarmThreshold"];
+      if ([str length] == 0)
+	{
+	  /* default value as documented in EcAlerter.h
+	   */
+	  str = [NSString stringWithFormat: @"%d", EcAlarmSeverityMajor];
+	}
       alertAlarmThreshold = [str intValue];
       if (alertAlarmThreshold < EcAlarmSeverityCritical)
         {
@@ -3111,6 +3138,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           alertAlarmThreshold = EcAlarmSeverityWarning;
         }
       str = [alertConfig objectForKey: @"AlertReminderInterval"];
+      if ([str length] == 0)
+	{
+	  /* default value as documented in EcAlerter.h
+	   */
+	  str = @"0";
+	}
       reminderInterval = [str intValue];
       if (reminderInterval < 0)
         {
