@@ -1270,6 +1270,12 @@ valgrindLog(NSString *name)
 	      [env addEntriesFromDictionary: addE];
 	    }
 
+          if (task != nil)
+            {
+              NSLog(@"-launch called for %@ with task %@ already present at %@",
+                self, task, [NSThread callStackSymbols]);
+              DESTROY(task);
+            }
 	  task = [NSTask new];
 	  [task setEnvironment: env];
 	  [task setLaunchPath: prog];
