@@ -1484,7 +1484,7 @@ findMode(NSDictionary* d, NSString* s)
           else if (nil != digest)
             {
               CREATE_AUTORELEASE_POOL(pool);
-              NSString  *s = [NSString stringWithUTF8String: one];
+              NSString  *s;
               NSData    *d;
               NSData    *md5;
 
@@ -1574,7 +1574,6 @@ findMode(NSDictionary* d, NSString* s)
   if (NO == prepared)
     {
       NSProcessInfo	*pinfo;
-      NSArray           *args;
       NSFileManager	*mgr;
       NSEnumerator	*enumerator;
       NSString		*str;
@@ -1585,7 +1584,6 @@ findMode(NSDictionary* d, NSString* s)
       started = RETAIN([dateClass date]);
 
       pinfo = [NSProcessInfo processInfo];
-      args = [pinfo arguments];
       mgr = [NSFileManager defaultManager];
       prf = EC_DEFAULTS_PREFIX;
       if (nil == prf)
@@ -1946,7 +1944,7 @@ findMode(NSDictionary* d, NSString* s)
       [NSException raise: NSGenericException
                   format: @"+ecSetup called when EcProcess is already set up"];
     }
-  [[self alloc] init];
+  (void)[[self alloc] init];
 }
 
 - (void) _commandRemove
@@ -5402,7 +5400,7 @@ With two parameters ('maximum' and a number),\n\
 	}
 
       started = RETAIN([dateClass date]);
-      defs = [[self class] ecPrepareWithDefaults: defs];
+      [[self class] ecPrepareWithDefaults: defs];
 
       if ([args containsObject: @"--help"] || [args containsObject: @"-H"])
 	{

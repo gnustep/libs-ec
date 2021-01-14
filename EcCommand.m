@@ -2495,7 +2495,7 @@ valgrindLog(NSString *name)
           [d removeObjectAtIndex: c];
         }
     }
-  return d;
+  return AUTORELEASE(d);
 }
 
 @end

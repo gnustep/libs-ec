@@ -1992,7 +1992,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   old = (CommandInfo*)[self findIn: commands byObject: c];
   if (old != nil && [[old name] isEqual: n])
     {
-      obj = old;
       m = [NSString stringWithFormat:
 	  @"Re-registered existing host with name '%@' at %@\n",
 	      n, [NSDate date]];

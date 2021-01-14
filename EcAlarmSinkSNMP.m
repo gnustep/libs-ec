@@ -777,13 +777,13 @@ pollHeartBeat_handler(netsnmp_mib_handler *handler,
 	 * store old info for undo later 
 	 */
         pollHeartBeat_cache = malloc(sizeof(pollHeartBeat));
-        memcpy(&pollHeartBeat_cache, &pollHeartBeat, sizeof(pollHeartBeat));
 	if (pollHeartBeat_cache == NULL)
 	  {
 	    netsnmp_set_request_error(reqinfo, requests,
 	      SNMP_ERR_RESOURCEUNAVAILABLE);
 	    return SNMP_ERR_NOERROR;
 	  }
+        memcpy(&pollHeartBeat_cache, &pollHeartBeat, sizeof(pollHeartBeat));
 	netsnmp_request_add_list_data(requests,
 				      netsnmp_create_data_list
 				      ("EcAlarmSink",
@@ -1794,7 +1794,7 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 {
   ENTER_POOL
   time_t	now;
-  BOOL		changed;
+  BOOL		changed = NO;
 
   DEBUGMSGTL(("EcAlarmSinkHousekeeping", "Timer called.\n"));
 
