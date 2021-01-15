@@ -1,3 +1,9 @@
+2021-01-15  Wolfgang Lux  <wolfgang.lux@gmail.com>
+
+	* EcProcess.m(cmdMesgmemory:):
+	Fix output of 'memory all' command to really report all
+	allocations.
+
 2020-04-06 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcControl.m:

@@ -4942,7 +4942,7 @@ With two parameters ('maximum' and a number),\n\
 		{
 		  const char*	list;
 
-		  list = (const char*)GSDebugAllocationList(NO);
+		  list = (const char*)GSDebugAllocationListAll();
                   [self cmdPrintf: @"Memory total allocation stats at %@:\n%s",
                     [NSDate date], list];
 		}
