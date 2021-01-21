@@ -2160,7 +2160,15 @@ valgrindLog(NSString *name)
 
 - (void) stop
 {
-  if (NO == [self isStopping] && YES == [self checkAlive])
+  if ([self isStopping])
+    {
+      NSLog(@"-stop called when already stopping for %@", self);
+    }
+  else if (NO == [self checkAlive])
+    {
+      NSLog(@"-stop called when not alive for %@", self);
+    }
+  else
     {
       [self resetDelay];
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
@@ -2170,6 +2178,7 @@ valgrindLog(NSString *name)
           /* No connection to client established ... try to shut it down
            * using a signal.
            */
+	  NSLog(@"-stop kills process %d for %@", identifier, self);
           kill(identifier, SIGTERM);
         }
       else
@@ -2178,10 +2187,13 @@ valgrindLog(NSString *name)
             {
               if (nil == restartReason)
                 {
+		  NSLog(@"-stop sends -cmdQuit:0 for %@", self);
                   [[client obj] cmdQuit: 0];
                 }
               else
                 {
+		  NSLog(@"-stop sends -ecRestart:%@ for %@",
+		    restartReason, self);
                   [[client obj] ecRestart: restartReason];
                   DESTROY(restartReason);
                 }
