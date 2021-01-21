@@ -884,6 +884,7 @@ desiredName(Desired state)
             }
           NS_HANDLER
             {
+	      NSLog(@"Problem with reconnect for %@: %@", name, localException);
               [c setRequestTimeout: 0.0];
               [c setReplyTimeout: 0.0];
             }
@@ -1503,7 +1504,15 @@ valgrindLog(NSString *name)
  */
 - (void) progress
 {
-  if (NO == [self isStarting] && NO == [self isStopping])
+  if ([self isStarting])
+    {
+      NSLog(@"-progress ignored (already starting) for %@", self);
+    }
+  else if ([self isStopping])
+    {
+      NSLog(@"-progress ignored (already stopping) for %@", self);
+    }
+  else
     {
       if (Live == desired && nil == client)
         {
@@ -1514,6 +1523,10 @@ valgrindLog(NSString *name)
 	  if (NO == [self checkActive])
 	    {
 	      [self start];
+	    }
+	  else
+	    {
+	      NSLog(@"-progress ignored (already active) for %@", self);
 	    }
         }
       else if (Dead == desired && nil != client)
@@ -1530,10 +1543,14 @@ valgrindLog(NSString *name)
             {
               /* If the config says we are disabled, we should stop.
                */
-              if (nil != client)
+              if (YES == [self checkActive])
                 {
                   [self stop];
                 }
+	      else
+		{
+		  NSLog(@"-progress none (disabled in config) for %@", self);
+		}
             }
           else if (terminationStatusKnown && -1 == terminationStatus)
 	    {
@@ -1541,10 +1558,14 @@ valgrindLog(NSString *name)
 	       * That means it wanted to be restarted.
 	       */
 	      ASSIGN(startedReason, @"restart");
-              if (nil == client)
+	      if (NO == [self checkActive])
                 {
                   [self start];
                 }
+	      else
+		{
+		  NSLog(@"-progress ignored (already active) for %@", self);
+		}
 	    }
           else if ([self autolaunch]
 	    && (NO == terminationStatusKnown
@@ -1555,10 +1576,14 @@ valgrindLog(NSString *name)
                * So we should autolaunch again.
                */
 	      ASSIGN(startedReason, @"autolaunch");
-              if (nil == client)
+	      if (NO == [self checkActive])
                 {
                   [self start];
                 }
+	      else
+		{
+		  NSLog(@"-progress ignored (already active) for %@", self);
+		}
             }
         }
     }
