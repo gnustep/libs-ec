@@ -4904,9 +4904,11 @@ With two parameters ('maximum' and a number),\n\
 	}
       else if ([msg count] == 2)
 	{
-	  NSString	*word = [msg objectAtIndex: 1];
+	  NSString	*word = [[msg objectAtIndex: 1] lowercaseString];
+          NSString      *s;
 
-	  if ([word caseInsensitiveCompare: @"current"] == NSOrderedSame)
+	  if ([word isEqual: @"current"]
+	    || [word isEqual: @"cur"])
             {
 	      if (NO == [cmdDefs boolForKey: @"Memory"])
 		{
@@ -4924,13 +4926,13 @@ With two parameters ('maximum' and a number),\n\
 		}
 	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
             }
-	  else if ([word caseInsensitiveCompare: @"default"] == NSOrderedSame)
+	  else if ([word isEqual: @"default"] || [word isEqual: @"def"])
 	    {
 	      [cmdDefs setCommand: nil forKey: [cmdDefs key: @"Memory"]];
 	      [self cmdPrintf: @"Memory checking: %s\n",
 		[cmdDefs boolForKey: @"Memory"] ? "YES" : "NO"];
 	    }
-	  else if ([word caseInsensitiveCompare: @"all"] == NSOrderedSame)
+	  else if ([word isEqual: @"all"])
 	    {
 	      if (NO == [cmdDefs boolForKey: @"Memory"])
 		{
@@ -4948,7 +4950,8 @@ With two parameters ('maximum' and a number),\n\
 		}
 	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
 	    }
-	  else if ([word boolValue] == YES)
+	  else if ([word isEqual: @"on"] || [word isEqual: @"yes"]
+            || [word isEqual: @"true"] || [word isEqual: @"1"])
 	    {
 	      if (NO == [cmdDefs boolForKey: @"Memory"])
 		{
@@ -4963,7 +4966,8 @@ With two parameters ('maximum' and a number),\n\
 		}
 	      [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: @"Memory"]];
 	    }
-	  else
+	  else if ([word isEqual: @"off"] || [word isEqual: @"no"]
+            || [word isEqual: @"false"] || [word isEqual: @"0"])
 	    {
 	      if (NO == [cmdDefs boolForKey: @"Memory"])
 		{
@@ -4973,14 +4977,64 @@ With two parameters ('maximum' and a number),\n\
 	      [self cmdPrintf: @"Memory statistics are turned off NOW.\n"];
 	      [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: @"Memory"]];
 	    }
+	  else if ([word isEqual: @"alarm"])
+            {
+              if (nil == (s = [cmdDefs stringForKey: @"MemoryAlarm"]))
+                {
+                  s = [[EcAlarm stringFromSeverity: memAlarm]
+                    stringByAppendingString: @" (default)"];
+                }
+              else
+                {
+                  s = [EcAlarm stringFromSeverity: memAlarm];
+                }
+              [self cmdPrintf: @"MemoryAlarm is %@.\n", s];
+            }
+	  else if ([word isEqual: @"allowed"])
+            {
+              if (nil == (s = [cmdDefs stringForKey: @"MemoryAllowed"]))
+                {
+                  s = @"default";
+                }
+              [self cmdPrintf: @"MemoryAllowed setting is %@.\n", s];
+            }
+	  else if ([word isEqual: @"idle"])
+            {
+              if (nil == (s = [cmdDefs stringForKey: @"MemoryIdle"]))
+                {
+                  s = @"default";
+                }
+              [self cmdPrintf: @"MemoryIdle setting is %@.\n", s];
+            }
+	  else if ([word isEqual: @"maximum"] || [word isEqual: @"max"])
+            {
+              if (nil == (s = [cmdDefs stringForKey: @"MemoryMaximum"]))
+                {
+                  s = @"default";
+                }
+              [self cmdPrintf: @"MemoryMaximum setting is %@.\n", s];
+            }
+          else
+            {
+	      if ([cmdDefs boolForKey: @"Memory"])
+		{
+		  [self cmdPrintf:
+		    @"Memory statistics are currently being gathered.\n"];
+		}
+              else
+                {
+		  [self cmdPrintf:
+		    @"Memory statistics are NOT being gathered.\n"];
+                }
+            }
 	}
       else if ([msg count] == 3)
         {
-	  NSString	*op = [msg objectAtIndex: 1];
+	  NSString	*op = [[msg objectAtIndex: 1] lowercaseString];
           NSString      *arg = [msg objectAtIndex: 2];
           NSInteger     val = [arg integerValue];
        
-          if ([op caseInsensitiveCompare: @"alarm"] == NSOrderedSame)
+          if ([op isEqual: @"alarm"])
             {
 	      arg = [arg stringByTrimmingSpaces];
 	      if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
@@ -4997,7 +5051,7 @@ With two parameters ('maximum' and a number),\n\
 		  [self cmdPrintf: @"MemoryAlarm set to %@.\n", arg];
 		}
 	    }
-          else if ([op caseInsensitiveCompare: @"allowed"] == NSOrderedSame)
+          else if ([op isEqual: @"allowed"])
             {
               if (val <= 0)
                 {
@@ -5021,7 +5075,7 @@ With two parameters ('maximum' and a number),\n\
                 }
               [self _memCheck];
             }
-          else if ([op caseInsensitiveCompare: @"idle"] == NSOrderedSame)
+          else if ([op isEqual: @"idle"])
             {
 	      if (!isdigit([arg characterAtIndex: 0]))
 		{
@@ -5042,7 +5096,7 @@ With two parameters ('maximum' and a number),\n\
                 }
               [self _memCheck];
             }
-          else if ([op caseInsensitiveCompare: @"maximum"] == NSOrderedSame)
+          else if ([op isEqual: @"maximum"] || [op isEqual: @"max"])
             {
               if (val <= 0)
                 {
