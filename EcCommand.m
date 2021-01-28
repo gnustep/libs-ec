@@ -99,6 +99,9 @@ cmdWord(NSArray* a, unsigned int pos)
     }
 }
 
+static BOOL                     debug = YES;
+static NSTimeInterval           quitTime = 120.0;
+
 /* When this control process needs to shut down *all* clients,
  * we set the date for the shutdown to end.
  */
@@ -140,10 +143,16 @@ ACStrings(AlarmCode ac, NSString **problem, NSString **repair)
     }
 }
 
+/* The desired state of a LaunchInfo object says whether the corresponding
+ * process has a particular state to which it should be returned.
+ * The initial state is determined by the configuration ffor the process,
+ * but that may be changed either by instruction (eg the Console commands)
+ * or by a configuration change.
+ */
 typedef enum {
+  None = 0,     // The process is free to start/stop
   Dead,         // The process should be stopped if it is live
-  Live,         // The process should be started if it is dead
-  None          // The process is free to start/stop
+  Live          // The process should be started if it is dead
 } Desired;
 
 static NSString *
@@ -403,7 +412,7 @@ desiredName(Desired state)
 - (void) resetDelay;
 - (void) setClient: (EcClientI*)c;
 - (void) setConfiguration: (NSDictionary*)c;
-- (void) setDesired: (Desired)state reason: (NSString*)reason;
+- (void) setDesired: (Desired)state;
 - (void) setHung;
 - (void) setPing;
 - (void) setProcessIdentifier: (int)p;
@@ -417,6 +426,12 @@ desiredName(Desired state)
  * Command server, at which point the -started method will be called.
  */
 - (void) start;
+
+/** Initiates the startup of a process for the supplied reason, but only if
+ * it makes sense.  This method performs the checks to see if the startup
+ * should take place, then calls -start if it should.
+ */
+- (void) start: (NSString*)reason;
 
 /** Called automatically when startup of a process completes, either as a
  * result of an internal -start or as a result of an externally launched
@@ -439,6 +454,12 @@ desiredName(Desired state)
  * goes on longer than the time limit, the process will be killed.
  */
 - (void) stop;
+
+/** Initiates stopping of a process only if it makes sense.  This method
+ * performs checks and, if the process can be stopped, calls the -stop
+ * method to do it.  This sets the desired state of the process to Dead.
+ */
+- (void) stop: (NSString*)reason;
 
 /** Called at the point when a stopping process finally ceases to exist.
  */
@@ -933,14 +954,6 @@ desiredName(Desired state)
   registrationDate = 0.0;
   awakenedDate = 0.0;
   stableDate = 0.0;
-  /* The connection to the client went away, which implies that the process
-   * was connected/registered and we must either be stopping already or need
-   * to stop (expect the process to die soon).
-   * So either way we should trigger the -stopping: timeout handler to
-   * check for the end of the process and to ensure that we try again if
-   * it has not yet ended.
-   */
-  [self stopping: nil];
 }
 
 - (void) clearHung
@@ -1514,77 +1527,107 @@ valgrindLog(NSString *name)
     }
   else
     {
-      if (Live == desired && nil == client)
+      switch (desired)
         {
-	  /* Possibly the client is already running (if the Command server
-	   * has just started) or has been started externally and not yet
-	   * connected ... if so see if we can get it to connect.
-	   */
-	  if (NO == [self checkActive])
-	    {
-	      [self start];
-	    }
-	  else
-	    {
-	      NSLog(@"-progress ignored (already active) for %@", self);
-	    }
-        }
-      else if (Dead == desired && nil != client)
-        {
-          [self stop];
-        }
-      else
-        {
-          /* We reached the desired state, so we clear the desire
-           * and decide if we need to change state normally.
-           */
-          desired = None;
-          if ([self disabled])
-            {
-              /* If the config says we are disabled, we should stop.
-               */
-              if (YES == [self checkActive])
-                {
-                  [self stop];
-                }
-	      else
-		{
-		  NSLog(@"-progress none (disabled in config) for %@", self);
-		}
-            }
-          else if (terminationStatusKnown && -1 == terminationStatus)
-	    {
-	      /* The process exited with a -1 status code.
-	       * That means it wanted to be restarted.
-	       */
-	      ASSIGN(startedReason, @"restart");
-	      if (NO == [self checkActive])
-                {
-                  [self start];
-                }
-	      else
-		{
-		  NSLog(@"-progress ignored (already active) for %@", self);
-		}
-	    }
-          else if ([self autolaunch]
-	    && (NO == terminationStatusKnown
-	      || (terminationStatus != 0 || terminationSignal != 0)))
-            {
-              /* The config says we autolaunch and the last process
-               * did not shut down gracefully.
-               * So we should autolaunch again.
-               */
-	      ASSIGN(startedReason, @"autolaunch");
-	      if (NO == [self checkActive])
-                {
-                  [self start];
-                }
-	      else
-		{
-		  NSLog(@"-progress ignored (already active) for %@", self);
-		}
-            }
+          case Live:
+            if (nil == client)
+              {
+                /* Possibly the client is already running (if the Command server
+                 * has just started) or has been started externally and not yet
+                 * connected ... if so see if we can get it to connect.
+                 */
+                if (NO == [self checkActive])
+                  {
+                    [self start];
+                  }
+                else
+                  {
+                    NSLog(@"-progress ignored (already active) for %@", self);
+                  }
+              }
+            else
+              {
+                NSLog(@"-progress ignored (already live) for %@", self);
+              }
+            break;
+
+          case Dead:
+            if (client)
+              {
+                [self stop];
+              }
+            else
+              {
+                NSLog(@"-progress ignored (already dead) for %@", self);
+              }
+            break;
+
+          case None:
+            if ([self disabled])
+              {
+                /* If the config says we are disabled, we should stop.
+                 */
+                if (YES == [self checkActive])
+                  {
+                    [self stop];
+                  }
+                else
+                  {
+                    NSLog(@"-progress none (disabled in config) for %@", self);
+                  }
+              }
+            else if (restartReason)
+              {
+                if (client)
+                  {
+                    [self stop];
+                  }
+                else if (NO == [self checkActive])
+                  {
+                    ASSIGN(startedReason, @"restart");
+                    [self start];
+                  }
+                else
+                  {
+                    NSLog(@"-progress ignored (already active) for %@", self);
+                  }
+              }
+            else if (terminationStatusKnown && -1 == terminationStatus)
+              {
+                /* The process exited with a -1 status code.
+                 * That means it wanted to be restarted.
+                 */
+                ASSIGN(startedReason, @"restart");
+                if (NO == [self checkActive])
+                  {
+                    [self start];
+                  }
+                else
+                  {
+                    NSLog(@"-progress ignored (already active) for %@", self);
+                  }
+              }
+            else if ([self autolaunch])
+              {
+                /* The config says we autolaunch and the last process
+                 * did not shut down gracefully.
+                 * So we should autolaunch again.
+                 */
+                ASSIGN(startedReason, @"autolaunch");
+                if (NO == [self checkActive])
+                  {
+                    [self start];
+                  }
+                else
+                  {
+                    NSLog(@"-progress ignored (already active) for %@", self);
+                  }
+              }
+            else
+              {
+                NSLog(@"-progress ignored (stable) for %@", self);
+              }
+            break;
         }
     }
 }
@@ -1597,18 +1640,85 @@ valgrindLog(NSString *name)
 
 - (void) restart: (NSString*)reason
 {
-  if ([self checkActive])
+  if ([self disabled])
     {
-      if (NO == [self isStopping])
+      NSLog(@"-restart: '%@' ignored (disabled) for %@", reason, self);
+      return;
+    }
+
+  if (Dead == desired)
+    {
+      if ([self autolaunch])
         {
-          ASSIGNCOPY(restartReason, reason);
-          ASSIGNCOPY(stoppedReason, @"Console restart command");
-          [self stop];
+          [self setDesired: Live];
+        }
+      else
+        {
+          [self setDesired: None];
         }
     }
-  if (desired != Live)
+
+  if ([self isStarting])
     {
-      [self setDesired: Live reason: @"Console restart command"];
+      NSLog(@"-restart: '%@' ignored (already starting) for %@", reason, self);
+    }
+  else if ([self isStopping])
+    {
+      ASSIGNCOPY(restartReason, reason);
+      NSLog(@"-restart: '%@' applied (already stopping) for %@", reason, self);
+    }
+  else if ([self checkActive])
+    {
+      ASSIGNCOPY(restartReason, reason);
+      ASSIGNCOPY(stoppedReason, @"Console restart command");
+      [self stop];
+    }
+  else
+    {
+      NSLog(@"-restart: '%@' becomes a start for %@", reason, self);
+      [self start: reason];
+    }
+}
+
+/* Try to start up the process if possible, setting the supplied reason
+ */
+- (void) start: (NSString*)reason
+{
+  if ([self disabled])
+    {
+      NSLog(@"-start: '%@' ignored (disabled) for %@", reason, self);
+      return;
+    }
+
+  if (Dead == desired)
+    {
+      if ([self autolaunch])
+        {
+          [self setDesired: Live];
+        }
+      else
+        {
+          [self setDesired: None];
+        }
+    }
+
+  if ([self isStarting])
+    {
+      NSLog(@"-start: '%@' ignored (already starting) for %@", reason, self);
+    }
+  else if ([self isStopping])
+    {
+      NSLog(@"-start: '%@' becomes a restart for %@", reason, self);
+      [self restart: reason];
+    }
+  else if ([self checkActive])
+    {
+      NSLog(@"-start: '%@' ignored (already Live) for %@", reason, self);
+    }
+  else
+    {
+      ASSIGN(startedReason, reason);
+      [self start];
     }
 }
 
@@ -1617,11 +1727,21 @@ valgrindLog(NSString *name)
   EcCommand	*command = (EcCommand*)EcProc;
   NSString	*reason = AUTORELEASE(startedReason);
 
+  if (debug)
+    {
+      NSLog(@"-started for %@ at %@", self, [NSThread callStackSymbols]);
+    }
+
   startedReason = nil;
   if (nil == reason)
     {
-      reason = @"started externally";
+      reason = AUTORELEASE(RETAIN(restartReason));
+      if (nil == reason)
+        {
+          reason = @"started externally";
+        }
     }
+  DESTROY(restartReason);       // Restart is complete
 
   terminationCount = 0;
   terminationDate = 0.0;
@@ -1713,55 +1833,50 @@ valgrindLog(NSString *name)
 	}
       if (desired != Dead)
 	{
-	  [self setDesired: Dead reason: @"process disabled in config"];
+	  [self setDesired: Dead];
 	}
     }
   else if ([self autolaunch])
     {
       if (NO == wasAuto && desired != Live)
 	{
-	  [self setDesired: Live reason: @"autolaunch"];
+	  [self setDesired: Live];
 	}
     }
   else
     {
-      if (desired != None)
+      if (Live == desired)
 	{
-	  [self setDesired: None reason: nil];
+	  [self setDesired: None];
 	}
     }
 }
 
-/* Called when a manual change is made to specify what state a process should
- * be in (also called to set configured state).
- */
-- (void) setDesired: (Desired)state reason: (NSString*)reason
+- (void) setDesired: (Desired)state
 {
   Desired       old = desired;
 
   desired = state;
-  if (Live == desired)
-    {
-      ASSIGNCOPY(startedReason, reason);
-    }
-  if (Dead == desired)
-    {
-      ASSIGNCOPY(stoppedReason, reason);
-    }
   if (terminateBy != nil && desired != Dead)
     {
       desired = Dead;
       NSLog(@"-setDesired:Dead forced by termination in progress for %@", self);
     }
-  if (Live == desired && [self disabled])
+  else if (Live == desired && [self disabled])
     {
       desired = Dead;
       NSLog(@"-setDesired:Live overridden by Disabled config of %@", self);
     }
+  else if (None == desired && [self disabled])
+    {
+      desired = Dead;
+      NSLog(@"-setDesired:None overridden by Disabled config of %@", self);
+    }
+
   if (old == desired)
     {
-      NSLog(@"-setDesired:%@ unchanged of %@",
-        desiredName(desired), self);
+      NSLog(@"-setDesired:%@ unchanged for %@", desiredName(desired), self);
+
       if (terminateBy != nil && [self isStopping]
         && [[stoppingTimer fireDate] earlierDate: terminateBy] == terminateBy)
         {
@@ -1779,6 +1894,11 @@ valgrindLog(NSString *name)
     {
       NSLog(@"-setDesired:%@ deferred pending shutdown of %@",
         desiredName(desired), self);
+      if (nil == stoppingTimer)
+        {
+          NSLog(@"stoppingTimer not set - attempt to proceeed with stopping");
+          [self stopping: nil];
+        }
     }
   else
     {
@@ -1805,7 +1925,6 @@ valgrindLog(NSString *name)
             }
 	}
     }
-  [self progress];
 }
 
 - (void) setHung
@@ -1850,6 +1969,11 @@ valgrindLog(NSString *name)
  */
 - (void) start
 {
+  if (debug)
+    {
+      NSLog(@"-start for %@ at %@", self, [NSThread callStackSymbols]);
+    }
+
   if ([self isStarting])
     {
       EcExceptionMajor(nil, @"-start when already starting of %@", self);
@@ -1872,10 +1996,6 @@ valgrindLog(NSString *name)
 	{
 	  NSLog(@"-start called for %@ with timer already present at %@",
 	    self, [NSThread callStackSymbols]);
-	}
-      else
-	{
-	  NSLog(@"-start called for %@", self);
 	}
       [self resetDelay];
       startingAlarm = NO;
@@ -1972,6 +2092,11 @@ valgrindLog(NSString *name)
    * Either way the timer is no longer valid and a new one will need
    * to be created unless startup has completed.
    */
+
+  if (debug)
+    {
+      NSLog(@"-starting: for %@ at %@", self, [NSThread callStackSymbols]);
+    }
 
   if (inStarting)
     {
@@ -2131,28 +2256,42 @@ valgrindLog(NSString *name)
 
   if ([self isStarting])
     {
-      status = [NSString stringWithFormat: @"Starting since %@",
-        date(startingDate)];
+      status = [NSString stringWithFormat: @"Starting (pid:%d) since %@",
+        [self processIdentifier], date(startingDate)];
     }
   else if ([self isStopping])
     {
-      status = [NSString stringWithFormat: @"Stopping since %@",
-        date(stoppingDate)];
+      status = [NSString stringWithFormat: @"Stopping (pid:%d) since %@",
+        [self processIdentifier], date(stoppingDate)];
+    }
+  else if ([self isHung])
+    {
+      status = [NSString stringWithFormat: @"Hung (pid:%d) since %@",
+        [self processIdentifier], date(hungDate)];
     }
   else if (nil == client)
     {
-      status = @"Not active";
+      if (queuedDate > 0.0)
+        {
+          status = [NSString stringWithFormat: @"Queued since %@",
+            date(queuedDate)];
+        }
+      else
+        {
+          status = @"Not active";
+        }
     }
   else
     {
       if ([self stable])
         {
-          status = @"Active (stable)";
+          status = [NSString stringWithFormat: @"Active (pid:%d) stable",
+            [self processIdentifier]];
         }
       else
         {
-          status = [NSString stringWithFormat: @"Active since %@",
-            date(registrationDate)];
+          status = [NSString stringWithFormat: @"Active (pid:%d) since %@",
+            [self processIdentifier], date(registrationDate)];
         }
     }
   return status;
@@ -2160,6 +2299,10 @@ valgrindLog(NSString *name)
 
 - (void) stop
 {
+  if (debug)
+    {
+      NSLog(@"-stop for %@ at %@", self, [NSThread callStackSymbols]);
+    }
   if ([self isStopping])
     {
       NSLog(@"-stop called when already stopping for %@", self);
@@ -2172,7 +2315,7 @@ valgrindLog(NSString *name)
     {
       [self resetDelay];
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
-      abortDate = stoppingDate + 120.0;
+      abortDate = stoppingDate + quitTime;
       if (nil == client)
         {
           /* No connection to client established ... try to shut it down
@@ -2195,7 +2338,6 @@ valgrindLog(NSString *name)
 		  NSLog(@"-stop sends -ecRestart:%@ for %@",
 		    restartReason, self);
                   [[client obj] ecRestart: restartReason];
-                  DESTROY(restartReason);
                 }
             }
           NS_HANDLER
@@ -2214,9 +2356,43 @@ valgrindLog(NSString *name)
     }
 }
 
+- (void) stop: (NSString*)reason
+{
+  if (desired != Dead)
+    {
+      [self setDesired: Dead];
+    }
+
+  if ([self isStopping])
+    {
+      NSLog(@"-start: '%@' ignored (already stopping) for %@", reason, self);
+    }
+  else if ([self isStarting])
+    {
+      NSLog(@"-start: '%@' deferred (currently starting) for %@", reason, self);
+      ASSIGN(stoppedReason, reason);
+    }
+  else if ([self checkActive])
+    {
+      ASSIGN(stoppedReason, reason);
+      [self stop];
+    }
+  else
+    {
+      NSLog(@"-start: '%@' ignored (already Dead) for %@", reason, self);
+    }
+}
+
 - (void) stopped
 {
   EcCommand	*command = (EcCommand*)EcProc;
+  NSString      *text = nil;                    // Text to appear in alarm.
+  NSString      *reason;                        // Reason to appear in audit
+
+  if (debug)
+    {
+      NSLog(@"-stopped for %@ at %@", self, [NSThread callStackSymbols]);
+    }
 
   [stoppingTimer invalidate];
   stoppingTimer = nil;
@@ -2229,9 +2405,9 @@ valgrindLog(NSString *name)
 
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
-      NSString	*reason = AUTORELEASE(stoppedReason);
       BOOL	failed = NO;
 
+      reason = AUTORELEASE(stoppedReason);
       stoppedReason = nil;
       if (nil == reason)
 	{
@@ -2241,8 +2417,15 @@ valgrindLog(NSString *name)
 	       * than shutting down normally.
 	       */
 	      failed = YES;
-	      reason = [NSString stringWithFormat:
-		@"stopped (died with signal %d)", terminationSignal];
+              if (terminationSignal < 0)
+                {
+                  reason = @"forcibly killed because shutdown took too long";
+                }
+              else
+                {
+                  reason = [NSString stringWithFormat:
+                    @"stopped (died with signal %d)", terminationSignal];
+                }
 	    }
 	  else if (terminationStatusKnown && terminationStatus != 0)
 	    {
@@ -2288,16 +2471,29 @@ valgrindLog(NSString *name)
 	    }
 	}
 
+      if (Dead != desired && nil == restartReason)
+        {
+          /* We don't want the process to be shut down and we didn't
+           * ask for it to be restarted.
+           */
+          failed = YES;
+        }
+
       if (failed || clientLostDate > 0.0)
 	{
-	  NSString      *text;
-
 	  if (terminationStatusKnown)
 	    {
 	      if (terminationSignal != 0)
 		{
-		  text = [NSString stringWithFormat: @"termination signal %d",
-		    terminationSignal];
+                  if (terminationSignal < 0)
+                    {
+                      text = @"forcibly killed because shutdown took too long";
+                    }
+                  else
+                    {
+                      text = [NSString stringWithFormat:
+                        @"termination signal %d", terminationSignal];
+                    }
 		}
 	      else if (-1 == terminationStatus)
 		{
@@ -2325,17 +2521,12 @@ valgrindLog(NSString *name)
 	    {
 	      text = @"termination status unknown";
 	    }
-	  [command alarmCode: ACProcessLost
-		    procName: name
-		     addText: text];
-	  [command auditState: self reason: reason];
 	}
       else if (clientQuitDate > 0.0)
 	{
 	  /* Clean shutdown (process unregistered itself).
 	   */
 	  [self resetDelay];
-	  [command auditState: self reason: reason];
 	}
     }
   else
@@ -2343,8 +2534,56 @@ valgrindLog(NSString *name)
       /* Loss of a process which hadn't connected/registered.
        * This should not be audited as a stop since it did not start.
        */
+      reason = nil;
     }
 
+  /* We schedule a restart *before* doing anything which might run the
+   * event loop.
+   */
+  if (NO == [self isStarting])
+    {
+      if (nil == restartReason
+        && terminationStatusKnown
+        && 0 == terminationSignal
+        && -1 == terminationStatus)
+        {
+          restartReason = @"requested by process";
+        }
+
+      if (restartReason)
+        {
+          /* The process is supposed to restart, so we schedule a start.
+           */
+          if (Dead == desired)
+            {
+              /* I suppose there could have been a config change disabling
+               * the process or a quit command to it which came in after
+               * the restart was schedulede.
+               */
+              NSLog(@"Restart (%@) overridden for %@", restartReason, self);
+              DESTROY(restartReason);
+            }
+          else
+            {
+              [self start];
+            }
+        }
+      else if (Live == desired)
+        {
+          [self start];
+        }
+    }
+
+  if (reason)
+    {
+      [command auditState: self reason: reason];
+    }
+  if (text)
+    {
+      [command alarmCode: ACProcessLost
+                procName: name
+                 addText: text];
+    }
   [self progress];
   [LaunchInfo processQueue];
 }
@@ -2353,6 +2592,11 @@ valgrindLog(NSString *name)
 {
   NSTimeInterval	now;
   NSTimeInterval	ti;
+
+  if (debug)
+    {
+      NSLog(@"-stopping: for %@ at %@", self, [NSThread callStackSymbols]);
+    }
 
   [stoppingTimer invalidate];
   stoppingTimer = nil;
@@ -2367,15 +2611,8 @@ valgrindLog(NSString *name)
       if (nil == task)
         {
           [self stopped];
+          return;
         }
-      else
-        {
-          /* Gets subprocess exit status and then recursively calls
-           * this method.
-           */
-          [task waitUntilExit];
-        }
-      return;
     }
 
   now = [NSDate timeIntervalSinceReferenceDate];
@@ -2385,7 +2622,7 @@ valgrindLog(NSString *name)
     }
   if (abortDate <= 0.0)
     {
-      abortDate = stoppingDate + 120.0;
+      abortDate = stoppingDate + quitTime;
     }
   if (nil != terminateBy)
     {
@@ -2395,8 +2632,7 @@ valgrindLog(NSString *name)
           abortDate = ti;
         }
     }
-  ti = abortDate;
-  if (ti <= now)
+  if (abortDate <= now)
     {
       /* Maximum time for clean shutdown has passed.
        */
@@ -2407,6 +2643,21 @@ valgrindLog(NSString *name)
       launchDate = 0.0;
       if (identifier > 0)
         {
+          /* Do the housekeeping from -taskTerminated: before kill
+           */
+          if (nil != task)
+            {
+              [[NSNotificationCenter defaultCenter]
+                removeObserver: self
+                          name: NSTaskDidTerminateNotification
+                        object: task];
+              DESTROY(task);
+            }
+          terminationSignal = -1;       // We use -1 to indicate a forced quit
+          terminationStatus = 0;
+          terminationStatusKnown = YES;
+          terminationDate = [NSDate timeIntervalSinceReferenceDate];
+          terminationCount++;
           kill(identifier, SIGKILL);
           identifier = 0;
         }
@@ -2414,22 +2665,17 @@ valgrindLog(NSString *name)
         {
           [self clearClient: client cleanly: NO];
         }
-      else if (nil == task)
-        {
-          [self stopped];
-        }
-      else
-        {
-          /* Gets subprocess exit status and then recursively calls
-           * this method.
-           */
-          [task waitUntilExit];
-        }
-      return;
+      clientLostDate = now; 
+      [self stopped];
     }
   else
     {
-      if (nil == client && nil == task)
+      ti = abortDate - now;
+      if (ti < 0.001)
+        {
+          ti = 0.001;
+        }
+      if (nil == client && nil == task && ti > 0.1)
         {
           /* This can happen if a process was launched externally and
            * connected to the Command server (so we know its PID).
@@ -2599,12 +2845,12 @@ valgrindLog(NSString *name)
   if ([l isActive])
     {
       problem = @"Started (audit information)";
-      NSLog(@"Started %@", l);
+      NSLog(@"Started (%@) %@", additional, l);
     }
   else
     {
       problem = @"Stopped (audit information)";
-      NSLog(@"Stopped %@", l);
+      NSLog(@"Stopped (%@) %@", additional, l);
     }
   managedObject = EcMakeManagedObject(host, @"Command", [l name]);
   a = [EcAlarm alarmForManagedObject: managedObject
@@ -2896,6 +3142,7 @@ NSLog(@"Problem %@", localException);
           NSMutableArray        *newOrder;
 	  NSString              *k;
           NSString              *err = nil;
+          NSTimeInterval        ti;
 
           NS_DURING
             {
@@ -2949,7 +3196,7 @@ NSLog(@"Problem %@", localException);
             }
           else
             {
-              EcAlarm       *a;
+              EcAlarm   *a;
 
               a = [EcAlarm alarmForManagedObject: nil
                 at: nil
@@ -2960,6 +3207,23 @@ NSLog(@"Problem %@", localException);
                 proposedRepairAction: nil
                 additionalText: nil];
               [self alarm: a];
+            }
+
+          debug = [[d objectForKey: @"CommandDebug"] boolValue];
+
+          /* The time allowed for a process to shut down cleanly defaults
+           * to 120 seconds but may be configured in the range from 10 to 600
+           */
+          ti = [[d objectForKey: @"CommandQuitTime"] doubleValue];
+          if (ti == ti && ti > 0.0)
+            {
+              if (ti < 10.0) ti = 10.0;
+              if (ti > 600.0) ti = 600.0;
+              quitTime = ti;
+            }
+          else
+            {
+              quitTime = 120.0;
             }
 
           /* We may not have more than this number of tasks launching at
@@ -3170,6 +3434,7 @@ NSLog(@"Problem %@", localException);
 			    }
 			}
                       [l setConfiguration: [conf objectForKey: k]];
+                      [l progress];
                       [missing removeObject: k];
                     }
                 }
@@ -3667,8 +3932,7 @@ NSLog(@"Problem %@", localException);
                           [s appendFormat:
                             @"  %-32.32s is stopping (will restart)\n",
                             [key UTF8String]];
-                          [l setDesired: Live
-			         reason: @"Console launch command"];
+                          [l start: @"Console launch command"];
                         }
                       else
                         {
@@ -3676,8 +3940,7 @@ NSLog(@"Problem %@", localException);
                             @"  %-32.32s will be started\n",
                             [key UTF8String]];
                           [l resetDelay];
-                          [l setDesired: Live
-				 reason: @"Console launch command"];
+                          [l start: @"Console launch command"];
                         }
                     }
 
@@ -3725,11 +3988,25 @@ NSLog(@"Problem %@", localException);
 		  m = @"Current client processes -\n";
 		  for (i = 0; i < [clients count]; i++)
 		    {
-		      EcClientI	*c = [clients objectAtIndex: i];
+		      EcClientI *c = [clients objectAtIndex: i];
+		      LaunchInfo	*l = [LaunchInfo existing: [c name]];
+                      char              *s = "";
 
+                      if ([l isHung])
+                        {
+                          s = " hung";
+                        }
+                      else if ([l isStopping])
+                        {
+                          s = " stopping";
+                        }
+                      else if ([l isStarting])
+                        {
+                          s = " starting";
+                        }
 		      m = [NSString stringWithFormat:
-			@"%@%2d.   %-32.32s (pid:%d)\n",
-			m, i, [[c name] cString], [c processIdentifier]];
+			@"%@%2d.   %-32.32s (pid:%d%s)\n",
+			m, i, [[c name] cString], [c processIdentifier], s];
 		    }
 		}
 	    }
@@ -3849,29 +4126,14 @@ NSLog(@"Problem %@", localException);
 		    }
 		  else
 		    {
-		      m = @"Already terminating!\n";
+                      m = [NSString stringWithFormat:
+                        @"Already terminating by %@\n", [terminating fireDate]];
 		    }
 		}
 	      else if (comp(wd, @"all") == 0)
 		{
 		  [self quitAll];
-
-#if 0
-		  if ([clients count] == 0)
-		    {
-		      m = @"All clients have been shut down.\n";
-		    }
-		  else if ([clients count] == 1)
-		    {
-		      m = @"One client did not shut down.\n";
-		    }
-		  else
-		    {
-		      m = @"Some clients did not shut down.\n";
-		    }
-#else
 		  m = @"All clients have been asked to shut down.\n";
-#endif
 		}
 	      else
 		{
@@ -3900,8 +4162,7 @@ NSLog(@"Problem %@", localException);
                             }
                           else
                             {
-                              [l setDesired: Dead
-				     reason: @"Console quit command"];
+                              [l stop: @"Console quit command"];
                               [l checkAbandonedStartup];
                             }
 			  [self clearAll: [c name]
@@ -3935,8 +4196,7 @@ NSLog(@"Problem %@", localException);
 				}
 			      else
 				{
-                                  [l setDesired: Dead
-					 reason: @"Console quit command"];
+                                  [l stop: @"Console quit command"];
 				  m = [m stringByAppendingFormat:
 				    @"Suspended %@\n", key];
 				}
@@ -3988,7 +4248,8 @@ NSLog(@"Problem %@", localException);
 		    }
 		  else
 		    {
-		      m = @"Already terminating!\n";
+                      m = [NSString stringWithFormat:
+                        @"Already terminating by %@\n", [terminating fireDate]];
 		    }
 		}
 	      else if (comp(wd, @"all") == 0)
@@ -4393,6 +4654,7 @@ NSLog(@"Problem %@", localException);
               lostClients = YES;
 	      [self removeClient: o cleanly: failedToUnregister ? NO : YES];
               [l clearClient: o cleanly: failedToUnregister ? NO : YES];
+              [l stopping: nil];
 	    }
 	}
       [c removeAllObjects];
@@ -4772,7 +5034,7 @@ NSLog(@"Problem %@", localException);
     {
       int       p = [l processIdentifier];
 
-      [l setDesired: Dead reason: @"killed shutdown/remote"];
+      [l stop: @"killed shutdown/remote"];
       if (p > 0)
         {
           kill(p, SIGKILL);
@@ -4796,7 +5058,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      [l setDesired: Live reason: @"remote API request"];
+      [l start: @"remote API request"];
     }
   return YES;
 }
@@ -4900,7 +5162,7 @@ NSLog(@"Problem %@", localException);
   e = [launchInfo objectEnumerator];
   while (nil != (l = [e nextObject]))
     {
-      [l setDesired: Dead reason: @"quit all instruction"];
+      [l stop: @"quit all instruction"];
       [l checkAbandonedStartup];
     }
 
@@ -5695,7 +5957,7 @@ NSLog(@"Problem %@", localException);
 
       [l clearClient: o cleanly: YES];
       [self removeClient: o cleanly: YES];
-      [l progress];
+      [l stopping: nil];
     }
   [self update];
 }
