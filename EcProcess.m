@@ -5803,6 +5803,13 @@ With two parameters ('maximum' and a number),\n\
   
   return ([server multiple] == nil) ? NO : YES;
 }
+ 
+/* Allow the process to be terminated using the same API as Command server
+ */
+- (oneway void) terminate
+{
+  [self ecQuitFor: @"external -terminate: requested" with: 0];
+}
 
 @end
 
