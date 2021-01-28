@@ -2479,18 +2479,28 @@ valgrindLog(NSString *name)
 	    }
 	  else if (clientLostDate > 0.0)
 	    {
+              /* The process was lost without unregistering from the Command
+               * server so it was not an orderly shutdown.
+               */
+              failed = YES;
 	      reason = @"stopped (process lost)";
 	    }
 	  else
 	    {
+              /* The process was shut down with no reason supplied but in an
+               * orderly manner, so that must have been because something
+               * other than the Command server asked it to shut itself down.
+               */
 	      reason = @"stopped externally";
 	    }
 	}
 
-      if (Dead != desired && nil == restartReason)
+      if (Live == desired && nil == restartReason)
         {
-          /* We don't want the process to be shut down and we didn't
-           * ask for it to be restarted.
+          /* We wanted the process to be kept alive and we didn't
+           * ask for it to be restarted.  Even if the shutdown was
+           * orderly, we didn't want it to happen and should raise
+           * an alarm about it.
            */
           failed = YES;
         }
