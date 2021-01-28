@@ -107,6 +107,23 @@ static NSTimeInterval           quitTime = 120.0;
  */
 static NSDate                   *terminateBy = nil;
 
+static NSTimeInterval
+abortDateFromStoppingDate(NSTimeInterval stopping)
+{
+  NSTimeInterval        abortDate = stopping + quitTime;
+
+  if (terminateBy)
+    {
+      NSTimeInterval    ti = [terminateBy timeIntervalSinceReferenceDate];
+
+      if (ti < abortDate)
+        {
+          abortDate = ti;
+        }
+    }
+  return abortDate;
+}
+
 static NSUInteger               launchLimit = 0;
 static BOOL                     launchEnabled = NO;
 static NSMutableDictionary	*launchInfo = nil;
@@ -2315,7 +2332,7 @@ valgrindLog(NSString *name)
     {
       [self resetDelay];
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
-      abortDate = stoppingDate + quitTime;
+      abortDate = abortDateFromStoppingDate(stoppingDate);
       if (nil == client)
         {
           /* No connection to client established ... try to shut it down
@@ -2401,7 +2418,6 @@ valgrindLog(NSString *name)
   awakenedDate = 0.0;
   stableDate = 0.0;
   abortDate = 0.0;
-  DESTROY(terminateBy);         // Termination completed
 
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
@@ -2622,15 +2638,7 @@ valgrindLog(NSString *name)
     }
   if (abortDate <= 0.0)
     {
-      abortDate = stoppingDate + quitTime;
-    }
-  if (nil != terminateBy)
-    {
-      ti = [terminateBy timeIntervalSinceReferenceDate];
-      if (ti < abortDate)
-        {
-          abortDate = ti;
-        }
+      abortDate = abortDateFromStoppingDate(stoppingDate);
     }
   if (abortDate <= now)
     {
