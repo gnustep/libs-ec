@@ -942,8 +942,12 @@ desiredName(Desired state)
           NS_HANDLER
             {
 	      NSLog(@"Problem with reconnect for %@: %@", name, localException);
-              [c setRequestTimeout: 0.0];
-              [c setReplyTimeout: 0.0];
+              if ([c isValid])
+                {
+                  [c setRequestTimeout: 0.0];
+                  [c setReplyTimeout: 0.0];
+                  [c invalidate];
+                }
             }
           NS_ENDHANDLER
         }
@@ -967,7 +971,9 @@ desiredName(Desired state)
 	}
       else
 	{
-	  identifier = 0;	// Process has terminated
+          /* Process has terminated.
+           */
+	  identifier = 0;
 	}
     }
   return NO;
@@ -1060,7 +1066,14 @@ desiredName(Desired state)
   NSMutableString	*m = [[super description] mutableCopy];
   NSString		*status = [self status];
 
-  [m appendFormat: @" for process '%@'\n", name];
+  if (identifier > 0)
+    {
+      [m appendFormat: @" for process '%@' (pid:%d)\n", name, identifier];
+    }
+  else
+    {
+      [m appendFormat: @" for process '%@'\n", name];
+    }
   if (startingDate > 0.0)
     {
       [m appendFormat: @"  Starting since %@ next check at %@\n",
@@ -1941,7 +1954,7 @@ valgrindLog(NSString *name)
     {
       if (Live == desired)
 	{
-          if ([self checkProcess])
+          if (identifier > 0)
             {
               NSLog(@"-setDesired:Live when already started of %@", self);
             }
@@ -1952,7 +1965,7 @@ valgrindLog(NSString *name)
 	}
       else if (Dead == desired)
 	{
-	  if ([self checkProcess])
+	  if (identifier > 0)
 	    {
               NSLog(@"-setDesired:Dead requests shutdown of %@", self);
 	    }
@@ -2023,7 +2036,7 @@ valgrindLog(NSString *name)
     {
       EcExceptionMajor(nil, @"-start when already active of %@", self);
     }
-  else if (YES == [self checkProcess])
+  else if (identifier > 0)
     {
       EcExceptionMajor(nil, @"-start when already alive of %@", self);
     }
@@ -2344,7 +2357,7 @@ valgrindLog(NSString *name)
     {
       NSLog(@"-stop called when already stopping for %@", self);
     }
-  else if (NO == [self checkProcess])
+  else if (NO == [self checkActive] && 0 == identifier)
     {
       NSLog(@"-stop called when not alive for %@", self);
     }
@@ -2402,21 +2415,21 @@ valgrindLog(NSString *name)
 
   if ([self isStopping])
     {
-      NSLog(@"-start: '%@' ignored (already stopping) for %@", reason, self);
+      NSLog(@"-stop: '%@' ignored (already stopping) for %@", reason, self);
     }
   else if ([self isStarting])
     {
-      NSLog(@"-start: '%@' deferred (currently starting) for %@", reason, self);
+      NSLog(@"-stop: '%@' deferred (currently starting) for %@", reason, self);
       ASSIGN(stoppedReason, reason);
     }
-  else if ([self checkActive])
+  else if ([self checkActive] || identifier > 0)
     {
       ASSIGN(stoppedReason, reason);
       [self stop];
     }
   else
     {
-      NSLog(@"-start: '%@' ignored (already Dead) for %@", reason, self);
+      NSLog(@"-stop: '%@' ignored (already Dead) for %@", reason, self);
     }
 }
 
