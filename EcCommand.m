@@ -1680,14 +1680,19 @@ valgrindLog(NSString *name)
   fib0 = fib1 = 0.0;
 }
 
+/* If a process is running, restart it.
+ * This should NOT start processes which are not running.
+ */
 - (void) restart: (NSString*)reason
 {
-  if ([self disabled])
+  if (NO == [self checkActive])
     {
-      NSLog(@"-restart: '%@' ignored (disabled) for %@", reason, self);
+      NSLog(@"-restart: '%@' ignored (not running) for %@", reason, self);
       return;
     }
 
+  /* For a restart, the desired state cannot be Dead
+   */
   if (Dead == desired)
     {
       if ([self autolaunch])
@@ -1700,25 +1705,15 @@ valgrindLog(NSString *name)
         }
     }
 
-  if ([self isStarting])
+  /* Setting a restartReason ensures that the process is restarted 
+   * once it has stopped.
+   */
+  ASSIGNCOPY(restartReason, reason);
+
+  if (NO == [self isStopping])
     {
-      NSLog(@"-restart: '%@' ignored (already starting) for %@", reason, self);
-    }
-  else if ([self isStopping])
-    {
-      ASSIGNCOPY(restartReason, reason);
-      NSLog(@"-restart: '%@' applied (already stopping) for %@", reason, self);
-    }
-  else if ([self checkActive])
-    {
-      ASSIGNCOPY(restartReason, reason);
-      ASSIGNCOPY(stoppedReason, @"Console restart command");
+      ASSIGNCOPY(stoppedReason, reason);
       [self stop];
-    }
-  else
-    {
-      NSLog(@"-restart: '%@' becomes a start for %@", reason, self);
-      [self start: reason];
     }
 }
 
@@ -4322,12 +4317,22 @@ NSLog(@"Problem %@", localException);
 			{
 			  LaunchInfo	*l;
 
-			  m = [m stringByAppendingFormat: 
-			    @"  The process '%@' should restart shortly.\n",
-			    [c name]];
 			  l = [LaunchInfo existing: [c name]];
-                          [l restart: reason];
-			  found = YES;
+                          if ([l isActive])
+                            {
+                              NSString  *when = @"shortly";
+
+                              if ([l isHung])
+                                {
+                                  when = [NSString stringWithFormat:
+                                    @"in about %d seconds", (int)quitTime];
+                                }
+                              m = [m stringByAppendingFormat: 
+                                @"  The process '%@' should restart %@.\n",
+                                [l name], when];
+                              [l restart: reason];
+                              found = YES;
+                            }
 			}
 		      NS_HANDLER
 			{
@@ -4351,8 +4356,10 @@ NSLog(@"Problem %@", localException);
         {
           if (NO == launchEnabled)
             {
-              [self enableLaunching];
-              m = @"Launching is now resumed.\n";
+              [self performSelector: @selector(enableLaunching)
+                         withObject: nil
+                         afterDelay: 0.01];
+              m = @"Launching will be resumed.\n";
             }
           else
             {
