@@ -391,7 +391,6 @@ desiredName(Desired state)
 + (LaunchInfo*) launchInfo: (NSString*)name;
 + (NSUInteger) launching;
 + (NSArray*) names;
-+ (void) progress;
 + (void) processQueue;
 + (void) remove: (NSString*)name;
 /** Adds an alarm to the list raised (removes if a clear is passed in)
@@ -774,24 +773,6 @@ desiredName(Desired state)
 + (NSArray*) names
 {
   return [launchInfo allKeys];
-}
-
-/* Check the progress of all configured launches.
- */
-+ (void) progress
-{
-  ENTER_POOL
-  NSArray       *keys = [self names];
-  NSUInteger    count = [keys count];
-
-  while (count-- > 0)
-    {
-      LaunchInfo        *l = [self launchInfo: [keys objectAtIndex: count]];
-
-      [l progress];
-    }
-  LEAVE_POOL
-  [self processQueue];
 }
 
 /* Check each process in the queue to see if it may now be launched.
@@ -5748,8 +5729,9 @@ NSLog(@"Problem %@", localException);
 
 - (void) housekeeping: (NSTimer*)t
 {
-  static BOOL	inTimeout = NO;
-  NSDate	*now = [t fireDate];
+  static NSTimeInterval nextLog = 0.0;
+  static BOOL	        inTimeout = NO;
+  NSDate	        *now = [t fireDate];
 
   if (t == timer)
     {
@@ -5945,7 +5927,29 @@ NSLog(@"Problem %@", localException);
 	    }
 	}
 
-//      [LaunchInfo progress];
+      if ([now timeIntervalSinceReferenceDate] > nextLog)
+        {
+          NSMutableString       *ms = [NSMutableString string];
+          NSEnumerator          *enumerator;
+          NSString              *name;
+
+          nextLog = [now timeIntervalSinceReferenceDate] + 300.0;
+
+          enumerator = [[[LaunchInfo names]
+            sortedArrayUsingSelector: @selector(compare:)] objectEnumerator];
+          while (nil != (name = [enumerator nextObject]))
+            {
+              LaunchInfo        *l = [LaunchInfo existing: name];
+
+              if (l)
+                {
+                  [ms appendString: [l description]];
+                }
+            }
+
+          NSLog(@"\n#### Launch Information Status Start ####\n"
+            @"%@####  Launch Information Status End  ####", ms);
+        }
     }
   inTimeout = NO;
 }
