@@ -391,6 +391,7 @@ desiredName(Desired state)
 + (LaunchInfo*) launchInfo: (NSString*)name;
 + (NSUInteger) launching;
 + (NSArray*) names;
++ (void) progress;
 + (void) processQueue;
 + (void) remove: (NSString*)name;
 /** Adds an alarm to the list raised (removes if a clear is passed in)
@@ -407,7 +408,7 @@ desiredName(Desired state)
 - (BOOL) autolaunch;
 - (void) awakened;
 - (BOOL) checkActive;
-- (BOOL) checkAlive;
+- (BOOL) checkProcess;
 - (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient;
 - (void) clearHung;
 - (EcClientI*) client;
@@ -775,6 +776,24 @@ desiredName(Desired state)
   return [launchInfo allKeys];
 }
 
+/* Check the progress of all configured launches.
+ */
++ (void) progress
+{
+  ENTER_POOL
+  NSArray       *keys = [self names];
+  NSUInteger    count = [keys count];
+
+  while (count-- > 0)
+    {
+      LaunchInfo        *l = [self launchInfo: [keys objectAtIndex: count]];
+
+      [l progress];
+    }
+  LEAVE_POOL
+  [self processQueue];
+}
+
 /* Check each process in the queue to see if it may now be launched.
  * Launch each process which may do so (removing it from the queue).
  */
@@ -938,7 +957,7 @@ desiredName(Desired state)
   return (nil == client) ? NO : YES;
 }
 
-- (BOOL) checkAlive
+- (BOOL) checkProcess
 {
   if (identifier > 0)
     {
@@ -1221,7 +1240,7 @@ valgrindLog(NSString *name)
   NSString      	*failed = nil;
   NSString		*m;
 
-  NSAssert(NO == [self checkAlive], NSInvalidArgumentException);
+  NSAssert(NO == [self checkProcess], NSInvalidArgumentException);
 
   if (YES == [self checkActive])
     {
@@ -1429,7 +1448,7 @@ valgrindLog(NSString *name)
                  addText: failed];
     }
   LEAVE_POOL
-  return [self checkAlive];  // On failure return NO
+  return [self checkProcess];  // On failure return NO
 }
 
 - (NSDate*) launchDate
@@ -1536,11 +1555,17 @@ valgrindLog(NSString *name)
 {
   if ([self isStarting])
     {
-      NSLog(@"-progress ignored (already starting) for %@", self);
+      if (debug)
+        {
+          NSLog(@"-progress ignored (already starting) for %@", self);
+        }
     }
   else if ([self isStopping])
     {
-      NSLog(@"-progress ignored (already stopping) for %@", self);
+      if (debug)
+        {
+          NSLog(@"-progress ignored (already stopping) for %@", self);
+        }
     }
   else
     {
@@ -1573,7 +1598,7 @@ valgrindLog(NSString *name)
               {
                 [self stop];
               }
-            else
+            else if (debug)
               {
                 NSLog(@"-progress ignored (already dead) for %@", self);
               }
@@ -1588,7 +1613,7 @@ valgrindLog(NSString *name)
                   {
                     [self stop];
                   }
-                else
+                else if (debug)
                   {
                     NSLog(@"-progress none (disabled in config) for %@", self);
                   }
@@ -1604,7 +1629,7 @@ valgrindLog(NSString *name)
                     ASSIGN(startedReason, @"restart");
                     [self start];
                   }
-                else
+                else if (debug)
                   {
                     NSLog(@"-progress ignored (already active) for %@", self);
                   }
@@ -1619,7 +1644,7 @@ valgrindLog(NSString *name)
                   {
                     [self start];
                   }
-                else
+                else if (debug)
                   {
                     NSLog(@"-progress ignored (already active) for %@", self);
                   }
@@ -1635,12 +1660,12 @@ valgrindLog(NSString *name)
                   {
                     [self start];
                   }
-                else
+                else if (debug)
                   {
                     NSLog(@"-progress ignored (already active) for %@", self);
                   }
               }
-            else
+            else if (debug)
               {
                 NSLog(@"-progress ignored (stable) for %@", self);
               }
@@ -1921,7 +1946,7 @@ valgrindLog(NSString *name)
     {
       if (Live == desired)
 	{
-          if ([self checkAlive])
+          if ([self checkProcess])
             {
               NSLog(@"-setDesired:Live when already started of %@", self);
             }
@@ -1932,7 +1957,7 @@ valgrindLog(NSString *name)
 	}
       else if (Dead == desired)
 	{
-	  if ([self checkAlive])
+	  if ([self checkProcess])
 	    {
               NSLog(@"-setDesired:Dead requests shutdown of %@", self);
 	    }
@@ -2003,7 +2028,7 @@ valgrindLog(NSString *name)
     {
       EcExceptionMajor(nil, @"-start when already active of %@", self);
     }
-  else if (YES == [self checkAlive])
+  else if (YES == [self checkProcess])
     {
       EcExceptionMajor(nil, @"-start when already alive of %@", self);
     }
@@ -2030,7 +2055,7 @@ valgrindLog(NSString *name)
 {
   BOOL  abandon = NO;
 
-  [self checkAlive];
+  [self checkProcess];
   if (NO == [self isStarting] || client != nil)
     {
       return NO;        // Not starting
@@ -2324,7 +2349,7 @@ valgrindLog(NSString *name)
     {
       NSLog(@"-stop called when already stopping for %@", self);
     }
-  else if (NO == [self checkAlive])
+  else if (NO == [self checkProcess])
     {
       NSLog(@"-stop called when not alive for %@", self);
     }
@@ -2632,7 +2657,7 @@ valgrindLog(NSString *name)
    * or
    * b. the process which registered with us is still alive
    */
-  if (nil == client && NO == [self checkAlive])
+  if (nil == client && NO == [self checkProcess])
     {
       if (nil == task)
         {
@@ -4010,17 +4035,17 @@ NSLog(@"Problem %@", localException);
 		      LaunchInfo	*l = [LaunchInfo existing: [c name]];
                       char              *s = "";
 
-                      if ([l isHung])
-                        {
-                          s = " hung";
-                        }
-                      else if ([l isStopping])
+                      if ([l isStopping])
                         {
                           s = " stopping";
                         }
                       else if ([l isStarting])
                         {
                           s = " starting";
+                        }
+                      else if ([l isHung])
+                        {
+                          s = " hung";
                         }
 		      m = [NSString stringWithFormat:
 			@"%@%2d.   %-32.32s (pid:%d%s)\n",
@@ -5899,6 +5924,8 @@ NSLog(@"Problem %@", localException);
 	      [self information: m from: nil to: nil type: LT_ALERT];
 	    }
 	}
+
+//      [LaunchInfo progress];
     }
   inTimeout = NO;
 }
