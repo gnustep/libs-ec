@@ -767,6 +767,9 @@ ecHostName()
 
 static EcAlarmSeverity memAlarm = EcAlarmSeverityMajor;
 static NSString	*memType = nil;
+static NSString	*memUnit = @"KB";
+static int      memSize = 1024;         // Report KB
+static NSTimeInterval   memTime = 0.0;  // Time of last check
 static uint64_t memMaximum = 0;
 static uint64_t	memAllowed = 0;
 static uint64_t	excAvge = 0;    // current period average
@@ -5198,6 +5201,7 @@ With two parameters ('maximum' and a number),\n\
   else
     {
       NSTimeInterval	ti = [self ecQuitDuration];
+      NSString          *s;
 
       [self cmdPrintf: @"\n%@ on %@ running since %@\n",
 	cmdLogName(), ecHostName(), [self ecStarted]];
@@ -5211,9 +5215,7 @@ With two parameters ('maximum' and a number),\n\
 	}
       if (ti > 0)
 	{
-	  NSString	*s = [self ecQuitReason];
-
-	  if (nil == s)
+	  if (nil == (s = [self ecQuitReason]))
 	    {
 	      [self cmdPrintf: @"Quitting for %g seconds\n", ti];
 	    }
@@ -5234,12 +5236,21 @@ With two parameters ('maximum' and a number),\n\
 	    }
 	}
 
-      [self cmdPrintf: @"%@ memory usage:\n  %"PRIu64"KB (current),"
-        @" %"PRIu64"KB (peak)\n",
-        memType, memLast/1024, memPeak/1024];
-      [self cmdPrintf: @"  %"PRIu64"KB (average),"
-        @" %"PRIu64"KB (start)\n",
-        memAvge/1024, memStrt/1024];
+      if (memTime <= 0.0)
+        {
+          s = @"";
+        }
+      else
+        {
+          s = [NSString stringWithFormat: @" (last checked at %@)",
+            [NSDate dateWithTimeIntervalSinceReferenceDate: memTime]];
+        } 
+      [self cmdPrintf: @"%@ memory usage%@:\n"
+        @"  %"PRIu64"%@ (current), %"PRIu64"%@ (peak)\n",
+        memType, s, memLast/memSize, memUnit, memPeak/memSize, memUnit];
+      [self cmdPrintf: @"  %"PRIu64"%@ (average),"
+        @" %"PRIu64"%@ (start)\n",
+        memAvge/memSize, memUnit, memStrt/memSize, memUnit];
 
       setMemBase();
       if (memSlot < MEMCOUNT)
@@ -5252,8 +5263,8 @@ With two parameters ('maximum' and a number),\n\
       if (memAllowed > 0)
 	{
           [self cmdPrintf: @"MemoryAllowed: %"PRIu64
-	    @"KB\n  the process is expected to use up to this much memory.\n",
-            memAllowed * 1024];
+	    @"%@\n  the process is expected to use up to this much memory.\n",
+            memAllowed * 1024 * 1024 / memSize, memUnit];
 	}
       if (memMaximum > 0)
         {
@@ -5264,19 +5275,20 @@ With two parameters ('maximum' and a number),\n\
 	  if (0 == memAllowed)
 	    {
 	      [self cmdPrintf: @"Estimated base: %"PRIu64
-		@"KB\n  the process is expected to use up to"
+		@"%@\n  the process is expected to use up to"
 		@" this much memory.\n",
-		memAllowed * 1024];
+		memAllowed * 1024 * 1024 / memSize, memUnit];
 	    }
           [self cmdPrintf: @"MemoryMaximum: %"PRIu64
-	    @"KB\n  the process is restarted when peak memory usage"
-	    @" is above this limit.\n", memMaximum * 1024];
+	    @"%@\n  the process is restarted when peak memory usage"
+	    @" is above this limit.\n",
+            memMaximum * 1024 * 1024 / memSize, memUnit];
 	  idle = [cmdDefs stringForKey: @"MemoryIdle"];
 	  if ([idle length] > 0 && (hour = [idle intValue]) >= 0 && hour < 24)
 	    {
 	      [self cmdPrintf: @"  The process is also restarted if memory"
-		@" is above %"PRIu64"KB\n  during the hour from %02d:00.\n",
-		memCrit/1024, hour];
+		@" is above %"PRIu64"%@\n  during the hour from %02d:00.\n",
+		memCrit/memSize, memUnit, hour];
 	    }
 	  limit = memWarn;
 	  switch (memAlarm)
@@ -5287,7 +5299,7 @@ With two parameters ('maximum' and a number),\n\
 	      default:				limit = memWarn; break;
 	    }
 	  [self cmdPrintf: @"Alarms are raised when memory usage"
-	    @" is above: %"PRIu64"KB.\n", limit / 1024];
+	    @" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
         }
     }
 }
@@ -5509,9 +5521,12 @@ With two parameters ('maximum' and a number),\n\
 	    @"-%@MemoryMaximum [MB]     Maximum memory usage (before restart)\n"
 	    @"-%@MemoryType [aName]     Type of memory to measure. One of\n"
 	    @"                          Total, Resident or Data.\n"
+	    @"-%@MemoryUnit [aName]     Unit to display memory in. One of\n"
+	    @"                          KB, MB or Page (KB by default).\n"
 	    @"-%@ProgramName [aName]    Name to use for this program\n"
 	    @"\n--version to get version information and quit\n\n",
-	    prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf, prf);
+	    prf, prf, prf, prf, prf, prf, prf, prf, prf, prf,
+            prf, prf, prf, prf);
 
           [EcDefaultRegistration showHelp];
 
@@ -5957,6 +5972,27 @@ With two parameters ('maximum' and a number),\n\
   NSString		*str;
   int	        	i;
 
+  memTime = [NSDate timeIntervalSinceReferenceDate];
+  if (nil == (str = [cmdDefs stringForKey: @"MemoryUnit"]))
+    {
+      memSize = 1024;
+      memUnit = @"KB";
+    }
+  else if ([str caseInsensitiveCompare: @"MB"] == NSOrderedSame)
+    {
+      memSize = 1024 * 1024;
+      memUnit = @"MB";
+    }
+  else if ([str caseInsensitiveCompare: @"Page"] == NSOrderedSame)
+    {
+      memSize = pageSize;
+      memUnit = @"Pg";
+    }
+  else
+    {
+      memSize = 1024;
+      memUnit = @"KB";
+    }
   if (nil == (str = [cmdDefs stringForKey: @"MemoryType"]))
     {
       str = @"Total";
@@ -5999,11 +6035,11 @@ With two parameters ('maximum' and a number),\n\
 	}
       else
 	{
-	  if ([memType isEqualToString: @"Resident"] == NSOrderedSame)
+	  if ([memType isEqualToString: @"Resident"])
 	    {
 	      memLast = mResident;
 	    }
-	  else if ([memType isEqualToString: @"Data"] == NSOrderedSame)
+	  else if ([memType isEqualToString: @"Data"])
 	    {
 	      memLast = mData;
 	    }
@@ -6151,11 +6187,11 @@ With two parameters ('maximum' and a number),\n\
       NSString	*additional;
 
       additional = [NSString stringWithFormat:
-	@"Average %@ memory usage %luKB (base %luKB, max %luKB)",
+	@"Average %@ memory usage %lu%@ (base %lu%@, max %lu%@)",
 	memType,
-	(unsigned long)memAvge/1024,
-	(unsigned long)memBase/1024,
-	(unsigned long)memMaximum*1024];
+	(unsigned long)memAvge/memSize, memUnit,
+	(unsigned long)memBase/memSize, memUnit,
+	(unsigned long)memMaximum*1024*1024/memSize, memUnit];
 
       NSLog(@"%@", additional);
 
@@ -6207,8 +6243,8 @@ With two parameters ('maximum' and a number),\n\
   if (YES == memDebug)
     {
       [self cmdDbg: cmdDetailDbg
-	       msg: @"%@ memory usage %"PRIu64"KB (reserved: %"PRIu64"KB)",
-        memType, memLast/1024, excLast/1024];
+	       msg: @"%@ memory usage %"PRIu64"%@ (reserved: %"PRIu64"%@)",
+        memType, memLast/memSize, memUnit, excLast/memSize, memUnit];
     }
 }
 
