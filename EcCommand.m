@@ -2621,6 +2621,12 @@ valgrindLog(NSString *name)
         {
           [self start];
         }
+      else if (Dead == desired && NO == [self disabled])
+	{
+	  /* manual shutdown ... revert to normal state
+	   */
+	  [self setDesired: None];
+	}
     }
 
   if (reason)
