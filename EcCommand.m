@@ -6038,8 +6038,8 @@ NSLog(@"Problem %@", localException);
     {
       LaunchInfo	*l = [launchInfo objectForKey: [o name]];
 
-      [l clearClient: o cleanly: YES];
       [self removeClient: o cleanly: YES];
+      [l clearClient: o cleanly: YES];
       [l stopping: nil];
     }
   [self update];
