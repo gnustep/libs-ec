@@ -962,7 +962,16 @@ desiredName(Desired state)
 
 - (void) clearClient: (EcClientI*)c cleanly: (BOOL)unregisteredOrTransient
 {
-  NSAssert(client == c, NSInternalInconsistencyException);
+  if (client != c)
+    {
+      if (debug)
+	{
+	  NSLog(@"-clearClient: %p cleanly: %s when client is %p at %@",
+	    c, (unregisteredOrTransient ? "YES" : "NO"), client,
+	    [NSThread callStackSymbols]);
+	}
+      return;
+    }
   DESTROY(client);
   if (unregisteredOrTransient)
     {
@@ -4697,8 +4706,13 @@ NSLog(@"Problem %@", localException);
                 }
               lostClients = YES;
 	      [self removeClient: o cleanly: failedToUnregister ? NO : YES];
-              [l clearClient: o cleanly: failedToUnregister ? NO : YES];
-              [l stopping: nil];
+	      /* If this client was associated with a LaunchInfo instance,		       * we need to shut it down.
+	       */ 
+	      if ([l client] == o)
+		{
+		  [l clearClient: o cleanly: failedToUnregister ? NO : YES];
+		  [l stopping: nil];
+		}
 	    }
 	}
       [c removeAllObjects];
