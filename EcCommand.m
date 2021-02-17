@@ -381,6 +381,11 @@ desiredName(Desired state)
    */
   NSMutableArray	*alarms;
 
+  /* Flag used for a manualy stopped process to show that autolaunch is
+   * no longer to be done.
+   */
+  BOOL          manual;
+
   /* Flag to detect recursive call to -starting:
    */
   BOOL		inStarting;
@@ -420,6 +425,7 @@ desiredName(Desired state)
 - (BOOL) isStarting;
 - (BOOL) isStopping;
 - (BOOL) launch;
+- (BOOL) manual;
 - (BOOL) mayBecomeStable;
 - (BOOL) mayCoreDump;
 - (NSString*) name;
@@ -431,6 +437,7 @@ desiredName(Desired state)
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setDesired: (Desired)state;
 - (void) setHung;
+- (void) setManual: (BOOL)f;
 - (void) setPing;
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
@@ -651,7 +658,7 @@ desiredName(Desired state)
 	{
 	  if ([l autolaunch])
 	    {
-              if (Dead == l->desired)
+              if (Dead == l->desired || [l manual])
                 {
                   suspended++;
                 }
@@ -1459,6 +1466,11 @@ valgrindLog(NSString *name)
   return (launchDate > 0.0) ? date(launchDate) : (NSDate*)nil;
 }
 
+- (BOOL) manual
+{
+  return manual;
+}
+
 - (BOOL) mayCoreDump
 {
   if (fib1 > FIB)
@@ -1652,7 +1664,7 @@ valgrindLog(NSString *name)
                     NSLog(@"-progress ignored (already active) for %@", self);
                   }
               }
-            else if ([self autolaunch])
+            else if ([self autolaunch] && ![self manual])
               {
                 /* The config says we autolaunch and the last process
                  * did not shut down gracefully.
@@ -1694,6 +1706,10 @@ valgrindLog(NSString *name)
       return;
     }
 
+  /* The process is not manually stopped.
+   */
+  [self setManual: NO];
+
   /* For a restart, the desired state cannot be Dead
    */
   if (Dead == desired)
@@ -1729,6 +1745,10 @@ valgrindLog(NSString *name)
       NSLog(@"-start: '%@' ignored (disabled) for %@", reason, self);
       return;
     }
+
+  /* The process is not manually stopped
+   */
+  [self setManual: NO];
 
   if (Dead == desired)
     {
@@ -1973,6 +1993,11 @@ valgrindLog(NSString *name)
     {
       hungDate = [NSDate timeIntervalSinceReferenceDate];
     }
+}
+
+- (void) setManual: (BOOL)f
+{
+  manual = f;
 }
 
 - (void) setPing
@@ -2316,6 +2341,10 @@ valgrindLog(NSString *name)
           status = [NSString stringWithFormat: @"Queued since %@",
             date(queuedDate)];
         }
+      else if (manual)
+        {
+          status = @"Manually stopped";
+        }
       else
         {
           status = @"Not active";
@@ -2620,6 +2649,12 @@ valgrindLog(NSString *name)
       else if (Live == desired)
         {
           [self start];
+        }
+      else if (Dead == desired && NO == [self disabled])
+        {
+          /* manual shutdown ... revert to normal state
+           */
+          [self setDesired: None];
         }
     }
 
@@ -4203,6 +4238,7 @@ NSLog(@"Problem %@", localException);
                             }
                           else
                             {
+                              [l setManual: YES];       // autolauch overridden
                               [l stop: @"Console quit command"];
                               [l checkAbandonedStartup];
                             }
@@ -5220,6 +5256,7 @@ NSLog(@"Problem %@", localException);
   e = [launchInfo objectEnumerator];
   while (nil != (l = [e nextObject]))
     {
+      [l setManual: YES];       // manually stopped
       [l stop: @"quit all instruction"];
       [l checkAbandonedStartup];
     }
@@ -5237,16 +5274,6 @@ NSLog(@"Problem %@", localException);
         }
       NS_ENDHANDLER
     }
-/*
-  while ([clients count] > 0 && [terminateBy timeIntervalSinceNow] > 0.0)
-    {
-      ENTER_POOL
-      NSDate	*next = [NSDate dateWithTimeIntervalSinceNow: 0.1];
-      [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
-                               beforeDate: next];
-      LEAVE_POOL
-    }
-*/
 }
 
 /*
