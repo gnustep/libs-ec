@@ -39,7 +39,10 @@
          *
          * Disabled = (boolean) Whether this program can be launched
          * Prog = (string)      The name (or full path) of the executable
-         * Home = (string)      The directory the program is started up in
+         * Home = (string)      The subdirectory the program is started up in
+	 *			(relative to the user home directory) and the
+	 *			subdirectory in which debug logs are stored.
+	 *			Equivalent to using -HomeDirectory in Args.
          * Args = (array)       The arguments supplied to the program
          * Auto = (boolean)     Whether the program is started automatically
          * Time = (integer)     How many seconds after a crash until the
@@ -56,7 +59,7 @@
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
-	  Home = "~xxx/Test";				// Directory to run in
+	  Home = "Test";				// Directory to run in
 	  Args = ("-Debug", "YES");			// Args to launch with
 	  Auto = NO;					// Auto-launch?
           KeepStandardInput = YES;                      // Don't close stdin
@@ -64,15 +67,15 @@
           KeepStandardError = YES;                      // Don't close stderr
 	};
 	Bar = {
-	  Prog = "Bar";                         	// RName of binary
-	  Home = "~xxx/Test";				// Directory to run in
+	  Prog = "Bar";                         	// Name of binary
+	  Home = "Test";				// Directory to run in
 	  Args = ("-Debug", "YES");			// Args to launch with
 	  Auto = YES;					// Auto-launch?
-          Deps = (Foo);                                 // Only if Foo is running
+          Deps = (Foo);                                 // if Foo is running
 	};
 	Feep = {
 	  Prog = "Feep";                         	// RName of binary
-	  Home = "~xxx/Test";				// Directory to run in
+	  Home = "Test";				// Subdirectory
 	  Auto = YES;					// Auto-launch?
           Time = 30;            // Interval for relaunching after crash
 	};
