@@ -452,7 +452,7 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <term>EcMemoryAllowed</term>
  *   <desc>
  *     This may be used to specify the process memory usage
- *     (in megabytes) before memory usage alarms may begin.<br />
+ *     (in megabytes by default) before memory usage alarms may begin.<br />
  *     If this setting is not specified (or a negative or excessive value
  *     is specified) then memory is monitored for ten minutes and the
  *     base/allowed threshold is set at either the peak during that period
@@ -478,8 +478,8 @@ extern NSString*	cmdVersion(NSString *ver);
  *   <term>EcMemoryMaximum</term>
  *   <desc>
  *     This may be used to specify the maximum process memory allowed
- *     (in megabytes) before the process is forced to restart due to
- *     excessive memory usage.<br />
+ *     (in megabytes by default) before the process is forced to restart due
+ *     to excessive memory usage.<br />
  *     If the total memory usage of the process reaches this threshold,
  *     the -ecRestart: method will be called<br />
  *     The process will also generate alarms depending on the memory usage
@@ -503,6 +503,13 @@ extern NSString*	cmdVersion(NSString *ver);
  *    system with many processes running, since it excludes memory shared
  *    between multiple processes (used for the program code and for shared
  *    libraries).
+ *   </desc>
+ *   <term>EcMemoryUnit</term>
+ *   <desc>
+ *    This controls the units in which memory information is displayed,
+ *    the default being K/KB/KiB (1024 bytes).  Other possible settings are
+ *    M/MB/MiB (1048576 bytes) and P/Pg/Page (system memory pages, typically
+ *    4096 bytes). 
  *   </desc>
  *   <term>EcRelease</term>
  *   <desc>
