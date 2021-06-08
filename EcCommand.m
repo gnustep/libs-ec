@@ -3959,6 +3959,7 @@ NSLog(@"Problem %@", localException);
                     {
                       LaunchInfo	*l = [LaunchInfo existing: key];
 
+		      [l setManual: NO];	// not manually stopped
                       if ([l disabled])
                         {
                           if (NO == all)
