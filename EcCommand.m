@@ -603,7 +603,6 @@ desiredName(Desired state)
 - (NSFileHandle*) openLog: (NSString*)lname;
 - (void) pingControl;
 - (void) quitAll;
-- (void) quitAll: (NSDate*)by;
 - (void) requestConfigFor: (id<CmdConfig>)c;
 - (NSData*) registerClient: (id)c
                 identifier: (int)p
@@ -3959,7 +3958,6 @@ NSLog(@"Problem %@", localException);
                     {
                       LaunchInfo	*l = [LaunchInfo existing: key];
 
-		      [l setManual: NO];	// not manually stopped
                       if ([l disabled])
                         {
                           if (NO == all)
@@ -5239,20 +5237,9 @@ NSLog(@"Problem %@", localException);
 
 - (void) quitAll
 {
-  [self quitAll: nil];
-}
-
-- (void) quitAll: (NSDate*)by
-{
   NSEnumerator  *e;
   LaunchInfo    *l;
   EcClientI	*c;
-
-  if (nil == by)
-    {
-      by = [NSDate dateWithTimeIntervalSinceNow: 35.0];
-    }
-  ASSIGN(terminateBy, by);
 
   e = [launchInfo objectEnumerator];
   while (nil != (l = [e nextObject]))
@@ -5709,7 +5696,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      [self quitAll: terminateBy];
+      [self quitAll];
       terminating = [NSTimer scheduledTimerWithTimeInterval: ti + 1.0
 						     target: self
 						   selector: _cmd
