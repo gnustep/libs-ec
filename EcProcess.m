@@ -1598,6 +1598,52 @@ findMode(NSDictionary* d, NSString* s)
       defs = [EcDefaultRegistration merge: defs];
       [cmdDefs registerDefaults: defs];
 
+      /* When a process is launched by the Command server it should have
+       * the desired name set using -LaunchedAs name in the arguments.
+       * In this case it is also expected to have a property list dictionary
+       * provided on STDIN preceded by a count specifying the number of bytes
+       * of property list data.  The count is a four byte value in network
+       * byte order.
+       */
+      if (nil != (str = [cmdDefs stringForKey: @"LaunchedAs"]))
+        {
+          NSFileHandle  *fh = [NSFileHandle fileHandleWithStandardInput];
+          NSData        *d = [fh readDataOfLength: 4];
+          uint32_t      l = 0;
+
+          if (d)
+            {
+              uint32_t  b;
+
+              memcpy(&b, [d bytes], 4);
+              l = GSSwapBigI32ToHost(b);
+            }
+          d = [fh readDataOfLength: l];
+          NS_DURING
+            {
+              defs = [NSPropertyListSerialization propertyListFromData: d
+                                                      mutabilityOption: 0
+                                                                format: NULL
+                                                      errorDescription: NULL];
+            }
+          NS_HANDLER
+            {
+              defs = nil;
+              NSLog(@"Unable to de-serialize property list from STDIN");
+            }
+          NS_ENDHANDLER
+          if ([defs count] > 0)
+            {
+              NSMutableDictionary       *m;
+
+              m = AUTORELEASE([[cmdDefs volatileDomainForName: NSArgumentDomain]
+                mutableCopy]);
+              [m addEntriesFromDictionary: defs];
+              [cmdDefs removeVolatileDomainForName: NSArgumentDomain];
+              [cmdDefs setVolatileDomain: m forName: NSArgumentDomain];
+            }
+        }
+
       cmdUser = EC_EFFECTIVE_USER;
       if (nil == cmdUser)
 	{

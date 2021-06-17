@@ -230,6 +230,7 @@ desiredName(Desired state)
   /** The current task (if launched by us).  
    */
   NSTask		*task;
+  NSFileHandle          *taskInput;
 
   /** The client instance representing a registered distributed objects
    * connection from the process into the Command server.
@@ -829,6 +830,7 @@ desiredName(Desired state)
        */
       [[NSNotificationCenter defaultCenter] removeObserver: l];
       l->client = nil;
+      DESTROY(l->taskInput);
       DESTROY(l->task);
       [l->startingTimer invalidate];
       l->startingTimer = nil;
@@ -1022,6 +1024,7 @@ desiredName(Desired state)
   RELEASE(client);
   RELEASE(name);
   RELEASE(conf);
+  RELEASE(taskInput);
   RELEASE(task);
   [super dealloc];
 }
@@ -1298,10 +1301,11 @@ valgrindLog(NSString *name)
     {
       NS_DURING
 	{
-	  NSFileHandle	        *hdl;
           NSMutableArray        *args;
+          NSMutableDictionary   *defs;
 
           args = [NSMutableArray array];
+          defs = [NSMutableDictionary dictionary];
 
           /* Insert valgrind stuff if necessary.
            */
@@ -1314,9 +1318,52 @@ valgrindLog(NSString *name)
               [args addObject: prog];
               prog = vgPath;
             }
+
+          /* Add argument to tell EcProcess the official name it was
+           * launched as.  All other arguments are hidden by writing
+           * them to stdin of the child process using a pipe.
+           * NB. The program should *only* be launched with the LaunchAs
+           * argument if it is also going to be provided with argument
+           * data on stdin.
+           */
+          [args addObject: @"-LaunchedAs"];
+          [args addObject: name];
+
           if ([[conf objectForKey: @"Args"] isKindOfClass: [NSArray class]])
             {
-              [args addObjectsFromArray: [conf objectForKey: @"Args"]];
+              NSArray           *a = [conf objectForKey: @"Args"];
+              NSUInteger        count = [a count];
+              NSUInteger        index;
+              NSString          *key = nil;
+
+              /* From the supplied arguments, key/value pairs of the form
+               * representing  usr defaults settings are placed in a dictionary
+               * to be passed as hidden information, and the remainder of 
+               * the values are added to the list passed as process arguments.
+               */
+              for (index = 0; index < count; index++)
+                {
+                  id    val = [a objectAtIndex: index];
+
+                  if (key)
+                    {
+                      [defs setObject: val forKey: key];
+                      key = nil;
+                    }
+                  else
+                    {
+                      if ([val length] > 1
+                        && [val hasPrefix: @"-"]
+                        && ![val hasPrefix: @"--"])
+                        {
+                          key = [val substringFromIndex: 1];
+                        }
+                      else
+                        {
+                          [args addObject: val];
+                        }
+                    }
+                }
             }
 
 	  if (setE != nil)
@@ -1336,6 +1383,7 @@ valgrindLog(NSString *name)
               DESTROY(task);
             }
 	  task = [NSTask new];
+          [task setArguments: args];
 	  [task setEnvironment: env];
 	  [task setLaunchPath: prog];
           if (home != nil && [home length] > 0)
@@ -1353,38 +1401,51 @@ valgrindLog(NSString *name)
 	    }
 	  if (prog != nil)
 	    {
-	      NSString  *s;
+              NSData            *hiddenArguments;
+	      NSString          *s;
+              NSData            *d;
+              NSPipe            *p;
+              NSMutableData     *m;
+              uint32_t          l;
+              uint32_t          b;
 
               /* As a convenience, the 'Home' option sets the -HomeDirectory
                * for the process.
                */
               if ([home length] > 0)
                 {
-                  [args addObject: @"-HomeDirectory"];
-                  [args addObject: home];
+                  [defs setObject: home forKey: @"HomeDirectory"];
                 }
 
               /* If we do not want the process to core-dump, we need to add
-               * the argument to tell it.
+               * the user default to tell it.
                */
               if ([self mayCoreDump] == NO)
                 {
-                  [args addObject: @"-CoreSize"];
-                  [args addObject: @"0"];
+                  [defs setObject: @"0" forKey: @"CoreSize"];
                 }
 
-              [task setArguments: args];
+              /* Now we need to make the key/value pairs into a serialised
+               * form to be passed to the subprocess using a pipe.
+               */
+              d = [NSPropertyListSerialization dataFromPropertyList: defs
+                format: NSPropertyListBinaryFormat_v1_0
+                errorDescription: NULL];
+              l = [d length];
+              b = GSSwapHostI32ToBig(l);
+              m = [NSMutableData dataWithCapacity: l + 4];
+              [m appendBytes: &b length: 4];
+              [m appendData: d];
+              hiddenArguments = m;
 
-              hdl = [NSFileHandle fileHandleWithNullDevice];
-              s = [conf objectForKey: @"KeepStandardInput"];
-              if (NO == [s respondsToSelector: @selector(boolValue)]
-                || NO == [s boolValue])
-                {
-                  [task setStandardInput: hdl];
-                }
+              p = [NSPipe pipe];
+              ASSIGN(taskInput, [p fileHandleForWriting]);
+              [task setStandardInput: p];
 
               if (nil == vgPath)
                 {
+                  NSFileHandle  *hdl = [NSFileHandle fileHandleWithNullDevice];
+
                   s = [conf objectForKey: @"KeepStandardOutput"];
                   if (NO == [s respondsToSelector: @selector(boolValue)]
                     || NO == [s boolValue])
@@ -1409,7 +1470,8 @@ valgrindLog(NSString *name)
                     }
                 }
 
-	      /* Record time of launch start
+	      /* Launching ... immediately after launch we write information
+               * to the subtask so it can initialise itself.
 	       */
 	      [[NSNotificationCenter defaultCenter]
 		addObserver: self
@@ -1418,11 +1480,11 @@ valgrindLog(NSString *name)
 		     object: task];
               launchDate = [NSDate timeIntervalSinceReferenceDate];
 	      [task launch];
+              [taskInput writeInBackgroundAndNotify: hiddenArguments];
 	      identifier =  [task processIdentifier];
-	      [[command logFile]
-		printf: @"%@ launched %@ with %@ at %@\n",
-		[NSDate date], prog, args,
-		[NSThread callStackSymbols]];
+	      [[command logFile] printf:
+		@"%@ launched %@ with %@ and hidden values for %@\n",
+		[NSDate date], prog, args, [defs allKeys]];
 	    }
 	}
       NS_HANDLER
@@ -1433,6 +1495,7 @@ valgrindLog(NSString *name)
 		      name: NSTaskDidTerminateNotification
 		    object: task];
           launchDate = 0.0;
+	  DESTROY(taskInput);
 	  DESTROY(task);
 	  failed = @"failed to launch";
 	  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
@@ -1869,6 +1932,7 @@ valgrindLog(NSString *name)
                   name: NSTaskDidTerminateNotification
                 object: task];
       launchDate = 0.0;
+      DESTROY(taskInput);
       DESTROY(task);
     }
   registrationDate = [NSDate timeIntervalSinceReferenceDate];
@@ -2122,6 +2186,7 @@ valgrindLog(NSString *name)
                           name: NSTaskDidTerminateNotification
                         object: task];
               launchDate = 0.0;
+              DESTROY(taskInput);
               DESTROY(task);
             }
           kill(identifier, SIGKILL);
@@ -2726,6 +2791,7 @@ valgrindLog(NSString *name)
                 removeObserver: self
                           name: NSTaskDidTerminateNotification
                         object: task];
+              DESTROY(taskInput);
               DESTROY(task);
             }
           terminationSignal = -1;       // We use -1 to indicate a forced quit
@@ -2822,6 +2888,7 @@ valgrindLog(NSString *name)
       terminationStatusKnown = YES;
       terminationDate = [NSDate timeIntervalSinceReferenceDate];
       launchDate = 0.0;
+      DESTROY(taskInput);
       DESTROY(task);
       if (terminationSignal != 0)
         {

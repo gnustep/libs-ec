@@ -1,3 +1,14 @@
+2021-06-17 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcProcess.m:
+	Change the way the Command server launches subprocesses, so that
+	the key/value pairs normally passed as process arguments to populate
+	the NSUserDefaults NSArgumentDomain are mostly passed via a pipe to
+	STDIN of the subprocess.  This keeps the argument list visible to
+	commands like 'ps' small and readable, and allows us to pass hidden
+	values (eg encryption keys) to the subprocess.
+
 2021-01-15  Wolfgang Lux  <wolfgang.lux@gmail.com>
 
 	* EcProcess.m(cmdMesgmemory:):
