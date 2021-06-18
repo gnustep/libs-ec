@@ -1,3 +1,12 @@
+2021-06-18 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcProcess.m:
+	Pass TLS information from Command server to clients via pipe, so the
+	clients can use a key/certificate shared with the Command server to
+	encrypt communications.  This avoids each client process having to
+	do expensive generation of a key.
+
 2021-06-17 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

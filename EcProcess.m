@@ -26,30 +26,13 @@
 
    */
 
-#import <Foundation/NSArray.h>
-#import <Foundation/NSAutoreleasePool.h>
-#import <Foundation/NSConnection.h>
-#import <Foundation/NSData.h>
-#import <Foundation/NSDate.h>
-#import <Foundation/NSDebug.h>
-#import <Foundation/NSDictionary.h>
-#import <Foundation/NSDistantObject.h>
-#import <Foundation/NSException.h>
-#import <Foundation/NSFileManager.h>
-#import <Foundation/NSNotification.h>
-#import <Foundation/NSObjCRuntime.h>
-#import <Foundation/NSPort.h>
-#import <Foundation/NSProcessInfo.h>
-#import <Foundation/NSRunLoop.h>
-#import <Foundation/NSScanner.h>
-#import <Foundation/NSSerialization.h>
-#import <Foundation/NSString.h>
-#import <Foundation/NSTimer.h>
-#import <Foundation/NSUserDefaults.h>
-#import <Foundation/NSValue.h>
+#import <Foundation/Foundation.h>
 
 #import <GNUstepBase/GSObjCRuntime.h>
 #import <GNUstepBase/NSObject+GNUstepBase.h>
+#if     GS_USE_GNUTLS
+#import <GNUstepBase/GSTLS.h>
+#endif
 
 #import "EcProcess.h"
 #import "EcLogger.h"
@@ -1642,6 +1625,37 @@ findMode(NSDictionary* d, NSString* s)
               [cmdDefs removeVolatileDomainForName: NSArgumentDomain];
               [cmdDefs setVolatileDomain: m forName: NSArgumentDomain];
             }
+#if     GS_USE_GNUTLS
+          if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
+            {
+              defs = [cmdDefs dictionaryForKey: @"NSSocketPortOptionsForTLS"];
+              if (defs != nil)
+                {
+                  NSMutableDictionary   *opts = AUTORELEASE([defs mutableCopy]);
+                  id                    o;
+
+                  /* If we were passed data rather than filenames
+                   * we must set it up as cached data corresponding
+                   * to well known names.
+                   */
+                  o = [opts objectForKey: GSTLSCertificateKeyFile];
+                  if ([o isKindOfClass: [NSData class]])
+                    {
+                      [GSTLSObject setData: o forTLSFile: @"self-signed-key"];
+                      [opts setObject: @"self-signed-key"
+                               forKey: GSTLSCertificateKeyFile];
+                    }
+                  o = [opts objectForKey: GSTLSCertificateFile];
+                  if ([o isKindOfClass: [NSData class]])
+                    {
+                      [GSTLSObject setData: o forTLSFile: @"self-signed-crt"];
+                      [opts setObject: @"self-signed-crt"
+                               forKey: GSTLSCertificateFile];
+                    }
+                  [NSSocketPort setOptionsForTLS: opts];
+                }
+            }
+#endif
         }
 
       cmdUser = EC_EFFECTIVE_USER;
@@ -3118,13 +3132,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 {
   if (nil == ecLock)
     {
-      /* Enable encrypted DO if supported bu the base library.
+#if     GS_USE_GNUTLS
+      /* Enable encrypted DO if supported by the base library.
        */
       if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
         {
           [NSSocketPort setOptionsForTLS: [NSDictionary dictionary]];
         }
-
+#endif
       ecLock = [NSRecursiveLock new];
       dateClass = [NSDate class];
       cDateClass = [NSCalendarDate class];
