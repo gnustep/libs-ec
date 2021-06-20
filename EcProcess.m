@@ -1652,7 +1652,8 @@ findMode(NSDictionary* d, NSString* s)
                       [opts setObject: @"self-signed-crt"
                                forKey: GSTLSCertificateFile];
                     }
-                  [NSSocketPort setOptionsForTLS: opts];
+                  [NSSocketPort performSelector: @selector(setOptionsForTLS:)
+                                     withObject: opts];
                 }
             }
 #endif
@@ -3137,7 +3138,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
        */
       if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
         {
-          [NSSocketPort setOptionsForTLS: [NSDictionary dictionary]];
+          [NSSocketPort performSelector: @selector(setOptionsForTLS:)
+                             withObject: [NSDictionary dictionary]];
         }
 #endif
       ecLock = [NSRecursiveLock new];

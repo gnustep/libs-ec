@@ -236,7 +236,6 @@ desiredName(Desired state)
   /** The current task (if launched by us).  
    */
   NSTask		*task;
-  NSFileHandle          *taskInput;
 
   /** The client instance representing a registered distributed objects
    * connection from the process into the Command server.
@@ -427,8 +426,8 @@ desiredName(Desired state)
 - (NSTimeInterval) delay;
 - (Desired) desired;
 - (BOOL) disabled;
+- (NSTimeInterval) hungDate;
 - (BOOL) isActive;
-- (BOOL) isHung;
 - (BOOL) isStarting;
 - (BOOL) isStopping;
 - (BOOL) launch;
@@ -589,6 +588,7 @@ desiredName(Desired state)
 - (NSString*) host;
 - (void) housekeeping: (NSTimer*)t;
 - (void) _housekeeping: (NSTimer*)t;
+- (void) hungRestart: (LaunchInfo*)l;
 - (void) information: (NSString*)inf
 		from: (NSString*)s
 		type: (EcLogType)t;
@@ -836,8 +836,7 @@ desiredName(Desired state)
        */
       [[NSNotificationCenter defaultCenter] removeObserver: l];
       l->client = nil;
-      DESTROY(l->taskInput);
-      DESTROY(l->task);
+      [l taskCleanup: l->task];
       [l->startingTimer invalidate];
       l->startingTimer = nil;
       [l->stoppingTimer invalidate];
@@ -895,6 +894,15 @@ desiredName(Desired state)
  */
 - (BOOL) checkActive
 {
+  if ([self hungDate] > 0.0 && identifier > 0)
+    {
+      /* A hung process may be considered active but there is no point
+       * trying to send a DO message to communicate with it and ask it
+       * to respond to us, because 'hung' means that we have a DO connection
+       * to the process but it's not talking to us over it.
+       */
+      return YES;
+    }
   if (nil == client)
     {
       ENTER_POOL
@@ -1030,8 +1038,10 @@ desiredName(Desired state)
   RELEASE(client);
   RELEASE(name);
   RELEASE(conf);
-  RELEASE(taskInput);
-  RELEASE(task);
+  if (task)
+    {
+      [self taskCleanup: task];
+    }
   [super dealloc];
 }
 
@@ -1154,16 +1164,16 @@ desiredName(Desired state)
   return [[conf objectForKey: @"Disabled"] boolValue];
 }
 
+- (NSTimeInterval) hungDate
+{
+  return hungDate;
+}
+
 /* Returns YES if the client is in a state where it can be sent commands.
  */
 - (BOOL) isActive
 {
   return (client != nil && NO == [self isStopping]) ? YES : NO;
-}
-
-- (BOOL) isHung
-{
-  return (hungDate > 0.0) ? YES : NO;
 }
 
 - (BOOL) isStarting
@@ -1454,7 +1464,8 @@ valgrindLog(NSString *name)
                   if (nil == opt)
                     {
                       opt = [GSTLSObject dataForTLSFile: @"self-signed-key"];
-                      if (nil == opt)
+                      if (nil == opt && [GSTLSCredentials
+                        respondsToSelector: @selector(selfSigned:)])
                         {
                           (void)[GSTLSCredentials selfSigned: YES];
                           opt = [GSTLSObject
@@ -1514,13 +1525,16 @@ valgrindLog(NSString *name)
               hiddenArguments = m;
 
               p = [NSPipe pipe];
-              ASSIGN(taskInput, [p fileHandleForWriting]);
               [task setStandardInput: p];
 
               if (nil == vgPath)
                 {
-                  NSFileHandle  *hdl = [NSFileHandle fileHandleWithNullDevice];
+                  static NSFileHandle  *hdl = nil;
 
+                  if (nil == hdl)
+                    {
+                      ASSIGN(hdl, [NSFileHandle fileHandleWithNullDevice]);
+                    }
                   s = [conf objectForKey: @"KeepStandardOutput"];
                   if (NO == [s respondsToSelector: @selector(boolValue)]
                     || NO == [s boolValue])
@@ -1553,9 +1567,15 @@ valgrindLog(NSString *name)
 		   selector: @selector(taskTerminated:)
 		       name: NSTaskDidTerminateNotification
 		     object: task];
+	      [[NSNotificationCenter defaultCenter]
+		addObserver: self
+		   selector: @selector(taskWritten:)
+		       name: GSFileHandleWriteCompletionNotification
+		     object: [p fileHandleForWriting]];
               launchDate = [NSDate timeIntervalSinceReferenceDate];
 	      [task launch];
-              [taskInput writeInBackgroundAndNotify: hiddenArguments];
+              [[p fileHandleForWriting]
+                writeInBackgroundAndNotify: hiddenArguments];
 	      identifier =  [task processIdentifier];
 	      [[command logFile] printf:
 		@"%@ launched %@ with %@ and hidden values for %@\n",
@@ -1570,8 +1590,7 @@ valgrindLog(NSString *name)
 		      name: NSTaskDidTerminateNotification
 		    object: task];
           launchDate = 0.0;
-	  DESTROY(taskInput);
-	  DESTROY(task);
+          [self taskCleanup: task];
 	  failed = @"failed to launch";
 	  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 	    @"failed to launch (%@) %@"), localException, name];
@@ -1951,8 +1970,8 @@ valgrindLog(NSString *name)
   clientLostDate = 0.0;
   clientQuitDate = 0.0;
   [launchQueue removeObject: self];
+  [self clearHung];
   pingDate = 0.0;
-  hungDate = 0.0;
   queuedDate = 0.0;
   if ([self isStarting])
     {
@@ -2007,8 +2026,7 @@ valgrindLog(NSString *name)
                   name: NSTaskDidTerminateNotification
                 object: task];
       launchDate = 0.0;
-      DESTROY(taskInput);
-      DESTROY(task);
+      [self taskCleanup: task];
     }
   registrationDate = [NSDate timeIntervalSinceReferenceDate];
   identifier = newPid;
@@ -2261,8 +2279,7 @@ valgrindLog(NSString *name)
                           name: NSTaskDidTerminateNotification
                         object: task];
               launchDate = 0.0;
-              DESTROY(taskInput);
-              DESTROY(task);
+              [self taskCleanup: task];
             }
           kill(identifier, SIGKILL);
           identifier = 0;
@@ -2468,7 +2485,7 @@ valgrindLog(NSString *name)
       status = [NSString stringWithFormat: @"Stopping (pid:%d) since %@",
         [self processIdentifier], date(stoppingDate)];
     }
-  else if ([self isHung])
+  else if ([self hungDate] > 0.0)
     {
       status = [NSString stringWithFormat: @"Hung (pid:%d) since %@",
         [self processIdentifier], date(hungDate)];
@@ -2524,7 +2541,15 @@ valgrindLog(NSString *name)
       [self resetDelay];
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
       abortDate = abortDateFromStoppingDate(stoppingDate);
-      if (nil == client)
+      if ([self hungDate] > 0.0 && identifier > 0)
+        {
+          /* The process is hung and we assume it can't shut down gracefully.
+           * We should have started a subtask to get process status information
+           * and will abort the process later.
+           */
+	  NSLog(@"-stop hung process %d for %@", identifier, self);
+        }
+      else if (nil == client)
         {
           /* No connection to client established ... try to shut it down
            * using a signal.
@@ -2609,6 +2634,7 @@ valgrindLog(NSString *name)
   awakenedDate = 0.0;
   stableDate = 0.0;
   abortDate = 0.0;
+  [self clearHung];
 
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
     {
@@ -2862,12 +2888,7 @@ valgrindLog(NSString *name)
            */
           if (nil != task)
             {
-              [[NSNotificationCenter defaultCenter]
-                removeObserver: self
-                          name: NSTaskDidTerminateNotification
-                        object: task];
-              DESTROY(taskInput);
-              DESTROY(task);
+              [self taskCleanup: task];
             }
           terminationSignal = -1;       // We use -1 to indicate a forced quit
           terminationStatus = 0;
@@ -2918,10 +2939,8 @@ valgrindLog(NSString *name)
   return AUTORELEASE(RETAIN(task));
 }
 
-- (void) taskTerminated: (NSNotification*)n
+- (void) taskCleanup: (NSTask*)t
 {
-  NSTask        *t = (NSTask*)[n object];
-
   if (nil == t)
     {
       /* For a fake termination, use existing task, if any.
@@ -2931,12 +2950,47 @@ valgrindLog(NSString *name)
 
   if (nil != t)
     {
-      /* If we have a task, stop observing notifications for it.
-       */
+      NSFileHandle      *fh = [t standardInput];
+
       [[NSNotificationCenter defaultCenter]
         removeObserver: self
                   name: NSTaskDidTerminateNotification
                 object: t];
+
+      if ([fh isKindOfClass: [NSPipe class]])
+        {
+          fh = [(NSPipe*)fh fileHandleForWriting];
+        }
+      if (fh)
+        {
+          [[NSNotificationCenter defaultCenter]
+            removeObserver: self
+                      name: GSFileHandleWriteCompletionNotification
+                    object: fh];
+          NS_DURING
+            {
+              [fh closeFile];
+            }
+          NS_HANDLER
+          NS_ENDHANDLER
+        }
+    }
+
+  if (t == task)
+    {
+      DESTROY(task);
+    }
+}
+
+- (void) taskTerminated: (NSNotification*)n
+{
+  NSTask        *t = (NSTask*)[n object];
+
+  if (nil == t)
+    {
+      /* For a fake termination, use existing task, if any.
+       */
+      t = task;
     }
 
   if (t == task)
@@ -2963,8 +3017,6 @@ valgrindLog(NSString *name)
       terminationStatusKnown = YES;
       terminationDate = [NSDate timeIntervalSinceReferenceDate];
       launchDate = 0.0;
-      DESTROY(taskInput);
-      DESTROY(task);
       if (terminationSignal != 0)
         {
           NSLog(@"Termination signal %d for %@ (pid %d)",
@@ -2976,8 +3028,29 @@ valgrindLog(NSString *name)
             terminationStatus, name, identifier);
         }
       identifier = 0;
+      [self taskCleanup: t];
       [self stopping: nil];
     }
+  else if (t)
+    {
+      [self taskCleanup: t];
+    }
+}
+
+- (void) taskWritten: (NSNotification*)n
+{
+  NSFileHandle  *fh = (NSFileHandle*)[n object];
+
+  [[NSNotificationCenter defaultCenter]
+    removeObserver: self
+              name: GSFileHandleWriteCompletionNotification
+            object: fh];
+  NS_DURING
+    {
+      [fh closeFile];
+    }
+  NS_HANDLER
+  NS_ENDHANDLER
 }
 
 - (NSArray*) unfulfilled
@@ -3843,7 +3916,7 @@ NSLog(@"Problem %@", localException);
 	  LaunchInfo	*l = [LaunchInfo existing: n];
 
 	  [l setPing];	// Record the fact that we have a ping response.
-	  if ([l isHung])
+	  if ([l hungDate] > 0.0)
 	    {
 	      /* Had a ping response, so the process is no longer hung.
 	       */
@@ -4217,7 +4290,7 @@ NSLog(@"Problem %@", localException);
                         {
                           s = " starting";
                         }
-                      else if ([l isHung])
+                      else if ([l hungDate] > 0.0)
                         {
                           s = " hung";
                         }
@@ -4502,7 +4575,7 @@ NSLog(@"Problem %@", localException);
                             {
                               NSString  *when = @"shortly";
 
-                              if ([l isHung])
+                              if ([l hungDate] > 0.0)
                                 {
                                   when = [NSString stringWithFormat:
                                     @"in about %d seconds", (int)quitTime];
@@ -4510,7 +4583,14 @@ NSLog(@"Problem %@", localException);
                               m = [m stringByAppendingFormat: 
                                 @"  The process '%@' should restart %@.\n",
                                 [l name], when];
-                              [l restart: reason];
+                              if ([l hungDate] > 0.0 && NO == [l isStopping])
+                                {
+                                  [self hungRestart: l];
+                                }
+                              else
+                                {
+                                  [l restart: reason];
+                                }
                               found = YES;
                             }
 			}
@@ -5932,29 +6012,65 @@ NSLog(@"Problem %@", localException);
       count = [a count];
       while (count-- > 0)
 	{
-	  EcClientI	*r = [a objectAtIndex: count];
-	  LaunchInfo    *l = [LaunchInfo existing: [r name]];
-	  NSDate	*d = [r outstanding];
+	  EcClientI	        *r = [a objectAtIndex: count];
+	  LaunchInfo            *l = [LaunchInfo existing: [r name]];
+	  NSDate	        *d = [r outstanding];
+          NSString              *s;
+          NSTimeInterval        delay = 0.0;
 	  
 	  if ([clients indexOfObjectIdenticalTo: r] == NSNotFound)
 	    {
 	      continue;
 	    }
-	  if (d != nil && [d timeIntervalSinceDate: now] < -pingDelay)
+          s = [[l configuration] objectForKey: @"Ping"];
+          if ([s respondsToSelector: @selector(intValue)])
+            {
+              delay = (NSTimeInterval)[s intValue];
+            }
+          if (delay <= 0.0)
+            {
+              delay = pingDelay;        // Default
+            }
+	  if (d != nil && [d timeIntervalSinceDate: now] < -delay)
 	    {
-	      if (nil == l || NO == [l isHung])
+	      if ([l hungDate] > 0.0)
+                {
+                  id    r;
+
+                  /* We have what looks like a hung process:
+                   * See if it is not yet stopping and is configured to
+                   * restart after an interval when hung.
+                   */
+                  if (NO == [l isStopping]
+                    && (r = [[l configuration] objectForKey: @"HungTime"])
+                    && [r respondsToSelector: @selector(intValue)])
+                    {
+                      NSTimeInterval    ti;
+
+                      /* See how long the process has been hung for,
+                       * and if it exceeds the time allowed, restart.
+                       */
+                      ti = [now timeIntervalSinceReferenceDate];
+                      ti -= [l hungDate];
+                      if (ti > (NSTimeInterval)[r intValue])
+                        {
+                          [self hungRestart: l];
+                        }
+                    }
+                }
+              else
 		{
 		  NSString	*m;
 
 		  [l setHung];
 		  m = [NSString stringWithFormat:
-		    @"failed to respond for over %d seconds", (int)pingDelay];
+		    @"failed to respond for over %d seconds", (int)delay];
 		  [self alarmCode: ACProcessHung
 			 procName: [r name]
 			  addText: m];
 		  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 		    @"Client '%@' failed to respond for over %d seconds"),
-		    [r name], (int)pingDelay];
+		    [r name], (int)delay];
 		  [self information: m from: nil to: nil type: LT_CONSOLE];
 		}
 	    }
@@ -6143,6 +6259,135 @@ NSLog(@"Problem %@", localException);
     }
 }
 
+/** Initiate a restart of a hung process
+ */
+- (void) hungRestart: (LaunchInfo*)l
+{
+  NSString              *prog;
+  NSTask                *task;
+  NSArray               *args;
+  NSString              *base;
+  NSString              *home;
+  NSString              *pid;
+
+  base = [[self ecUserDirectory] stringByAppendingPathComponent: @"DebugLogs"];
+
+  home = [[l configuration] objectForKey: @"Home"];
+  if (home)
+    {
+      home = [home stringByStandardizingPath];
+      if (![home isAbsolutePath])
+        {
+          home = [base stringByAppendingPathComponent: home];
+        }
+    }
+  else
+    {
+      home = base;
+    }
+
+  pid = [NSString stringWithFormat: @"%d", [l processIdentifier]];
+
+  task = [NSTask new];
+
+  prog = [[l configuration] objectForKey: @"HungTool"];
+  if ([prog isKindOfClass: [NSString class]])
+    {
+      /* Allow an empty tool name to mean that we shold not execute a tool.
+       */
+      prog = [prog stringByTrimmingSpaces];
+      if ([prog length] == 0)
+	{
+	  NSLog(@"Empty HungTool for %@;  No info gathering.", [l name]);
+	}
+      else
+	{
+	  [task setLaunchPath: prog];
+	  if ([task validatedLaunchPath] == nil)
+	    {
+	      NSLog(@"Failed to find HungTool (%@).  Fallback to gcore", prog);
+	      prog = nil;
+	    }
+	}
+    }
+  if (prog)
+    {
+      /* Run the supplied program using the process name and pid as args
+       */
+      args = [NSArray arrayWithObjects: [l name], pid, nil];
+    }
+  else
+    {
+      /* Run gcode to get a coredump
+       */
+      prog = @"gcore";
+      args = [NSArray arrayWithObjects: pid, nil];
+    }
+
+  [task setArguments: args];
+  [task setLaunchPath: prog];
+  if (home != nil && [home length] > 0)
+    {
+      [task setCurrentDirectoryPath: home];
+    }
+
+  if ([task validatedLaunchPath] == nil)
+    {
+      if ([prog length] > 0)
+	{
+	  NSLog(@"Failed to find gcore to get info for hung process %@", pid);
+	}
+      RELEASE(task);
+    }
+  else
+    {
+      NSString  *msg;
+
+      [task setStandardInput: [NSFileHandle fileHandleWithNullDevice]];
+
+      [[NSNotificationCenter defaultCenter]
+        addObserver: self
+           selector: @selector(hungToolTerminated:)
+               name: NSTaskDidTerminateNotification
+             object: task];
+      msg = [NSString stringWithFormat:
+        @"Gathering hung process info using task %p for %@ (%d).",
+        task, [l name], [l processIdentifier]];
+      [self information: msg
+		   from: nil
+		     to: nil
+		   type: LT_CONSOLE];
+      [task launch];
+    }
+
+  /* Here we need to run a subprocess to get a core dump of the hung process
+   */
+  [l restart: @"Process appears to be hung"];
+}
+
+- (void) hungToolTerminated: (NSNotification*)n
+{
+  NSTask        *task = (NSTask*)[n object];
+  NSString      *msg;
+
+  if (NSTaskTerminationReasonUncaughtSignal == [task terminationReason])
+    {
+      msg = [NSString stringWithFormat:
+        @"Gathering hung process info using task %p"
+        @" exited with signal %d.", task, [task terminationStatus]];
+    }
+  else
+    {
+      msg = [NSString stringWithFormat:
+        @"Gathering hung process info using task %p"
+        @" returned status %d", task, [task terminationStatus]];
+    }
+  [self information: msg
+               from: nil
+                 to: nil
+               type: LT_CONSOLE];
+  RELEASE(task);
+}
 
 - (NSMutableArray*) unconfiguredClients
 {

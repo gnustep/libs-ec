@@ -53,7 +53,8 @@ setup()
        */
       if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
         {
-          [NSSocketPort setOptionsForTLS: [NSDictionary dictionary]];
+          [NSSocketPort performSelector: @selector(setOptionsForTLS:)
+                             withObject: [NSDictionary dictionary]];
         }
     }
 }

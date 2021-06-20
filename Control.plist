@@ -50,19 +50,32 @@
          * AddE = (dictionary)  key/value pairs added to the environment
          * SetE = (dictionary)  key/value pairs to be used as environment
          * Deps = (array)       Names of other processes needed by this one
-         * KeepStandardInput = (boolean)     Don't close stdin
          * KeepStandardOutput = (boolean)    Don't close stdout
          * KeepStandardError = (boolean)     Don't close stderr
 	 *
 	 * ValgrindPath = (string)	Run under valgrind (unless empty)
 	 * ValgrindArgs = (array)	Run under valgrind using these args
+	 *
+	 * Ping = (integer)	If greater than zero, this is the ping delay in
+	 *			seconds (otherwise the default ofd 240 is used).
+	 *			When a process has been unresponsive to the
+	 *			Command server for this number of seconds, that
+	 *			process is considered to be hung.
+	 * HungTime = (integer)	If greater than zero this the interval after
+	 *			which an apparently hung process has a restart
+	 *			scheduled.  If/when the restart is scheduled
+	 *			either the HungTool or gcore is executed
+	 *			to save information about the hung process.
+	 * HungTool = (string)	The name of a tool or script to be executed
+	 *			after HungTime in order to gather information
+	 *			about the hung process.  It's arguments will
+	 *			be the process name and the process ID.
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
 	  Home = "Test";				// Directory to run in
 	  Args = ("-Debug", "YES");			// Args to launch with
 	  Auto = NO;					// Auto-launch?
-          KeepStandardInput = YES;                      // Don't close stdin
           KeepStandardOutput = YES;                     // Don't close stdout
           KeepStandardError = YES;                      // Don't close stderr
 	};

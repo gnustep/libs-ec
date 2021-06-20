@@ -1,3 +1,18 @@
+2021-06-20 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcProcess.m:
+	* EcTest.m:
+	* Control.plist:
+	Improve building when TLS stuff is not available.
+	Add code to allow a process launch configuration to contain a
+	HungTime setting for automatic restart of apparently hung processes.
+	Add HungTool configuration to specify a tool to be executed to
+	gather information about a hung process before it is restarted (if
+	not defined, the gcore tool is used).
+	Add Ping configuration to control how long a process needs to be
+	umresponsive to pings before it is considered hung.
+
 2021-06-18 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:
