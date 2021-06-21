@@ -5025,13 +5025,16 @@ NSLog(@"Problem %@", localException);
 
 - (BOOL) contactControl
 {
-  if (nil == control)
+  static BOOL	trying = NO;
+
+  if (nil == control && NO == trying)
     {
       NSUserDefaults	*defs;
       NSString		*ctlName;
       NSString		*ctlHost;
       id		c;
 
+      trying = YES;
       defs = [self cmdDefaults];
       ctlName = [defs stringForKey: @"ControlName"];
       if (ctlName == nil)
@@ -5123,6 +5126,7 @@ NSLog(@"Problem %@", localException);
               [self update];
             }
         }
+      trying = NO;
     }
   return (nil == control) ? NO : YES;
 }
