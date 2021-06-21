@@ -60,7 +60,7 @@ static const NSTimeInterval   day = 24.0 * 60.0 * 60.0;
 
 static int	tStatus = 0;
 
-static NSTimeInterval	pingDelay = 240.0;
+static NSTimeInterval	pingTime = 240.0;
 
 static int	comp_len = 0;
 
@@ -112,23 +112,6 @@ static NSTimeInterval           quitTime = 120.0;
  * we set the date for the shutdown to end.
  */
 static NSDate                   *terminateBy = nil;
-
-static NSTimeInterval
-abortDateFromStoppingDate(NSTimeInterval stopping)
-{
-  NSTimeInterval        abortDate = stopping + quitTime;
-
-  if (terminateBy)
-    {
-      NSTimeInterval    ti = [terminateBy timeIntervalSinceReferenceDate];
-
-      if (ti < abortDate)
-        {
-          abortDate = ti;
-        }
-    }
-  return abortDate;
-}
 
 static NSUInteger               launchLimit = 0;
 static BOOL                     launchEnabled = NO;
@@ -843,6 +826,33 @@ desiredName(Desired state)
       l->stoppingTimer = nil;
       [launchInfo removeObjectForKey: name];
     }
+}
+
+- (NSTimeInterval) abortDateFromStoppingDate: (NSTimeInterval)stopping
+{
+  NSTimeInterval        when = stopping;
+  NSTimeInterval	ti = 0.0;
+  NSString		*s;
+
+  s = [[self configuration] objectForKey: @"QuitTime"];
+  if ([s respondsToSelector: @selector(intValue)])
+    {
+      ti = (NSTimeInterval)[s intValue];
+    }
+  if (ti <= 0.0)
+    {
+      ti = quitTime;
+    }
+  when += ti;
+  if (terminateBy)
+    {
+      ti = [terminateBy timeIntervalSinceReferenceDate];
+      if (ti < when)
+        {
+          when = ti;
+        }
+    }
+  return when;
 }
 
 - (void) alarm: (EcAlarm*)alarm
@@ -2540,7 +2550,7 @@ valgrindLog(NSString *name)
     {
       [self resetDelay];
       stoppingDate = [NSDate timeIntervalSinceReferenceDate];
-      abortDate = abortDateFromStoppingDate(stoppingDate);
+      abortDate = [self abortDateFromStoppingDate: stoppingDate];
       if ([self hungDate] > 0.0 && identifier > 0)
         {
           /* The process is hung and we assume it can't shut down gracefully.
@@ -2871,7 +2881,7 @@ valgrindLog(NSString *name)
     }
   if (abortDate <= 0.0)
     {
-      abortDate = abortDateFromStoppingDate(stoppingDate);
+      abortDate = [self abortDateFromStoppingDate: stoppingDate];
     }
   if (abortDate <= now)
     {
@@ -3500,6 +3510,21 @@ NSLog(@"Problem %@", localException);
             }
 
           debug = [[d objectForKey: @"CommandDebug"] boolValue];
+
+          /* The time allowed for a process to respond to pings defaults
+           * to 240 seconds but may be configured in the range from 10 to 600
+           */
+          ti = [[d objectForKey: @"CommandPingTime"] doubleValue];
+          if (ti == ti && ti > 0.0)
+            {
+              if (ti < 10.0) ti = 10.0;
+              if (ti > 600.0) ti = 600.0;
+              pingTime = ti;
+            }
+          else
+            {
+              pingTime = 120.0;
+            }
 
           /* The time allowed for a process to shut down cleanly defaults
            * to 120 seconds but may be configured in the range from 10 to 600
@@ -6022,14 +6047,14 @@ NSLog(@"Problem %@", localException);
 	    {
 	      continue;
 	    }
-          s = [[l configuration] objectForKey: @"Ping"];
+          s = [[l configuration] objectForKey: @"PingTime"];
           if ([s respondsToSelector: @selector(intValue)])
             {
               delay = (NSTimeInterval)[s intValue];
             }
           if (delay <= 0.0)
             {
-              delay = pingDelay;        // Default
+              delay = pingTime;        // Default
             }
 	  if (d != nil && [d timeIntervalSinceDate: now] < -delay)
 	    {
@@ -6078,13 +6103,13 @@ NSLog(@"Problem %@", localException);
       [a removeAllObjects];
 
       if (control != nil && outstanding != nil
-	&& [outstanding timeIntervalSinceDate: now] < -pingDelay)
+	&& [outstanding timeIntervalSinceDate: now] < -pingTime)
 	{
 	  NSString	*m;
 
 	  m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
 	    @"Control server failed to respond for over %d seconds"),
-	    (int)pingDelay];
+	    (int)pingTime];
 	  [[(NSDistantObject*)control connectionForProxy] invalidate];
 	  [self information: m from: nil to: nil type: LT_CONSOLE];
 	  lost = YES;

@@ -56,8 +56,9 @@
 	 * ValgrindPath = (string)	Run under valgrind (unless empty)
 	 * ValgrindArgs = (array)	Run under valgrind using these args
 	 *
-	 * Ping = (integer)	If greater than zero, this is the ping delay in
-	 *			seconds (otherwise the default ofd 240 is used).
+	 * PingTime = (integer)	If greater than zero, this is the ping delay in
+	 *			seconds (otherwise the default of 240 is used,
+	 *			or as specified by the CommandPingTime default).
 	 *			When a process has been unresponsive to the
 	 *			Command server for this number of seconds, that
 	 *			process is considered to be hung.
@@ -70,6 +71,12 @@
 	 *			after HungTime in order to gather information
 	 *			about the hung process.  It's arguments will
 	 *			be the process name and the process ID.
+	 * QuitTime = (integer)	If greater than zero this the interval before
+	 *			a process is forcably killed if it is stopping
+	 *			or restarting too slowly.  The default (used
+	 *			if this is not specified and greater than zero)
+	 *			is 120 seconds (or as specified by the
+	 *			CommandQuitTime default).
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
