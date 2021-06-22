@@ -77,6 +77,12 @@
 	 *			if this is not specified and greater than zero)
 	 *			is 120 seconds (or as specified by the
 	 *			CommandQuitTime default).
+	 *
+	 * If a process hangs and is configured to auto-restart when hung:
+	 * The total time taken is (PingTime + HungTime + StopTime)
+	 * After PingTime seconds of unresponsiveness an alarm is raised.
+	 * Then after HungTime seconds restart is initiated and HungTool runs.
+	 * Then after StopTime seconds the process is forcibly killed.
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
