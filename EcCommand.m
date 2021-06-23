@@ -443,6 +443,7 @@ desiredName(Desired state)
 - (void) setPing;
 - (void) setProcessIdentifier: (int)p;
 - (void) setStable: (BOOL)s;
+- (void) setTerminationStatus: (int)s;
 - (BOOL) stable;
 
 /** Initiates the startup of a process.  This will either add the receiver to
@@ -616,7 +617,7 @@ desiredName(Desired state)
 - (void) terminate: (NSDate*)by;
 - (void) _terminate: (NSTimer*)t;
 - (NSMutableArray*) unconfiguredClients;
-- (void) unregisterByObject: (id)obj;
+- (void) unregisterByObject: (byref id)obj status: (int)s;
 - (void) update;
 - (void) updateConfig: (NSData*)data;
 - (void) woken: (id)obj;
@@ -2199,6 +2200,28 @@ valgrindLog(NSString *name)
     {
       stableDate = [NSDate timeIntervalSinceReferenceDate];
       [self resetDelay];
+    }
+}
+
+- (void) setTerminationStatus: (int)s
+{
+  /* Called when we are informed of the death of a process which is not a
+   * subtask. A positive status is assumed to be a signal.
+   */
+  if (nil == task)
+    {
+      terminationStatusKnown = YES;
+      terminationDate = [NSDate timeIntervalSinceReferenceDate];
+      if (s < 0)
+        {
+          terminationSignal = 0;
+          terminationStatus = s;
+        }
+      else
+        {
+          terminationSignal = s;
+          terminationStatus = 0;
+        }
     }
 }
 
@@ -6482,7 +6505,7 @@ NSLog(@"Problem %@", localException);
     }
 }
 
-- (void) unregisterByObject: (id)obj
+- (void) unregisterByObject: (byref id)obj status: (int)s
 {
   EcClientI	*o = [self findIn: clients byObject: obj];
 
@@ -6490,6 +6513,10 @@ NSLog(@"Problem %@", localException);
     {
       LaunchInfo	*l = [launchInfo objectForKey: [o name]];
 
+      /* If we did not launch the process, trust the exit status provided
+       */
+NSLog(@"Unregister with status %d", s);
+      [l setTerminationStatus: s];
       [self removeClient: o cleanly: YES];
       [l clearClient: o cleanly: YES];
       [l stopping: nil];

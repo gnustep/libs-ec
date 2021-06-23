@@ -2675,7 +2675,25 @@ static BOOL     ecDidAwaken = NO;
   /* Now that the audit log has been flushed to the Command/Control
    * servers, we can unregister from Command.
    */
-  [self cmdUnregister];
+  if (nil != cmdServer)
+    {
+      NS_DURING
+	{
+	  if (cmdIsRegistered)
+	    {
+	      cmdIsRegistered = NO;
+	      [cmdServer unregisterByObject: self status: ecQuitStatus];
+	    }
+	}
+      NS_HANDLER
+	{
+          [self _commandRemove];
+	  NSLog(@"Caught exception unregistering from Command: %@",
+	    localException);
+	}
+      NS_ENDHANDLER
+      [self _commandRemove];
+    }
 
   /* Re-do the alarm destination shut down, just in case an alarm
    * occurred while we were flushing logs and/or unregistering.
@@ -3633,29 +3651,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     }
 
   return cmdServer;
-}
-
-- (void) cmdUnregister
-{
-  if (nil != cmdServer)
-    {
-      NS_DURING
-	{
-	  if (cmdIsRegistered)
-	    {
-	      cmdIsRegistered = NO;
-	      [cmdServer unregisterByObject: self];
-	    }
-	}
-      NS_HANDLER
-	{
-          [self _commandRemove];
-	  NSLog(@"Caught exception unregistering from Command: %@",
-	    localException);
-	}
-      NS_ENDHANDLER
-      [self _commandRemove];
-    }
 }
 
 - (void) cmdWarn: (NSString*)fmt arguments: (va_list)args

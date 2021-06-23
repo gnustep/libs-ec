@@ -209,7 +209,7 @@ typedef enum    {
                        identifier: (int)p
 			     name: (NSString*)n
 			transient: (BOOL)t;
-- (void) unregisterByObject: (id)obj;
+- (void) unregisterByObject: (byref id)obj status: (int)s;
 - (void) woken: (id)obj;
 @end
 
@@ -1111,11 +1111,6 @@ extern NSString*	cmdVersion(NSString *ver);
 /* Return interval between timeouts.
  */
 - (NSTimeInterval) cmdInterval;
-
-- (void) cmdUnregister;
-/*
- *	All this to unregister from the server.
- */
 
 /** Register a debug mode 'mode'
  */

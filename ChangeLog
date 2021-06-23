@@ -1,3 +1,14 @@
+2021-06-23 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcProcess.m:
+	* EcProcess.h:
+	When we restart because MemoryMaximum is reached/near, use termination
+	status -5.  Raise an alarm to log this in the Command server.
+	Change unregistering so that it reports the status the process intends
+	to exit with.  The Command server can then use this information in
+	cases where the client process is not one of its children.
+
 2021-06-20 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:
