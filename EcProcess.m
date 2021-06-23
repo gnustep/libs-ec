@@ -86,6 +86,9 @@ static int              reservedPipe[2] = { 0, 0 };
 static NSInteger        descriptorsMaximum = 0;
 #endif
 
+/* Flag to say whether a restart was caused by the mememory maximum
+ */
+static BOOL       	memRestart = NO;
 
 #if	!defined(EC_DEFAULTS_PREFIX)
 #define	EC_DEFAULTS_PREFIX nil
@@ -2906,7 +2909,14 @@ static BOOL     ecDidAwaken = NO;
     }
   [self cmdAudit: @"Restarting '%@' (%@)", [self cmdName], reason];
   [auditLogger flush];
-  [self ecQuitFor: reason with: -1];	// -1 tells Command to relaunch
+  if (memRestart)
+    {
+      [self ecQuitFor: reason with: -5];	// -5 tells Command to relaunch
+    }
+  else
+    {
+      [self ecQuitFor: reason with: -1];	// -1 tells Command to relaunch
+    }
 }
 
 - (void) ecLoggersChanged: (NSNotification*)n
@@ -6031,7 +6041,6 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) _memCheck
 {
-  static BOOL       	memRestart = NO;
   static EcAlarm	*alarm = nil;
   static char		buf[64] = {0};
   EcAlarmSeverity	severity = EcAlarmSeverityCleared;

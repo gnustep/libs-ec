@@ -56,6 +56,19 @@ date(NSTimeInterval t)
   return d;
 }
 
+static BOOL
+restartStatus(int terminationStatus)
+{
+  switch (terminationStatus)
+    {
+      case -1:
+      case -5:
+        return YES;
+      default:
+        return NO;
+    }
+}
+
 static const NSTimeInterval   day = 24.0 * 60.0 * 60.0;
 
 static int	tStatus = 0;
@@ -1815,10 +1828,10 @@ valgrindLog(NSString *name)
                     NSLog(@"-progress ignored (already active) for %@", self);
                   }
               }
-            else if (terminationStatusKnown && -1 == terminationStatus)
+            else if (terminationStatusKnown && restartStatus(terminationStatus))
               {
-                /* The process exited with a -1 status code.
-                 * That means it wanted to be restarted.
+                /* The process exited with a status code saying it should
+                 * be restarted.
                  */
                 ASSIGN(startedReason, @"restart");
                 if (NO == [self checkActive])
@@ -2692,6 +2705,10 @@ valgrindLog(NSString *name)
 		{
 		  reason = @"stopped (Command rejection: exit code -4)";
 		}
+	      else if (-5 == terminationStatus)
+		{
+		  reason = @"stopped (MemoryMaximum reached: exit code -5)";
+		}
 	      else if (terminationStatus > 0)
 		{
 		  reason = [NSString stringWithFormat:
@@ -2764,6 +2781,10 @@ valgrindLog(NSString *name)
 		{
 		  text = @"termination status -4 (Command rejection)";
 		}
+	      else if (-5 == terminationStatus)
+		{
+		  text = @"termination status -5 (MemoryMaximum reached)";
+		}
 	      else
 		{
 		  text = [NSString stringWithFormat: @"termination status %d",
@@ -2798,7 +2819,7 @@ valgrindLog(NSString *name)
       if (nil == restartReason
         && terminationStatusKnown
         && 0 == terminationSignal
-        && -1 == terminationStatus)
+        && restartStatus(terminationStatus))
         {
           restartReason = @"requested by process";
         }
