@@ -1629,7 +1629,8 @@ findMode(NSDictionary* d, NSString* s)
               [cmdDefs setVolatileDomain: m forName: NSArgumentDomain];
             }
 #if     GS_USE_GNUTLS
-          if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
+          if ([NSSocketPort respondsToSelector:
+            @selector(setClientOptionsForTLS:)])
             {
               defs = [cmdDefs dictionaryForKey: @"NSSocketPortOptionsForTLS"];
               if (defs != nil)
@@ -1655,8 +1656,12 @@ findMode(NSDictionary* d, NSString* s)
                       [opts setObject: @"self-signed-crt"
                                forKey: GSTLSCertificateFile];
                     }
-                  [NSSocketPort performSelector: @selector(setOptionsForTLS:)
-                                     withObject: opts];
+                  [NSSocketPort
+                    performSelector: @selector(setClientOptionsForTLS:)
+                         withObject: opts];
+                  [NSSocketPort
+                    performSelector: @selector(setServerOptionsForTLS:)
+                         withObject: opts];
                 }
             }
 #endif
@@ -3164,10 +3169,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 #if     GS_USE_GNUTLS
       /* Enable encrypted DO if supported by the base library.
        */
-      if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
+      if ([NSSocketPort respondsToSelector: @selector(setClientOptionsForTLS:)])
         {
-          [NSSocketPort performSelector: @selector(setOptionsForTLS:)
-                             withObject: [NSDictionary dictionary]];
+          NSDictionary  *opts = [NSDictionary dictionary];
+
+          [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
+                             withObject: opts];
+          [NSSocketPort performSelector: @selector(setServerOptionsForTLS:)
+                             withObject: opts];
         }
 #endif
       ecLock = [NSRecursiveLock new];

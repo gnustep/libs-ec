@@ -51,9 +51,9 @@ setup()
       beenHere = YES;
       /* Enable encrypted DO if supported bu the base library.
        */
-      if ([NSSocketPort respondsToSelector: @selector(setOptionsForTLS:)])
+      if ([NSSocketPort respondsToSelector: @selector(setClientOptionsForTLS:)])
         {
-          [NSSocketPort performSelector: @selector(setOptionsForTLS:)
+          [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
                              withObject: [NSDictionary dictionary]];
         }
     }
@@ -262,3 +262,80 @@ EcTestShutdown(id<EcTest> process, NSTimeInterval timeout)
   return YES;
 }
 
+ 
+BOOL
+EcTestShutdownByName(NSString *name, NSString *host, NSTimeInterval timeout)
+{
+  setup();
+  NSPortNameServer      *ns;
+  NSPort                *port;
+  id<EcTest>            proxy = nil;
+  NSConnection          *conn;
+  NSDate                *when;
+  int                   pid;
+
+  if (nil == host) host = @"";
+  if (timeout > 0)
+    {
+      when = [NSDate dateWithTimeIntervalSinceNow: timeout];
+    }
+  else
+    {
+      when = [NSDate distantFuture];
+    }
+
+  ns = [NSSocketPortNameServer sharedInstance];
+  port = [ns portForName: name onHost: host];
+  if (nil == port)
+    {
+      return YES;
+    }
+
+  NS_DURING
+    {
+      proxy = (id<EcTest>)[NSConnection
+        rootProxyForConnectionWithRegisteredName: name
+        host: host
+        usingNameServer: ns];
+    }
+  NS_HANDLER
+    {
+      proxy = nil;
+    }
+  NS_ENDHANDLER
+  if (nil == proxy)
+    {
+      NSLog(@"Unable to contact %@ found on %@", name, port);
+      return NO;
+    }
+
+  conn = [(NSDistantObject*)proxy connectionForProxy];
+  if (NO == [conn isValid])
+    {
+      [[conn sendPort] invalidate];
+      return NO;
+    }
+  pid = [(id<CmdClient>)proxy processIdentifier];
+  [(id<CmdClient>)proxy cmdQuit: 0];
+
+  while ([conn isValid] && [when timeIntervalSinceNow] > 0.0)
+    {
+      NS_DURING
+        [(id<CmdClient>)proxy processIdentifier];
+        [NSThread sleepForTimeInterval: 0.1];
+      NS_HANDLER
+        if ([conn isValid])
+          {
+            [localException raise];
+          }
+      NS_ENDHANDLER
+    }
+  if ([conn isValid])
+    {
+      kill(pid, 9);
+      [[conn sendPort] invalidate];
+      [conn invalidate];
+      return NO;
+    }
+  return YES;
+}
