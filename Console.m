@@ -45,6 +45,7 @@ inner_main()
 {
   NSAutoreleasePool	*arp;
   NSDictionary		*defs;
+  int			status;
 
   arp = [NSAutoreleasePool new];
   cmdVersion(@"$Date: 2012-02-13 08:11:49 +0000 (Mon, 13 Feb 2012) $ $Revision: 65934 $");
@@ -64,8 +65,9 @@ inner_main()
 
       [EcProc ecRun];
     }
+  status = [EcProc ecQuitStatus];
   [arp release];
-  exit(0);
+  exit(status);
 }
 
 int

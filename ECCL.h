@@ -113,7 +113,11 @@
         If this response is matched, the process exit status is 3.<br />
         Quiet (or the ConsoleQuiet environment variable) is a boolean
         which, if true, will suppress any output while waiting for a
-        response.
+        response.<br />
+	If the Control server cannot be contacted, the process exit status
+	is 10.<br />
+	If the Control server actively refuses the login, the exit status
+	is 11.
       </section>
 
       <section>

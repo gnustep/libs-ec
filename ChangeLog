@@ -1,3 +1,13 @@
+2021-06-30 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* Command.m:
+	* Console.m:
+	* ECCL.h:
+	* EcConsole.m:
+	* EcProcess.m:
+	Fixups for Console to return error status if it can't connect to the
+	Control server or if the Control server rejects its login attempt.
+
 2021-06-24 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m:

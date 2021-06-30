@@ -256,7 +256,7 @@ static NSTimeInterval   initAt = 0.0;
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
 static BOOL		ecQuitHandled = NO;	// Has ecHandleQuit run?
 static NSTimeInterval	ecQuitLimit = 180.0;	// Time allowed for quit
-static NSInteger        ecQuitStatus = -1;      // Status for the quit
+static NSInteger        ecQuitStatus = 0;      // Status for the quit
 static NSString         *ecQuitReason = nil;    // Reason for the quit
 
 /* Test to see if the process is trying to quit gracefully.

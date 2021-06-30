@@ -45,6 +45,7 @@ inner_main()
 {
   NSAutoreleasePool	*arp;
   NSDictionary		*defs;
+  int			status;
 
   arp = [NSAutoreleasePool new];
 
@@ -66,9 +67,11 @@ inner_main()
 
   [EcProc ecRun];
 
+  status = [EcProc ecQuitStatus];
+
   [arp release];
 
-  exit(0);
+  exit(status);
 }
 
 int

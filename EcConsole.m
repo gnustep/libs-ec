@@ -499,7 +499,7 @@ static BOOL commandIsRepeat (NSString *string)
 		  [ochan printf: @"Unable to connect to %@ on %@.\n",
 		    name, host];
 		}
-	      [self cmdQuit: 0];
+	      [self cmdQuit: 10];
 	      return;
 	    }
 	  else
@@ -820,7 +820,7 @@ static BOOL commandIsRepeat (NSString *string)
 		  GSPrintf(stderr, @"Unable to connect to %@ on %@.\n",
 		    name, host);
 		}
-	      [self cmdQuit: 1];
+	      [self cmdQuit: 10];
 	      DESTROY(self);
 	    }
 	  else
@@ -844,7 +844,7 @@ static BOOL commandIsRepeat (NSString *string)
 		{
 		  GSPrintf(stderr, @"Login rejected for %@ on %@.\n",
 		    name, host);
-                  [self cmdQuit: 1];
+                  [self cmdQuit: 11];
 		  DESTROY(self);
 		}
 	    }
@@ -1109,7 +1109,7 @@ consoleCompleter(const char *text, int start, int end)
 	      [ochan printf: @"Unable to connect to %@ on %@.\n", name, host];
 	    }
 	  
-	  [self cmdQuit: 0];
+	  [self cmdQuit: 10];
 	  return;
 	}
       
@@ -1148,6 +1148,7 @@ consoleCompleter(const char *text, int start, int end)
 	  DESTROY(self->user);
 	  DESTROY(self->rnam);
 	  DESTROY(self->server);
+	  [self cmdQuit: 11];
 	}
     }
 }
