@@ -2744,7 +2744,7 @@ static BOOL     ecDidAwaken = NO;
   va_start (ap, format);
   a = [self ecException: cause
 	specificProblem: specificProblem
-      perceivedSeverity: EcAlarmSeverityMajor 
+      perceivedSeverity: perceivedSeverity 
 		message: format
 	      arguments: ap];
   va_end (ap);
