@@ -1604,7 +1604,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [lock lock];
       array = RETAIN(rules);
       [lock unlock];
-      [self applyRules: AUTORELEASE(rules) toEvent: event];
+      [self applyRules: AUTORELEASE(array) toEvent: event];
     }
   NS_HANDLER
     {
