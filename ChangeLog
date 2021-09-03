@@ -1,3 +1,10 @@
+2021-09-03 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: When deleting old logs, consider directories from all
+	time rather than just those for the last year.  This prevents logs
+	from being left undeleted when the DeleteLogsAfter config is changed
+	from a value longer than a year to a shorter value.
+
 2021-06-30 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* Command.m:

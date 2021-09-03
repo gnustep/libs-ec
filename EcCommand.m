@@ -5796,29 +5796,45 @@ NSLog(@"Problem %@", localException);
       uncompressed = logUncompressed;
       undeleted = logUndeleted;
     }
-  if (0.0 == undeleted)
-    {
-      undeleted = now - 365.0 * day;
-    }
-  ti = undeleted;
   latestDeleteAt = now - day * deleteAfter;
-  while (ti < latestDeleteAt)
+  if (undeleted < latestDeleteAt)
     {
-      NSAutoreleasePool *pool = [NSAutoreleasePool new];
+      NSDirectoryEnumerator	*enumerator;
+      NSString			*file;
+      NSCalendarDate		*when;
+      unsigned			limit;
 
-      when = date(ti);
-      file = [[dir stringByAppendingPathComponent:
-        [when descriptionWithCalendarFormat: @"%Y-%m-%d"]]
-        stringByStandardizingPath];
-      if ([mgr fileExistsAtPath: file])
+      when = date(latestDeleteAt);
+      limit = ([when yearOfCommonEra] * 100 + [when monthOfYear]) * 100
+	+ [when dayOfMonth];
+
+      enumerator = [mgr enumeratorAtPath: dir];
+      while ((file = [enumerator nextObject]) != nil)
         {
-          [mgr removeFileAtPath: file handler: nil];
-        }
-      ti += day;
-      [pool release];
+	  if ([file length] == 10)
+	    {
+	      const char	*s = [file UTF8String];
+	      unsigned		y, m, d;
+
+	      if (sscanf(s, "%04u-%02u-%02u", &y, &m, &d) == 3)
+		{
+		  int		dayNumber = (y * 100 + m) * 100 + d;
+
+		  if (dayNumber < limit)
+		    {
+		      file = [dir stringByAppendingPathComponent: file];
+		      if (NO == [mgr removeFileAtPath: file handler: nil])
+			{
+			  NSLog(@"Failed to delete old logs at %@", file);
+			}
+		    }
+		}
+	    }
+	}
+      undeleted = latestDeleteAt;
     }
-  if (YES == deb) debUndeleted = ti;
-  else logUndeleted = ti;
+  if (YES == deb) debUndeleted = undeleted;
+  else logUndeleted = undeleted;
 
   if (uncompressed < undeleted)
     {
