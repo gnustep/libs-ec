@@ -499,9 +499,19 @@ desiredName(Desired state)
 
 /* Special configuration options are:
  *
+ * CompressDebugAfter
+ *   A positive integer number of days after which debug should be compressed
+ *   defaults to 7.
+ *
  * CompressLogsAfter
  *   A positive integer number of days after which logs should be compressed
  *   defaults to 7.
+ *
+ * DeleteDebugAfter
+ *   A positive integer number of days after which debug should be deleted.
+ *   Constrained to be at least as large as CompressDebugAfter.
+ *   Defaults to 90, but debug may still be deleted as if this were set
+ *   to CompressDebugAfter if NodesFree or SpaceFree is reached.
  *
  * DeleteLogsAfter
  *   A positive integer number of days after which logs should be deleted.
@@ -5713,9 +5723,9 @@ NSLog(@"Problem %@", localException);
 
   /* When trying to make space, we can delete up to the point when we
    * would start compressing but no further ... we don't want to delete
-   * all logs!
+   * all debug!
    */
-  purgeAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
+  purgeAfter = [[self cmdDefaults] integerForKey: @"CompressDebugAfter"];
   if (purgeAfter < 1)
     {
       purgeAfter = 7;
@@ -5766,16 +5776,33 @@ NSLog(@"Problem %@", localException);
 
   /* get number of days after which to do log compression/deletion.
    */
-  compressAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
-  if (compressAfter < 1)
+  if (deb)
     {
-      compressAfter = 7;
+      compressAfter = [[self cmdDefaults] integerForKey: @"CompressDebugAfter"];
+      if (compressAfter < 1)
+	{
+	  compressAfter = 7;
+	}
+      deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteDebugAfter"];
+      if (deleteAfter < 1)
+	{
+	  deleteAfter = 90;
+	}
     }
-  deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteLogsAfter"];
-  if (deleteAfter < 1)
+  else
     {
-      deleteAfter = 180;
+      compressAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
+      if (compressAfter < 1)
+	{
+	  compressAfter = 7;
+	}
+      deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteLogsAfter"];
+      if (deleteAfter < 1)
+	{
+	  deleteAfter = 180;
+	}
     }
+
   if (deleteAfter < compressAfter)
     {
       deleteAfter = compressAfter;
