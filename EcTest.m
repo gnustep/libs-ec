@@ -41,24 +41,6 @@
 #import "EcHost.h"
 #import "EcTest.h"
 
-static void
-setup()
-{
-  static BOOL   beenHere = NO;
-
-  if (NO == beenHere)
-    {
-      beenHere = YES;
-      /* Enable encrypted DO if supported bu the base library.
-       */
-      if ([NSSocketPort respondsToSelector: @selector(setClientOptionsForTLS:)])
-        {
-          [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
-                             withObject: [NSDictionary dictionary]];
-        }
-    }
-}
-
 static NSUserDefaults*
 defaults()
 {
@@ -68,8 +50,6 @@ defaults()
     {
       NSString              *pref;
       NSDictionary          *dict;
-
-      [EcProcess class];    // Force linker to provide library
 
       pref = EC_DEFAULTS_PREFIX;
       if (nil == pref)
@@ -89,13 +69,14 @@ defaults()
 id<EcTest>
 EcTestConnect(NSString *name, NSString *host, NSTimeInterval timeout)
 {
-  setup();
   CREATE_AUTORELEASE_POOL(pool);
   BOOL                  triedLaunching = NO;
-  NSUserDefaults        *defs = defaults();
   id<EcTest>            proxy = nil;
+  NSUserDefaults        *defs;
   NSDate                *when;
 
+  [EcProcess class];
+  defs = defaults();
   if (nil == host) host = @"";
   if (timeout > 0)
     {
@@ -183,10 +164,10 @@ EcTestConnect(NSString *name, NSString *host, NSTimeInterval timeout)
 id
 EcTestGetConfig(id<EcTest> process, NSString *key)
 {
-  setup();
   id    val;
 
   NSCAssert([key isKindOfClass: [NSString class]], NSInvalidArgumentException);
+  [EcProcess class];
   val = [process ecTestConfigForKey: key];
   if (nil != val)
     {
@@ -202,8 +183,8 @@ EcTestGetConfig(id<EcTest> process, NSString *key)
 void
 EcTestSetConfig(id<EcTest> process, NSString *key, id value)
 {
-  setup();
   NSCAssert([key isKindOfClass: [NSString class]], NSInvalidArgumentException);
+  [EcProcess class];
   if (nil != value)
     {
       value = [NSPropertyListSerialization
@@ -218,11 +199,11 @@ EcTestSetConfig(id<EcTest> process, NSString *key, id value)
 BOOL
 EcTestShutdown(id<EcTest> process, NSTimeInterval timeout)
 {
-  setup();
   int           pid;
   NSConnection  *conn;
   NSDate        *when;
 
+  [EcProcess class];
   conn = [(NSDistantObject*)process connectionForProxy];
   if (NO == [conn isValid])
     {
@@ -266,7 +247,6 @@ EcTestShutdown(id<EcTest> process, NSTimeInterval timeout)
 BOOL
 EcTestShutdownByName(NSString *name, NSString *host, NSTimeInterval timeout)
 {
-  setup();
   NSPortNameServer      *ns;
   NSPort                *port;
   id<EcTest>            proxy = nil;
@@ -274,6 +254,7 @@ EcTestShutdownByName(NSString *name, NSString *host, NSTimeInterval timeout)
   NSDate                *when;
   int                   pid;
 
+  [EcProcess class];
   if (nil == host) host = @"";
   if (timeout > 0)
     {

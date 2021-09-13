@@ -3166,7 +3166,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 {
   if (nil == ecLock)
     {
-#if     GS_USE_GNUTLS
+#if     GS_USE_GNUTLS && defined(TLS_DISTRIBTED_OBJECTS)
       /* Enable encrypted DO if supported by the base library.
        */
       if ([NSSocketPort respondsToSelector: @selector(setClientOptionsForTLS:)])

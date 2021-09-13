@@ -1,3 +1,9 @@
+2021-09-13 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.m:
+	* EcTest.m:
+	Use TLS for DO only if TLS_DISTRIBUTED_OBJECTS is defined.
+
 2021-09-03 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: When deleting old logs, consider directories from all
