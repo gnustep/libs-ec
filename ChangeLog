@@ -1,5 +1,6 @@
 2021-09-13 Richard Frith-Macdonald <rfm@gnu.org>
 
+	* EcCommand.m:
 	* EcProcess.m:
 	* EcTest.m:
 	Use TLS for DO only if TLS_DISTRIBUTED_OBJECTS is defined.

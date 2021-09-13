@@ -1475,7 +1475,7 @@ valgrindLog(NSString *name)
                   [defs setObject: @"0" forKey: @"CoreSize"];
                 }
 
-#if     GS_USE_GNUTLS
+#if     GS_USE_GNUTLS && defined(TLS_DISTRIBUTED_OBJECTS)
               /* If TLS is supported, all Distributed Object communications
                * between our processes must be encrypted.  Generally we can
                * use shared certificate/key passed to our subprocesses on
