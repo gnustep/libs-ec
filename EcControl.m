@@ -920,7 +920,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    @"%@Clearing %@\n", m, alarm];
 		  alarm = [alarm clear];
 
-
 		  for (i = 0; i < [hosts count]; i++)
 		    {
 		      CommandInfo	*c = [hosts objectAtIndex: i];
@@ -938,6 +937,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			  NS_ENDHANDLER
 			}
 		    }
+		  [self alarm: alarm];	// In case the originator failed
 		}
 	    }
 	  if (0 == [m length])
