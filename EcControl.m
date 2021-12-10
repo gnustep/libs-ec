@@ -885,7 +885,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
 	}
-      else if (comp(wd, @"clear") >= 0 || comp(wd, @"suppress") >= 0)
+      else if (comp(wd, @"clear") >= 0)
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -897,9 +897,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      int	n = [wd intValue];
 	      int	i = [a count];
 
-	      if (n <= 0)
-		{
-		}
 	      while (i-- > 0)
 		{
 		  alarm = [a objectAtIndex: i];
@@ -916,10 +913,31 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	      else
 		{
+		  NSArray	*hosts = [[commands copy] autorelease];
+		  NSUInteger	i;
+
 		  m = [NSString stringWithFormat:
-		    @"%@Suppressing %@\n", m, alarm];
+		    @"%@Clearing %@\n", m, alarm];
 		  alarm = [alarm clear];
-		  [self alarm: alarm];
+
+
+		  for (i = 0; i < [hosts count]; i++)
+		    {
+		      CommandInfo	*c = [hosts objectAtIndex: i];
+
+		      if ([commands indexOfObjectIdenticalTo: c] != NSNotFound)
+			{
+			  NS_DURING
+			    {
+			      [[c obj] clear: alarm];
+			    }
+			  NS_HANDLER
+			    {
+			      NSLog(@"Caught: %@", localException);
+			    }
+			  NS_ENDHANDLER
+			}
+		    }
 		}
 	    }
 	  if (0 == [m length])
@@ -989,7 +1007,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  if ([wd length] == 0)
 	    {
 	      m = @"Commands are -\n"
-	      @"Help\tAlarms\tArchive\tConfig\tConnect\t"
+	      @"Help\tAlarms\tArchive\tClear\tConfig\tConnect\t"
 	      @"Flush\tHost\tList\tMemory\tOn\t"
 	      @"Password\tRepeat\tRestart\tQuit\tSet\tStatus\t"
 	      @"Suppress\tTell\tUnset\n\n"
@@ -1033,6 +1051,20 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"file is stored in a subdirectory whose name is of "
 		      @"the form YYYY-MM-DD being the date at "
 		      @"which the archive was created.\n";
+		}
+	      else if (comp(wd, @"Clear") >= 0)
+		{
+		  m = @"Clear\n\n"
+                      @"Instructs the Control server to clear "
+		      @"one or more alarms (identified by numeric\n"
+                      @"notificationIDs).\n\n"
+		      @"NB. This command clears the alarm(s) in the "
+		      @"central records of the Control server,\n"
+                      @"and also in the originating process.\n"
+                      @"You cannot clear an alarm centrally once "
+                      @"it has been suppressed; in that case you\n"
+                      @"must issue a 'clear'command directly to "
+		      @"the originating process itsself.\n";
 		}
 	      else if (comp(wd, @"Config") >= 0)
 		{
@@ -1139,13 +1171,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"Suppress") >= 0)
 		{
 		  m = @"Suppress\n\n"
-                      @"Instructs the Control server to clear "
+                      @"Instructs the Control server to suppress "
 		      @"one or more alarms (identified by numeric\n"
                       @"notificationIDs).\n\n"
 		      @"NB. This command clears the alarm(s) in the "
 		      @"central records of the Control server,\n"
-                      @"NOT in the originating process.\n"
-                      @"This feature means that you can clear "
+                      @"but NOT in the originating process.\n"
+                      @"This feature means that you can suppress "
                       @"an alarm centrally while the underlying\n"
                       @"problem has not been corrected and, "
                       @"because the originating process has\n"
@@ -1274,8 +1306,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			  for (j = 0; j < [svrs count]; j++)
 			    {
 			      m = [m stringByAppendingFormat:
-				  @"    %2d. %@\n", j,
-				      [svrs objectAtIndex: j]];
+				@"    %2d. %@\n", j, [svrs objectAtIndex: j]];
 			    }
 			}
 		    }
@@ -1423,6 +1454,47 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else if (comp(wd, @"status") >= 0)
 	{
 	  m = [self description];
+	}
+      else if (comp(wd, @"suppress") >= 0)
+	{
+	  NSArray	*a = [sink alarms];
+	  unsigned	index = 1;
+
+	  m = @"";
+	  while ([(wd = cmdWord(cmd, index++)) length] > 0)
+	    {
+	      EcAlarm	*alarm = nil;
+	      int	n = [wd intValue];
+	      int	i = [a count];
+
+	      while (i-- > 0)
+		{
+		  alarm = [a objectAtIndex: i];
+		  if ([alarm notificationID] == n)
+		    {
+		      break;
+		    }
+		  alarm = nil;
+		}
+	      if (nil == alarm)
+		{
+		  m = [NSString stringWithFormat:
+		    @"%@No alarm found with ID %@\n", m, wd];
+		}
+	      else
+		{
+		  m = [NSString stringWithFormat:
+		    @"%@Suppressing %@\n", m, alarm];
+		  alarm = [alarm clear];
+		  [self alarm: alarm];
+		}
+	    }
+	  if (0 == [m length])
+	    {
+	      m = @"The 'suppress' command requires one or more IDs\n"
+	        @"These are the unique identifiers used for working with\n"
+	        @"external SNMP monitoring systems.\n";
+	    }
 	}
       else if (comp(wd, @"tell") >= 0)
 	{

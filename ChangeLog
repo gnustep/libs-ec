@@ -1,3 +1,14 @@
+2021-12-10 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcCommand.m:
+	* EcControl.m:
+	New -clear: method in Command server to clear an alarm in one of its
+	clients.  Changed the Control server so that the 'suppress' command
+	clears an alarm locally (suppressing its effects by leaving it
+	raised in the originating client), while the 'clear' command clears
+	the alarm in the originating client.
+
 2021-09-13 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

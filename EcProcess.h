@@ -232,6 +232,11 @@ typedef enum    {
  */
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm;
 
+/** Pass an alarm clear to the Command server for forwarding to its
+ * clients for clearing.
+ */
+- (oneway void) clear: (in bycopy EcAlarm*)alarm;
+
 /** Send a text command to a process owned by the Command server.
  */
 - (oneway void) command: (in bycopy NSData*)dat

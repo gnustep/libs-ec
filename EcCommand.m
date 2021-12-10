@@ -564,6 +564,7 @@ desiredName(Desired state)
           procName: (NSString*)name
            addText: (NSString*)additional;
 - (void) auditState: (LaunchInfo*)l reason: (NSString*)additional;
+- (void) clear: (EcAlarm*)alarm;
 - (void) clearAll: (NSString*)name
 	  addText: (NSString*)additional;
 - (void) clearCode: (AlarmCode)ac
@@ -3218,6 +3219,19 @@ valgrindLog(NSString *name)
   [a setAudit: YES];
   [self alarm: a];
   [self update];
+}
+
+- (void) clear: (EcAlarm*)alarm
+{
+  EcClientI	*c;
+
+  NSAssert(EcAlarmSeverityCleared == [alarm perceivedSeverity],
+    NSInvalidArgumentException);
+
+  /* Clear the alarm in the named client (if found).
+   */
+  c = [self findIn: clients byName: [alarm moInstancedProcess]];
+  [[[c obj] ecAlarmDestination] alarm: alarm];
 }
 
 /* Clears all alarms we have raised (or an earlier instance might have raised
