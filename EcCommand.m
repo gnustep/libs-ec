@@ -3149,6 +3149,14 @@ valgrindLog(NSString *name)
 
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm
 {
+  if (NO == [NSThread isMainThread])
+    {
+      [self performSelectorOnMainThread: _cmd
+                             withObject: alarm
+                          waitUntilDone: NO];
+      return;
+    }
+
   NS_DURING
     {
       [control alarm: alarm];
