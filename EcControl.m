@@ -402,9 +402,20 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm
 {
-  EcAlarmSeverity	severity = [alarm perceivedSeverity];
-  NSString		*desc = [alarm description];
+  EcAlarmSeverity	severity;
+  NSString		*desc;
   NSRange		range;
+
+  if (NO == [NSThread isMainThread])
+    {
+      [self performSelectorOnMainThread: _cmd
+                             withObject: alarm
+                          waitUntilDone: NO];
+      return;
+    }
+
+  severity = [alarm perceivedSeverity];
+  desc = [alarm description];
 
   /* A local copy of an alarm will have an address differing from that of the
    * alarm in the originating process.  Avoid reporting that here.
