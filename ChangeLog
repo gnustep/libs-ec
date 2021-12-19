@@ -2,8 +2,10 @@
 
 	* EcAlarmDestination.h:
 	* EcAlarmDestination.m:
+	* EcControl.m:
 	Add (-latest:) method to find the most recent match for an alarm
 	in the queue/active/cleared data structures.
+	Use it to filter out duplicate clears.
 
 2021-12-16 Richard Frith-Macdonald <rfm@gnu.org>
 

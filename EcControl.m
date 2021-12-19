@@ -403,6 +403,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (oneway void) alarm: (in bycopy EcAlarm*)alarm
 {
   EcAlarmSeverity	severity;
+  EcAlarm       	*old;
   NSString		*desc;
   NSRange		range;
 
@@ -415,6 +416,17 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
 
   severity = [alarm perceivedSeverity];
+
+  old = [sink latest: alarm];
+  if (old)
+    {
+      if (EcAlarmSeverityCleared == severity
+        && [old perceivedSeverity] == severity)
+	{
+	  return;	// Duplicate clear ignored.
+	}
+    }
+
   desc = [alarm description];
 
   /* A local copy of an alarm will have an address differing from that of the
