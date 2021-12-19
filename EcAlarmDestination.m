@@ -374,6 +374,39 @@
   return result;
 }
 
+- (EcAlarm*) latest: (EcAlarm*)toFind
+{
+  EcAlarm	*found = nil;
+  NSUInteger	index;
+
+  [_alarmLock lock];
+  /* First try to find the most recent match in the queue
+   */
+  index = [_alarmQueue count];
+  while (index-- > 0)
+    {
+      EcAlarm	*a = [_alarmQueue objectAtIndex: index];
+
+      if ([a isEqual: toFind])
+	{
+	  found = RETAIN(a);
+	  break;
+	}
+    }
+  if (nil == found)
+    {
+      /* Not in queue ... try active alarms or clears
+       */
+      found = RETAIN([_alarmsActive member: toFind]);
+      if (nil == found)
+	{
+	  found = RETAIN([_alarmsCleared member: toFind]);
+	}
+    }
+  [_alarmLock unlock];
+  return AUTORELEASE(found);  
+}
+
 - (NSArray*) managed
 {
   NSArray	*a;

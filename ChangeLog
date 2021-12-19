@@ -1,3 +1,10 @@
+2021-12-19 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlarmDestination.h:
+	* EcAlarmDestination.m:
+	Add (-latest:) method to find the most recent match for an alarm
+	in the queue/active/cleared data structures.
+
 2021-12-16 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

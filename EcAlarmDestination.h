@@ -184,6 +184,14 @@
  */
 - (BOOL) isRunning;
 
+/** Finds and returns the most recent alarm in the system which matches
+ * (is equal to) toFind.  This searches the queue of alarms to be processed,
+ * the set of active alarms, and the set of cleared alarms (in that order)
+ * returning the first match found.  If no match is found the method
+ * returns nil.
+ */
+- (EcAlarm*) latest: (EcAlarm*)toFind;
+
 /** Returns an array containing the known managed objects.
  */
 - (NSArray*) managed;
