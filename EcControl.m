@@ -352,6 +352,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   unsigned		consolePingPosition;
   NSString		*configFailed;
   NSString		*configIncludeFailed;
+  NSRegularExpression	*alarmFilter;
   EcAlerter		*alerter;
 }
 - (NSFileHandle*) openLog: (NSString*)lname;
@@ -377,6 +378,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		type: (EcLogType)t
 		  to: (NSString*)to
 		from: (NSString*)from;
+- (NSString*) messageForAlarm: (EcAlarm*)alarm;
 - (NSData*) registerCommand: (id<Command>)c
 		       name: (NSString*)n;
 - (NSString*) registerConsole: (id<Console>)c
@@ -384,7 +386,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 			 pass: (NSString*)p;
 - (void) reply: (NSString*) msg to: (NSString*)n from: (NSString*)c;
 - (void) reportAlarm: (EcAlarm*)alarm
-            severity: (EcAlarmSeverity)severity
+	 withMessage: (NSString*)message
+           isCleared: (BOOL)cleared
             reminder: (int)reminder;
 - (void) reportAlarms;
 - (void) servers: (NSData*)d
@@ -404,6 +407,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   EcAlarmSeverity	severity;
   EcAlarm       	*old;
+  NSString		*mesg;
   NSString		*desc;
   NSRange		range;
 
@@ -418,12 +422,33 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   severity = [alarm perceivedSeverity];
 
   old = [sink latest: alarm];
-  if (old)
+  if (old
+    && (EcAlarmSeverityCleared == severity
+      && [old perceivedSeverity] == severity))
     {
-      if (EcAlarmSeverityCleared == severity
-        && [old perceivedSeverity] == severity)
+      return;	// Duplicate clear ignored.
+    }
+  else
+    {
+      NSRegularExpression	*re;
+
+      [self ecDoLock];
+      re = AUTORELEASE(RETAIN(alarmFilter));
+      [self ecUnLock];
+
+      mesg = [self messageForAlarm: alarm];
+      if (re != nil)
 	{
-	  return;	// Duplicate clear ignored.
+	  NSRange   r;
+
+	  r = [re rangeOfFirstMatchInString: mesg
+				    options: 0
+				      range: NSMakeRange(0, [mesg length])];
+	  if (r.length > 0)
+	    {
+	      NSLog(@"AlarmFilter config removes alarm: %@", mesg);
+	      return;
+	    }
 	}
     }
 
@@ -504,13 +529,25 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               int               reminder;
 
               key = [NSString stringWithFormat: @"%d", notificationID];
+	      mesg = [self messageForAlarm: old];
 
               if (nil == (info = [lastAlertInfo objectForKey: key]))
                 {
+		  BOOL	cleared;
+
                   /* Alarm not yet reported ... report it before clearing.
                    */
+		  if ([old perceivedSeverity] == EcAlarmSeverityCleared)
+		    {
+		      cleared = YES;
+		    }
+		  else
+		    {
+		      cleared = NO;
+		    }
                   [self reportAlarm: old
-                           severity: [alarm perceivedSeverity]
+			withMessage: mesg
+                          isCleared: cleared
                            reminder: 0];
                 }
 
@@ -519,7 +556,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
               reminder = [[info objectForKey: @"Reminder"] intValue];
               [lastAlertInfo removeObjectForKey: key];
               [self reportAlarm: old
-                       severity: EcAlarmSeverityCleared
+		    withMessage: mesg
+		      isCleared: YES
                        reminder: reminder];
             }
         }
@@ -567,6 +605,25 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     }
   [lf seekToEndOfFile];
   return lf;
+}
+
+- (void) cmdDefaultsChanged: (NSNotification*)n
+{
+  NSRegularExpression	*re = nil;
+  NSString		*str;
+
+  [super cmdDefaultsChanged: n];
+  str = [[self cmdDefaults] stringForKey: @"AlarmFilter"];
+  if (str)
+    {
+      re = [[NSRegularExpression alloc] initWithPattern: str
+						options: 0
+						  error: NULL];
+
+    }
+  [self ecDoLock];
+  ASSIGN(alarmFilter, re);
+  [self ecUnLock];
 }
 
 - (oneway void) cmdGnip: (id <CmdPing>)from
@@ -1743,6 +1800,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   DESTROY(consoles);
   DESTROY(configFailed);
   DESTROY(configIncludeFailed);
+  DESTROY(alarmFilter);
   [super dealloc];
 }
 
@@ -2262,14 +2320,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   [self information: msg type: LT_CONSOLE to: n from: c];
 }
 
-- (void) reportAlarm: (EcAlarm*)alarm
-            severity: (EcAlarmSeverity)severity
-            reminder: (int)reminder
+- (NSString*) messageForAlarm: (EcAlarm*)alarm
 {
   NSString      *additional;
   NSString	*component;
   NSString	*connector;
-  NSString	*identifier;
   NSString	*instance;
   NSString	*message;
   NSString	*repair;
@@ -2319,38 +2374,45 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       spacing2 = @", ";
     }
 
+  message = [NSString stringWithFormat: @"%@%@%@%@%@ - '%@%@%@%@' on %@",
+    [alarm specificProblem], spacing1,
+    additional, spacing2, repair,
+    [alarm moProcess], connector, instance,
+    component, [alarm moHost]];
+
+  return message;
+}
+
+- (void) reportAlarm: (EcAlarm*)alarm
+	 withMessage: (NSString*)message
+           isCleared: (BOOL)cleared
+            reminder: (int)reminder
+{
+  NSString	*identifier;
+
   identifier = [NSString stringWithFormat: @"%d", [alarm notificationID]];
+  if (cleared)
+    {
+      message = [NSString stringWithFormat: @"Clear %@ (%@)\n%@",
+	identifier,
+	[EcAlarm stringFromSeverity: [alarm perceivedSeverity]],
+	message];
+    }
+  else
+    {
+      message = [NSString stringWithFormat: @"Alarm %@ (%@)\n%@",
+	identifier,
+	[EcAlarm stringFromSeverity: [alarm perceivedSeverity]],
+	message];
+    }
 
   alarm = [[alarm copy] autorelease];
-  if (EcAlarmSeverityCleared == severity)
+  if (cleared)
     {
-      [alarm setExtra: @"Clear"];
-      message = [NSString stringWithFormat:
-        @"Clear %@ (%@)\n%@%@%@%@%@ - '%@%@%@%@' on %@",
-        identifier, [EcAlarm stringFromSeverity: [alarm perceivedSeverity]],
-        [alarm specificProblem], spacing1,
-        additional, spacing2, repair,
-        [alarm moProcess], connector, instance,
-        component, [alarm moHost]];
       [alarm setExtra: @"Clear"];
     }
   else
     {
-      if (reminder > 0)
-        {
-          [alarm setExtra: @"Reminder"];
-        }
-      else
-        {
-          [alarm setExtra: @"Alarm"];
-        }
-      message = [NSString stringWithFormat:
-        @"Alarm %@ (%@)\n%@%@%@%@%@ - '%@%@%@%@' on %@",
-        identifier, [EcAlarm stringFromSeverity: [alarm perceivedSeverity]],
-        [alarm specificProblem], spacing1,
-        additional, spacing2, repair,
-        [alarm moProcess], connector, instance,
-        component, [alarm moHost]];
       if (reminder > 0)
         {
           [alarm setExtra: @"Reminder"];
@@ -2420,9 +2482,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    {
 		      alarmsAlerted++;
 		    }
-		  [self reportAlarm: alarm
-			   severity: [alarm perceivedSeverity]
-			   reminder: reminder];
+                  [self reportAlarm: alarm
+			withMessage: [self messageForAlarm: alarm]
+                          isCleared: (EcAlarmSeverityCleared == severity)
+                           reminder: 0];
 		}
 	      else
 		{

@@ -1,3 +1,8 @@
+2021-12-22 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.m: Add AlamrFilter as a config option to provide a
+	regular expression to filter out alarms to be ignored.
+
 2021-12-19 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcAlarmDestination.h:
