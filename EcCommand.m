@@ -6118,9 +6118,14 @@ NSLog(@"Problem %@", localException);
 
 - (void) housekeeping: (NSTimer*)t
 {
+  static EcAlarm	*dbgNodes = nil;
+  static EcAlarm	*dbgSpace = nil;
+  static EcAlarm	*logNodes = nil;
+  static EcAlarm	*logSpace = nil;
   static NSTimeInterval nextLog = 0.0;
   static BOOL	        inTimeout = NO;
   NSDate	        *now = [t fireDate];
+  EcAlarm		*alarm;
 
   if (t == timer)
     {
@@ -6270,25 +6275,43 @@ NSLog(@"Problem %@", localException);
 
 	  if (nil == last || [last timeIntervalSinceNow] < -DLY)
 	    {
+	      EcAlarmSeverity	severity = EcAlarmSeverityMajor;
 	      NSString	*m;
 
 	      m = [self makeSpace];
 	      ASSIGN(last, [NSDate date]);
               if ([m length] == 0)
                 {
-                  m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                    @"Debug disk debug space at %02.1f percent"), f * 100.0];
+                  m = [NSString stringWithFormat: @"at %02.1f percent",
+		  f * 100.0];
                 }
               else
                 {
-                  m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                    @"Debug disk space at %02.1f percent"
-                    @" - deleted debug logs from %@ to make space"),
+                  m = [NSString stringWithFormat: @"at %02.1f percent"
+                    @" - deleted debug logs from %@ to make space",
                     f * 100.0, m];
+		  severity = EcAlarmSeverityCritical;
                 }
-	      [self information: m from: nil to: nil type: LT_ALERT];
+	      alarm = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmStorageCapacityProblem
+		specificProblem: @"Debug disk space"
+		perceivedSeverity: severity
+		proposedRepairAction: @"Make space on disk partition"
+		  @" and turn off excessive debug"
+		additionalText: m];
+	      ASSIGN(dbgSpace, alarm);
+	      [self alarm: alarm];
 	    }
 	}
+      else if (dbgSpace)
+	{
+	  alarm = [dbgSpace clear];
+	  DESTROY(dbgSpace);
+	  [self alarm: alarm];
+	}
+
       f = [[d objectForKey: NSFileSystemFreeNodes] floatValue] 
         / [[d objectForKey: NSFileSystemNodes] floatValue];
       if (f <= nodesFree)
@@ -6297,24 +6320,40 @@ NSLog(@"Problem %@", localException);
 
 	  if (nil == last || [last timeIntervalSinceNow] < -DLY)
 	    {
+	      EcAlarmSeverity	severity = EcAlarmSeverityMajor;
 	      NSString	*m;
 
 	      m = [self makeSpace];
 	      ASSIGN(last, [NSDate date]);
               if ([m length] == 0)
                 {
-                  m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                    @"Debug disk nodes at %02.1f percent"), f * 100.0];
+                  m = [NSString stringWithFormat: @"at %02.1f percent",
+		    f * 100.0];
                 }
               else
                 {
-                  m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                    @"Debug disk nodes at %02.1f percent"
-                    @" - deleted debug logs from %@ to make space"),
+                  m = [NSString stringWithFormat: @"at %02.1f percent"
+                    @" - deleted debug logs from %@ to make space",
                     f * 100.0, m];
                 }
-	      [self information: m from: nil to: nil type: LT_ALERT];
+	      alarm = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmStorageCapacityProblem
+		specificProblem: @"Debug disk nodes"
+		perceivedSeverity: severity
+		proposedRepairAction: @"Make space on disk partition"
+		  @" and turn off excessive debug"
+		additionalText: m];
+	      ASSIGN(dbgNodes, alarm);
+	      [self alarm: alarm];
 	    }
+	}
+      else if (dbgNodes)
+	{
+	  alarm = [dbgNodes clear];
+	  DESTROY(dbgNodes);
+	  [self alarm: alarm];
 	}
 
       s = [[self ecUserDirectory] stringByAppendingPathComponent: @"Logs"];
@@ -6330,11 +6369,27 @@ NSLog(@"Problem %@", localException);
 	      NSString	*m;
 
 	      ASSIGN(last, [NSDate date]);
-              m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                @"Disk space at %02.1f percent"), f * 100.0];
-	      [self information: m from: nil to: nil type: LT_ALERT];
+              m = [NSString stringWithFormat:
+                @"Disk space at %02.1f percent", f * 100.0];
+	      alarm = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmStorageCapacityProblem
+		specificProblem: @"Log disk space"
+		perceivedSeverity: EcAlarmSeverityCritical
+		proposedRepairAction: @"Make space on disk partition."
+		additionalText: m];
+	      ASSIGN(logSpace, alarm);
+	      [self alarm: alarm];
 	    }
         }
+      else if (logSpace)
+	{
+	  alarm = [logSpace clear];
+	  DESTROY(logSpace);
+	  [self alarm: alarm];
+	}
+
       f = [[d objectForKey: NSFileSystemFreeNodes] floatValue] 
         / [[d objectForKey: NSFileSystemNodes] floatValue];
       if (f <= nodesFree)
@@ -6346,10 +6401,25 @@ NSLog(@"Problem %@", localException);
 	      NSString	*m;
 
 	      ASSIGN(last, [NSDate date]);
-              m = [NSString stringWithFormat: cmdLogFormat(LT_ALERT,
-                @"Disk nodes at %02.1f percent"), f * 100.0];
-	      [self information: m from: nil to: nil type: LT_ALERT];
+              m = [NSString stringWithFormat:
+                @"Disk nodes at %02.1f percent", f * 100.0];
+	      alarm = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmStorageCapacityProblem
+		specificProblem: @"Log disk nodes"
+		perceivedSeverity: EcAlarmSeverityCritical
+		proposedRepairAction: @"Make space on disk partition."
+		additionalText: m];
+	      ASSIGN(logNodes, alarm);
+	      [self alarm: alarm];
 	    }
+	}
+      else if (logNodes)
+	{
+	  alarm = [logNodes clear];
+	  DESTROY(logNodes);
+	  [self alarm: alarm];
 	}
 
       if ([now timeIntervalSinceReferenceDate] > nextLog)

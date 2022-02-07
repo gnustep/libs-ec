@@ -1,3 +1,8 @@
+2022-02-07 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Use alarms rather than alerts to report lack
+	of disk space or inodes.
+
 2021-12-22 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcControl.m: Add AlamrFilter as a config option to provide a
