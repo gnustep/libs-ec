@@ -1476,74 +1476,83 @@ valgrindLog(NSString *name)
                   [defs setObject: @"0" forKey: @"CoreSize"];
                 }
 
-#if     GS_USE_GNUTLS && defined(TLS_DISTRIBUTED_OBJECTS)
-              /* If TLS is supported, all Distributed Object communications
-               * between our processes must be encrypted.  Generally we can
-               * use shared certificate/key passed to our subprocesses on
-               * launch, so the subprocesses don't need to waste a lot of
-               * CPU (and real) time generating their own keys.
-               */
-              if ([defs objectForKey: @"NSSocketPortOptionsForTLS"] == nil)
-                {
-                  NSUserDefaults	*defs = [command cmdDefaults];
-                  NSMutableDictionary   *opts;
-                  id                    opt;
+#if     GS_USE_GNUTLS
+#if	  !defined(TLS_DISTRIBUTED_OBJECTS)
+	      if ([[command cmdDefaults] boolForKey: @"EncryptedDO"])
+#endif
+		{
+		  /* Enable encrypted DO if supported by the base library.
+		   * If TLS is supported, all Distributed Object communications
+		   * between our processes must be encrypted.  Generally we can
+		   * use shared certificate/key passed to our subprocesses on
+		   * launch, so the subprocesses don't need to waste a lot of
+		   * CPU (and real) time generating their own keys.
+		   */
+		  if ([defs objectForKey: @"NSSocketPortOptionsForTLS"] == nil)
+		    {
+		      NSUserDefaults		*defs = [command cmdDefaults];
+		      NSMutableDictionary	*opts;
+		      id                  	opt;
 
-                  opts = [NSMutableDictionary dictionary];
+		      opts = [NSMutableDictionary dictionary];
 
-                  /* If no certificate key was provided in the Command server
-                   * configuration, we use our self-signed certificate key,
-                   * generating it if necessary.
-                   */
-                  opt = [defs objectForKey: GSTLSCertificateKeyFile];
-                  if (nil == opt)
-                    {
-                      opt = [GSTLSObject dataForTLSFile: @"self-signed-key"];
-                      if (nil == opt && [GSTLSCredentials
-                        respondsToSelector: @selector(selfSigned:)])
-                        {
-                          (void)[GSTLSCredentials selfSigned: YES];
-                          opt = [GSTLSObject
-                            dataForTLSFile: @"self-signed-key"];
-                        }
-                    }
-                  if (opt)
-                    {
-                      [opts setObject: opt forKey: GSTLSCertificateKeyFile];
-                    }
+		      /* If no certificate key was provided in the Command
+		       * server configuration, we use our self-signed
+		       * certificate key, generating it if necessary.
+		       */
+		      opt = [defs objectForKey: GSTLSCertificateKeyFile];
+		      if (nil == opt)
+			{
+			  opt = [GSTLSObject
+			    dataForTLSFile: @"self-signed-key"];
+			  if (nil == opt && [GSTLSCredentials
+			    respondsToSelector: @selector(selfSigned:)])
+			    {
+			      (void)[GSTLSCredentials selfSigned: YES];
+			      opt = [GSTLSObject
+				dataForTLSFile: @"self-signed-key"];
+			    }
+			}
+		      if (opt)
+			{
+			  [opts setObject: opt forKey: GSTLSCertificateKeyFile];
+			}
 
-                  /* If no certificate was provided in the Command server
-                   * configuration, we use our self-signed certificate,
-                   * generating it if necessary.
-                   */
-                  opt = [defs objectForKey: GSTLSCertificateFile];
-                  if (nil == opt)
-                    {
-                      opt = [GSTLSObject dataForTLSFile: @"self-signed-crt"];
-                    }
-                  if (opt)
-                    {
-                      [opts setObject: opt forKey: GSTLSCertificateFile];
-                    }
+		      /* If no certificate was provided in the Command server
+		       * configuration, we use our self-signed certificate,
+		       * generating it if necessary.
+		       */
+		      opt = [defs objectForKey: GSTLSCertificateFile];
+		      if (nil == opt)
+			{
+			  opt = [GSTLSObject
+			    dataForTLSFile: @"self-signed-crt"];
+			}
+		      if (opt)
+			{
+			  [opts setObject: opt forKey: GSTLSCertificateFile];
+			}
 
-                  /* Pass on the TLS debug settings from the Command server
-                   * configuration to the client.
-                   */
-                  if ((opt = [defs objectForKey: GSTLSDebug]) != nil)
-                    {
-                      [opts setObject: opt forKey: GSTLSDebug];
-                    }
+		      /* Pass on the TLS debug settings from the Command
+		       * server configuration to the client.
+		       */
+		      if ((opt = [defs objectForKey: GSTLSDebug]) != nil)
+			{
+			  [opts setObject: opt forKey: GSTLSDebug];
+			}
 
-                  /* Pass on the TLS priority settings from the Command server
-                   * configuration to the client.
-                   */
-                  if ((opt = [defs objectForKey: GSTLSPriority]) != nil)
-                    {
-                      [opts setObject: opt forKey: GSTLSPriority];
-                    }
+		      /* Pass on the TLS priority settings from the Command
+		       * server configuration to the client.
+		       */
+		      if ((opt = [defs objectForKey: GSTLSPriority]) != nil)
+			{
+			  [opts setObject: opt forKey: GSTLSPriority];
+			}
 
-                  [defs setObject: opts forKey: @"NSSocketPortOptionsForTLS"];
-                }
+		      [defs setObject: opts
+			       forKey: @"NSSocketPortOptionsForTLS"];
+		    }
+		}
 #endif
 
               /* Now we need to make the key/value pairs into a serialised

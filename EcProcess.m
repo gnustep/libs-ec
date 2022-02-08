@@ -1628,42 +1628,53 @@ findMode(NSDictionary* d, NSString* s)
               [cmdDefs removeVolatileDomainForName: NSArgumentDomain];
               [cmdDefs setVolatileDomain: m forName: NSArgumentDomain];
             }
-#if     GS_USE_GNUTLS && defined(TLS_DISTRIBUTED_OBJECTS)
-          if ([NSSocketPort respondsToSelector:
-            @selector(setClientOptionsForTLS:)])
-            {
-              defs = [cmdDefs dictionaryForKey: @"NSSocketPortOptionsForTLS"];
-              if (defs != nil)
-                {
-                  NSMutableDictionary   *opts = AUTORELEASE([defs mutableCopy]);
-                  id                    o;
+#if     GS_USE_GNUTLS
+#if       !defined(TLS_DISTRIBUTED_OBJECTS)
+	  if ([cmdDefs boolForKey: @"EncryptedDO"])
+#endif
+	    {
+	      /* Enable encrypted DO if supported by the base library.
+	       */
+	      if ([NSSocketPort respondsToSelector:
+		@selector(setClientOptionsForTLS:)])
+		{
+		  defs = [cmdDefs
+		    dictionaryForKey: @"NSSocketPortOptionsForTLS"];
+		  if (defs != nil)
+		    {
+		      NSMutableDictionary   *opts;
+		      id                    o;
 
-                  /* If we were passed data rather than filenames
-                   * we must set it up as cached data corresponding
-                   * to well known names.
-                   */
-                  o = [opts objectForKey: GSTLSCertificateKeyFile];
-                  if ([o isKindOfClass: [NSData class]])
-                    {
-                      [GSTLSObject setData: o forTLSFile: @"self-signed-key"];
-                      [opts setObject: @"self-signed-key"
-                               forKey: GSTLSCertificateKeyFile];
-                    }
-                  o = [opts objectForKey: GSTLSCertificateFile];
-                  if ([o isKindOfClass: [NSData class]])
-                    {
-                      [GSTLSObject setData: o forTLSFile: @"self-signed-crt"];
-                      [opts setObject: @"self-signed-crt"
-                               forKey: GSTLSCertificateFile];
-                    }
-                  [NSSocketPort
-                    performSelector: @selector(setClientOptionsForTLS:)
-                         withObject: opts];
-                  [NSSocketPort
-                    performSelector: @selector(setServerOptionsForTLS:)
-                         withObject: opts];
-                }
-            }
+		      /* If we were passed data rather than filenames
+		       * we must set it up as cached data corresponding
+		       * to well known names.
+		       */
+		      opts = AUTORELEASE([defs mutableCopy]);
+		      o = [opts objectForKey: GSTLSCertificateKeyFile];
+		      if ([o isKindOfClass: [NSData class]])
+			{
+			  [GSTLSObject setData: o
+				    forTLSFile: @"self-signed-key"];
+			  [opts setObject: @"self-signed-key"
+				   forKey: GSTLSCertificateKeyFile];
+			}
+		      o = [opts objectForKey: GSTLSCertificateFile];
+		      if ([o isKindOfClass: [NSData class]])
+			{
+			  [GSTLSObject setData: o
+				    forTLSFile: @"self-signed-crt"];
+			  [opts setObject: @"self-signed-crt"
+				   forKey: GSTLSCertificateFile];
+			}
+		      [NSSocketPort
+			performSelector: @selector(setClientOptionsForTLS:)
+			     withObject: opts];
+		      [NSSocketPort
+			performSelector: @selector(setServerOptionsForTLS:)
+			     withObject: opts];
+		    }
+		}
+	    }
 #endif
         }
 
@@ -3166,18 +3177,24 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 {
   if (nil == ecLock)
     {
-#if     GS_USE_GNUTLS && defined(TLS_DISTRIBUTED_OBJECTS)
-      /* Enable encrypted DO if supported by the base library.
-       */
-      if ([NSSocketPort respondsToSelector: @selector(setClientOptionsForTLS:)])
-        {
-          NSDictionary  *opts = [NSDictionary dictionary];
+#if     GS_USE_GNUTLS
+#if       !defined(TLS_DISTRIBUTED_OBJECTS)
+      if ([[NSUserDefaults standardUserDefaults] boolForKey: @"EncryptedDO"])
+#endif
+	{
+	  /* Enable encrypted DO if supported by the base library.
+	   */
+	  if ([NSSocketPort respondsToSelector:
+	    @selector(setClientOptionsForTLS:)])
+	    {
+	      NSDictionary  *opts = [NSDictionary dictionary];
 
-          [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
-                             withObject: opts];
-          [NSSocketPort performSelector: @selector(setServerOptionsForTLS:)
-                             withObject: opts];
-        }
+	      [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
+				 withObject: opts];
+	      [NSSocketPort performSelector: @selector(setServerOptionsForTLS:)
+				 withObject: opts];
+	    }
+	}
 #endif
       ecLock = [NSRecursiveLock new];
       dateClass = [NSDate class];

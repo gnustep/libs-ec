@@ -1,3 +1,12 @@
+2022-02-08 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcProcess.m:
+	Add EncryptedDO boolean user default value to turn on TLS for
+	distributed objects (if the gnustep-base library supports it).
+	This is used only if TLS_DISTRIBUTED_OBJECTS is NOT defined at
+	compile time.
+
 2022-02-07 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Use alarms rather than alerts to report lack
