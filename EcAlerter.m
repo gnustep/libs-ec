@@ -247,6 +247,7 @@ static unsigned	throttleAt = 12;
   NSString              *component;
   NSDate                *timestamp;
   NSString              *type;
+  unsigned		sequence;
   int                   duration;
   int                   reminder;
   int                   severity;
@@ -280,6 +281,27 @@ static unsigned	throttleAt = 12;
   RELEASE(component);
   RELEASE(type);
   [super dealloc];
+}
+- (NSString*) description
+{
+  if ([identifier length] > 0)
+    {
+      return [NSString stringWithFormat: @"Event:%@", identifier];
+    }
+  else
+    {
+      return [NSString stringWithFormat: @"Event:Seq(%u)", sequence];
+    }
+}
+- (id) init
+{
+  if (nil != (self = [super init]))
+    {
+      static unsigned	counter = 0;
+
+      sequence = ++counter;
+    }
+  return self;
 }
 @end
 
@@ -864,8 +886,10 @@ replaceFields(NSDictionary *fields, NSString *template)
 
   if (YES == debug)
     {
-      NSLog(@"Apply %u rules to %@", (unsigned)[rulesArray count], event);
+      NSLog(@"Apply %u rules to %@ %@",
+	(unsigned)[rulesArray count], event, event->m);
     }
+
   for (i = 0; i < [rulesArray count]; i++)
     {
       NSDictionary	*times;
@@ -873,12 +897,23 @@ replaceFields(NSDictionary *fields, NSString *template)
       NSString	        *match = nil;
       EcAlertRegex	*e;
       NSString	        *s;
+      NSString	        *prefix;
       id		o;
       BOOL		isReminder;
 
       RELEASE(pool);
       pool = [NSAutoreleasePool new];
       d = [rulesArray objectAtIndex: i];
+
+      if (nil == (s = [d objectForKey: @"RuleID"]))
+	{
+	  prefix = [NSString stringWithFormat: @"Rule (pos %u) ", (unsigned)i];
+	}
+      else
+	{
+	  prefix = [NSString stringWithFormat: @"Rule %@ (pos %u) ",
+	    s, (unsigned)i];
+	}
 
       times = [d objectForKey: @"ActiveTimes"];
       if (nil != times)
@@ -950,6 +985,11 @@ replaceFields(NSDictionary *fields, NSString *template)
             }
           if (NO == match)
             {
+	      if (debug)
+		{
+		  NSLog(@"%@ mismatch %@ on ActiveTimes=%@",
+		    prefix, event, times);
+		}
               continue;
             }
         }
@@ -957,6 +997,11 @@ replaceFields(NSDictionary *fields, NSString *template)
       s = [d objectForKey: @"Tagged"];
       if (s != nil && NO == [s isEqual: [event->m objectForKey: @"Tag"]])
         {
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on Tagged=%@",
+		prefix, event, s);
+	    }
           continue;         // Not a match.
         }
 
@@ -968,6 +1013,11 @@ replaceFields(NSDictionary *fields, NSString *template)
            */
           if (NO == event->isAlarm || [s isEqualToString: @"Alarm"] == NO)
             {
+	      if (debug)
+		{
+		  NSLog(@"%@ mismatch %@ on Type=%@",
+		    prefix, event, s);
+		}
               continue;		// Not a match.
             }
         }
@@ -994,6 +1044,11 @@ replaceFields(NSDictionary *fields, NSString *template)
 	   */
 	  if (NO == isReminder || ri <= 0 || (event->reminder % ri) != 0)
 	    {
+	      if (debug)
+		{
+		  NSLog(@"%@ mismatch %@ on ReminderInterval=%@",
+		    prefix, event, s);
+		}
 	      continue;
 	    }
 	}
@@ -1001,24 +1056,44 @@ replaceFields(NSDictionary *fields, NSString *template)
       if (nil != (s = [d objectForKey: @"DurationAbove"])
 	&& (NO == isReminder || event->duration <= [s intValue]))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on DurationAbove=%@",
+		prefix, event, s);
+	    }
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"DurationBelow"])
 	&& (NO == isReminder || event->duration >= [s intValue]))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on DurationBelow=%@",
+		prefix, event, s);
+	    }
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"ReminderAbove"])
 	&& (NO == isReminder || event->reminder <= [s intValue]))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on ReminderAbove=%@",
+		prefix, event, s);
+	    }
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"ReminderBelow"])
 	&& (NO == isReminder || event->reminder >= [s intValue]))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on ReminderBelow=%@",
+		prefix, event, s);
+	    }
 	  continue;		// Not a match.
 	}
 
@@ -1026,6 +1101,11 @@ replaceFields(NSDictionary *fields, NSString *template)
 	{
 	  if (NO == [s isEqual: event->component])
 	    {
+	      if (debug)
+		{
+		  NSLog(@"%@ mismatch %@ on Component=%@",
+		    prefix, event, s);
+		}
 	      continue;
 	    }
 	}
@@ -1033,23 +1113,43 @@ replaceFields(NSDictionary *fields, NSString *template)
       if (nil != (e = [d objectForKey: @"SeverityTextRegex"])
 	&& (NO == event->isAlarm || [e match: event->severityText] == nil))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on SeverityTextRegex=%@",
+		prefix, event, e);
+	    }
 	  continue;		// Not a match.
 	}
 
       if (nil != (s = [d objectForKey: @"SeverityCode"])
 	&& (NO == event->isAlarm || [s intValue] != event->severity))
 	{
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on SeverityCode=%@",
+		prefix, event, s);
+	    }
 	  continue;		// Not a match.
 	}
 
       e = [d objectForKey: @"ServerRegex"];
       if (e != nil && [e match: event->serverName] == nil)
         {
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on ServerRegex=%@",
+		prefix, event, e);
+	    }
           continue;		// Not a match.
         }
       e = [d objectForKey: @"HostRegex"];
       if (e != nil && [e match: event->hostName] == nil)
         {
+	  if (debug)
+	    {
+	      NSLog(@"%@ mismatch %@ on HostRegex=%@",
+		prefix, event, e);
+	    }
           continue;		// Not a match.
         }
 
@@ -1059,6 +1159,11 @@ replaceFields(NSDictionary *fields, NSString *template)
           [event->m removeObjectForKey: @"Match"];
           if (nil == (match = [e match: event->text]))
             {
+	      if (debug)
+		{
+		  NSLog(@"%@ mismatch %@ on PatternRegex=%@",
+		    prefix, event, e);
+		}
               continue;		// Not a match.
             }
           [event->m setObject: match forKey: @"Match"];
@@ -1069,16 +1174,7 @@ replaceFields(NSDictionary *fields, NSString *template)
       [event->m setObject: s forKey: @"Position"];
       if (YES == debug)
         {
-	  if (nil == (s = [event->m objectForKey: @"RuleID"]))
-	    {
-	      NSLog(@"Rule (pos %u) matched %@ with %@",
-		(unsigned)i, d, event->m);
-	    }
-	  else
-	    {
-	      NSLog(@"Rule %@ (pos %u) matched %@ with %@",
-		s, (unsigned)i, d, event->m);
-	    }
+	  NSLog(@"%@ matched %@ with %@", prefix, event, event->m);
         }
 
       /*
