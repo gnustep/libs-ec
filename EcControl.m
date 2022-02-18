@@ -2482,10 +2482,20 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		    {
 		      alarmsAlerted++;
 		    }
-                  [self reportAlarm: alarm
-			withMessage: [self messageForAlarm: alarm]
-                          isCleared: (EcAlarmSeverityCleared == severity)
-                           reminder: 0];
+		  if (EcAlarmSeverityCleared == severity)
+		    {
+		      [self reportAlarm: alarm
+			    withMessage: [self messageForAlarm: alarm]
+			      isCleared: YES
+			       reminder: 0];
+		    }
+		  else
+		    {
+		      [self reportAlarm: alarm
+			    withMessage: [self messageForAlarm: alarm]
+			      isCleared: NO
+			       reminder: reminder];
+		    }
 		}
 	      else
 		{
