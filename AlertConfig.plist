@@ -79,7 +79,7 @@
     },
 
     {
-      /* Discard any unmatched alarm reminders.
+      /* Discard any unmatched alarm reminders by matching all of them.
        */
       ReminderInterval = 1;
       Stop = YES;

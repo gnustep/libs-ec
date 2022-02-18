@@ -71,8 +71,7 @@
  *   NB. Alarm alerts have one of three types.  The type <em>Raise</em>
  *   matches only the initial raising of an alarm while <em>Clear</em>
  *   matches only the final clearing of the alarm.  The type <em>Alarm</em>
- *   will match raising, clearing, and also (if ReminderInterval is set)
- *   reminders about the alarm.
+ *   will match raising, clearing, and also reminders about the alarm.
  *   </desc>
  *   <term>Component</term>
  *   <desc>For [EcAlarm] messages, this may be used to match messages by
@@ -81,31 +80,28 @@
  *   If this is not specified, alarms with any component may match.
  *   </desc>
  *   <term>DurationAbove</term>
- *   <desc>For [EcAlarm] messages, this may be used to match any message
+ *   <desc>For [EcAlarm] messages, this may be used to match only messages
  *   whose duration in minutes is greater than the supplied integer value.
- *   If this is not specified, messages of any duration may match.
  *   </desc>
  *   <term>DurationBelow</term>
- *   <desc>For [EcAlarm] messages, this may be used to match any message
+ *   <desc>For [EcAlarm] messages, this may be used to match only messages
  *   whose duration in minutes is less than the supplied integer value.
- *   If this is not specified, messages of any duration may match.
  *   </desc>
  *   <term>ReminderAbove</term>
- *   <desc>For [EcAlarm] messages, this may be used to match any message
- *   for an alarm which has triggered more than the specified number of
- *   alerts. 
+ *   <desc>For [EcAlarm] messages, this may be used to match only messages
+ *   whose reminder count is greater than the specified number (a zero or
+ *   negative value will match all reminders). 
  *   </desc>
  *   <term>ReminderBelow</term>
- *   <desc>For [EcAlarm] messages, this may be used to match any message
- *   for an alarm which has triggered less than the specified number of
- *   alerts. 
+ *   <desc>For [EcAlarm] messages, this may be used to match only messages
+ *   whose reminder count is less than the specified number (a zero or
+ *   negative value will never match). 
  *   </desc>
  *   <term>ReminderInterval</term>
  *   <desc>For [EcAlarm] messages, this may be used to match every Nth
  *   reminder (where the value N is a positive integer).<br />
  *   Setting a value of 1 matches all reminders.<br />
- *   Failing to set a positive integer value matches no reminders.<br />
- *   NB. This condition is ignored if the alert is not an alarm reminder.
+ *   Setting a value of 0 or below never matches.
  *   </desc>
  *   <term>SeverityCode</term>
  *   <desc>For [EcAlarm] messages, this may be used to match an integer alarm

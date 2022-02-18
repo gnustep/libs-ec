@@ -977,31 +977,25 @@ replaceFields(NSDictionary *fields, NSString *template)
 
       if (event->isAlarm && event->reminder > 0 && NO == event->isClear)
 	{
-	  int	ri;
-
 	  isReminder = YES;
-	  /* This is an alarm reminder (neither the initial alarm
-	   * nor the clear), so we check the ReminderInterval.
-	   * In order for a match to occur, the ReminderInterval
-	   * must be set and must match the number of the reminder
-	   * using division modulo the reminder interval value.
-	   * NB, unlike other patterns, the absence of this one
-	   * implies a match failure!
-	   */
-	  ri = [[d objectForKey: @"ReminderInterval"] intValue];
-	  if (ri < 1 || (event->reminder % ri) != 0)
-	    {
-	      continue;		// Not a match.
-	    }
 	}
       else
 	{
-	  /* Not a reminder, so the ReminderInterval is ignored.
-	   * Rules can match both alerts which are not reminders *and*
-	   * alerts which are reminders, with the reminder interval
-	   * being used only where applicable.
-	   */
 	  isReminder = NO;
+	}
+
+      if (nil != (s = [d objectForKey: @"ReminderInterval"]))
+	{
+	  int	ri = [s intValue];
+
+	  /* In order for a match to occur, the ReminderInterval
+	   * must be set and must match the number of the reminder
+	   * using division modulo the reminder interval value.
+	   */
+	  if (NO == isReminder || ri <= 0 || (event->reminder % ri) != 0)
+	    {
+	      continue;
+	    }
 	}
 
       if (nil != (s = [d objectForKey: @"DurationAbove"])
@@ -1017,7 +1011,7 @@ replaceFields(NSDictionary *fields, NSString *template)
 	}
 
       if (nil != (s = [d objectForKey: @"ReminderAbove"])
-	&& (NO == isReminder && event->reminder <= [s intValue]))
+	&& (NO == isReminder || event->reminder <= [s intValue]))
 	{
 	  continue;		// Not a match.
 	}
