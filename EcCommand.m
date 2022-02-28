@@ -4954,7 +4954,25 @@ NSLog(@"Problem %@", localException);
 		  options: NSBackwardsSearch | NSLiteralSearch];
   if (r.length > 0)
     {
+      NSString		*inst = [name substringFromIndex: NSMaxRange(r)];
+      NSUInteger	len = [inst length];
+
       base = [name substringToIndex: r.location];
+      if ([inst length] == 0)
+	{
+	  base = nil;		// Not an instance ID after hyphen
+	}
+      else
+        {
+	  while (len-- > 0)
+	    {
+	      if (!isdigit([inst characterAtIndex: len]))
+		{
+		  base = nil;	// not positive integer after hyphen
+		  break;
+		}
+	    }
+        }
     }
   else
     {

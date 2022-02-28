@@ -1,3 +1,10 @@
+2022-02-28 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	When building config for a process, only count the part of a process
+	name after the last hyphen as an instance ID if it is entirely
+	composed of digits.
+
 2022-02-08 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:
