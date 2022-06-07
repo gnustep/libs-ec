@@ -1,9 +1,12 @@
 2022-06-07 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* GNUMakefile: Fix to supply local flags to build libraries
-	* EcConsole.m: Use the EffectiveUser default or the name of the
-	user running the process as the default name to login with.
-	The user is still allowed to enter a name at the Login prompt.
+	* EcConsole.m: Add EC_LOGIN_NAME define set to 1 to permit the
+	entry of a login name with a 'Login' prompt.
+	Use the EffectiveUser default or the name of the user running the
+	process as the default name to login with.
+	If EC_LOGIN_NAME is not set then the name of the user running the 
+	process is used unconditionally.
 
 2022-02-28 Richard Frith-Macdonald <rfm@gnu.org>
 

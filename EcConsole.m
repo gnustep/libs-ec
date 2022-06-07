@@ -1052,7 +1052,12 @@ consoleCompleter(const char *text, int start, int end)
       NSString	*u;
       NSString	*p;
       NSString	*reject;
-      char 	buf[128], *line;
+      char 	buf[128], *line = buf;
+
+#if     !defined(EC_LOGIN_NAME)
+#define EC_LOGIN_NAME   0
+#endif
+#if     EC_LOGIN_NAME
 
       if (nil == (u = [[self cmdDefaults] stringForKey: @"EffectiveUser"]))
 	{
@@ -1090,6 +1095,9 @@ consoleCompleter(const char *text, int start, int end)
 	      continue;
 	    }
 	}
+#else
+      u = originalUserName;
+#endif
 
       if ([u caseInsensitiveCompare: @"quit"] == NSOrderedSame)
 	{

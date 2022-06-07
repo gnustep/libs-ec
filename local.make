@@ -36,8 +36,12 @@ Command_CPPFLAGS += \
 # Allow an alternative base class to be specified ...
 # The file containing that class will also need to be added to the build/link
 # flags if it's not in the standard libraries.
+# The EC_LOGIN_NAME flag allows login via the Console to be done by name given
+# at a login prompt.  If this is not set the name of the owner of the Console
+# process is used. 
 Console_CPPFLAGS += \
 	'-DEC_BASE_CLASS=EcConsole'\
+	'-DEC_LOGIN_NAME=1'\
 
 # Control_CPPFLAGS ...
 # Allow an alternative base class to be specified ...
