@@ -74,14 +74,17 @@ TOOL_NAME = \
 Command_OBJC_FILES = Command.m EcCommand.m EcClientI.m NSFileHandle+Printf.m
 Command_TOOL_LIBS += -lECCL
 Command_LIB_DIRS += -L./$(GNUSTEP_OBJ_DIR)
+Command_CPPFLAGS += ${ECCL_CPPFLAGS}
 
 Console_OBJC_FILES = Console.m EcConsole.m NSFileHandle+Printf.m
 Console_TOOL_LIBS += -lECCL
 Console_LIB_DIRS += -L./$(GNUSTEP_OBJ_DIR)
+Console_CPPFLAGS += ${ECCL_CPPFLAGS}
 
 Control_OBJC_FILES = Control.m EcControl.m EcClientI.m NSFileHandle+Printf.m
 Control_TOOL_LIBS += -lECCL
 Control_LIB_DIRS += -L./$(GNUSTEP_OBJ_DIR)
+Control_CPPFLAGS += ${ECCL_CPPFLAGS}
 
 AlarmTool_OBJC_FILES = AlarmTool.m 
 AlarmTool_TOOL_LIBS += -lECCL

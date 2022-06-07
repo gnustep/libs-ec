@@ -61,6 +61,8 @@ static BOOL commandIsRepeat (NSString *string)
     }
 }
 
+static NSString	*originalUserName = nil;
+
 @interface EcConsole : EcProcess <RunLoopEvents, Console>
 {
   NSFileHandle		*ichan;
@@ -759,6 +761,7 @@ static BOOL commandIsRepeat (NSString *string)
 
 - (id) initWithDefaults: (NSDictionary*)defs
 {
+  ASSIGN(originalUserName, NSUserName());
   self = [super initWithDefaults: defs];
   if (self)
     {
@@ -1051,9 +1054,20 @@ consoleCompleter(const char *text, int start, int end)
       NSString	*reject;
       char 	buf[128], *line;
 
+      if (nil == (u = [[self cmdDefaults] stringForKey: @"EffectiveUser"]))
+	{
+	  u = originalUserName;
+	}
+
       /* read username */
-      
-      printf("Login: ");
+      if (u)
+	{
+	  printf("Login (%s): ", [u UTF8String]);
+	}
+      else
+	{
+	  printf("Login: ");
+	}
       fflush(stdout);
       
       line = fgets(buf, sizeof(buf), stdin);
@@ -1064,12 +1078,19 @@ consoleCompleter(const char *text, int start, int end)
 	}
       line[strlen(line) - 1] = '\0';
 
-      u = [[NSString stringWithCString: line] stringByTrimmingSpaces];
-      if ([u length] == 0)
+      /* If we do not have a system username or if the user entered a value
+       * we use the username entered (or try again).
+       */
+      if (nil == u || line[0] != '\0')
 	{
-	  /* user just pressed enter, retry */
-	  continue;
+	  u = [[NSString stringWithCString: line] stringByTrimmingSpaces];
+	  if ([u length] == 0)
+	    {
+	      /* user just pressed enter, retry */
+	      continue;
+	    }
 	}
+
       if ([u caseInsensitiveCompare: @"quit"] == NSOrderedSame)
 	{
 	  [self cmdQuit: 0];
