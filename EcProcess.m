@@ -93,10 +93,12 @@ EcLock_error_handler(id obj, SEL _cmd, BOOL stop, NSString *msg)
         at: nil
         withEventType: EcAlarmEventTypeProcessingError
         probableCause: EcAlarmSoftwareProgramError
-        specificProblem: @"thread deadlock"
+        specificProblem: @"Deadlock detected in this process"
         perceivedSeverity: EcAlarmSeverityCritical
         proposedRepairAction:
-        _(@"Generate/save a core dump and then restart the process.")
+        _(@"Please examine in gdb to determine the cause of the"
+          @" deadlock if possible, then obtain a core dump for examination;"
+          @" using 'kill -ABRT' for example")
         additionalText: [obj description]];
       [EcProc alarm: a];
     }
