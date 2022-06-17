@@ -81,6 +81,29 @@
 NSString * const EcDidQuitNotification = @"EcDidQuitNotification";
 NSString * const EcWillQuitNotification = @"EcWillQuitNotification";
 
+static NSLock_error_handler  *original_NSLock_error_handler = NULL;
+static void
+EcLock_error_handler(id obj, SEL _cmd, BOOL stop, NSString *msg)
+{
+  if (stop && EcProc)
+    {
+      EcAlarm	*a;
+
+      a = [EcAlarm alarmForManagedObject: nil
+        at: nil
+        withEventType: EcAlarmEventTypeProcessingError
+        probableCause: EcAlarmSoftwareProgramError
+        specificProblem: @"thread deadlock"
+        perceivedSeverity: EcAlarmSeverityCritical
+        proposedRepairAction:
+        _(@"Generate/save a core dump and then restart the process.")
+        additionalText: [obj description]];
+      [EcProc alarm: a];
+    }
+  (original_NSLock_error_handler)(obj, _cmd, stop, msg);
+}
+
+
 #ifndef __MINGW__
 static int              reservedPipe[2] = { 0, 0 };
 static NSInteger        descriptorsMaximum = 0;
@@ -3175,6 +3198,11 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
 + (void) initialize
 {
+  if (NULL == original_NSLock_error_handler)
+    {
+      original_NSLock_error_handler = _NSLock_error_handler;
+      _NSLock_error_handler = EcLock_error_handler;
+    }
   if (nil == ecLock)
     {
 #if     GS_USE_GNUTLS

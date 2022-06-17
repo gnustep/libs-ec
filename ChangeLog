@@ -1,3 +1,9 @@
+2022-06-17 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.m: Intercept lock error handling and, in the case of a
+	deadlock, raise an alarm before calling the normal handler to log
+	and stop the thread.
+
 2022-06-07 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* GNUMakefile: Fix to supply local flags to build libraries
