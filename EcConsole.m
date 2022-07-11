@@ -451,7 +451,7 @@ static NSString	*originalUserName = nil;
 
 - (void) doCommand: (NSMutableArray*)words
 {
-  NSString	*cmd;
+  NSString		*cmd;
   static NSArray	*pastWords = nil;
 
   if (words == nil || [words count] == 0)
@@ -537,6 +537,9 @@ static NSString	*originalUserName = nil;
 		}
 	      else
 		{
+		  if ([reject hasPrefix: @"Already registered "])
+		    {
+		    }
 		  [pass release];
 		  pass = nil;
 		  [user release];
@@ -849,6 +852,7 @@ static NSString	*originalUserName = nil;
 		    name, host);
                   [self cmdQuit: 11];
 		  DESTROY(self);
+		  return nil;
 		}
 	    }
 
@@ -919,6 +923,7 @@ static NSString	*originalUserName = nil;
                    */
                   [self cmdQuit: 0];
                   DESTROY(self);
+		  return nil;
                 }
             }
         }
@@ -1103,12 +1108,13 @@ consoleCompleter(const char *text, int start, int end)
 	{
 	  [self cmdQuit: 0];
 	}
+      p = [NSString stringWithFormat: @"Password (for %@): ", u];
 #ifndef HAVE_READPASSPHRASE
       /* read password (glibc documentation says not to use getpass?) */
       
-      line = getpass("Password: ");
+      line = getpass([p UTF8String]);
 #else
-      line = readpassphrase("Password: ", &buf[0], 128, RPP_ECHO_OFF);
+      line = readpassphrase([p UTF8String], &buf[0], 128, RPP_ECHO_OFF);
 #endif
       if (NULL == line)
         {
@@ -1178,6 +1184,7 @@ consoleCompleter(const char *text, int start, int end)
 	  DESTROY(self->rnam);
 	  DESTROY(self->server);
 	  [self cmdQuit: 11];
+          break;
 	}
     }
 }
