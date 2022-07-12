@@ -1,3 +1,13 @@
+2022-07-12 Richard Frith-Macdonald <rfm@gnu.org>
+
+	configure.ac:
+	configure:
+	config.h.in:
+	EcProcess.m:
+	Check for valgrind and, if availeable, log when a 'memory' command
+	is executed so that valgrind logs can be matched to events between
+	successive memory check commands.
+
 2022-07-11 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcConsole.m: Exit immediately after egistration with Control server

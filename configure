@@ -3581,7 +3581,7 @@ fi
 done
 
 
-for ac_header in arpa/inet.h arpa/telnet.h netinet/in.h netdb.h pwd.h string.h fcntl.h sys/fcntl.h sys/file.h sys/resource.h sys/time.h sys/types.h sys/socket.h sys/signal.h stdlib.h unistd.h termios.h
+for ac_header in arpa/inet.h arpa/telnet.h netinet/in.h netdb.h pwd.h string.h fcntl.h sys/fcntl.h sys/file.h sys/resource.h sys/time.h sys/types.h sys/socket.h sys/signal.h stdlib.h unistd.h termios.h valgrind.h valgrind/valgrind.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"

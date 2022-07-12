@@ -45,6 +45,14 @@
 
 #include "config.h"
 
+#if     HAVE_VALGRIND_VALGRIND_H
+#include <valgrind/valgrind.h>
+#else
+#if     HAVE_VALGRIND_H
+#include <valgrind.h>
+#endif
+#endif
+
 #ifdef	HAVE_SYS_SIGNAL_H
 #include <sys/signal.h>
 #endif
@@ -5035,8 +5043,15 @@ With two parameters ('maximum' and a number),\n\
   process restarts unless the limit is zero (meaning no maximum).\n\
   Set to 'default' to revert to the default."];
 	  [self cmdPrintf: @"\n"];
+	  return;
 	}
-      else if ([msg count] == 2)
+
+#if defined(__VALGRIND_MAJOR__)
+      VALGRIND_PRINTF("Console 'memory' command %s\n",
+	[[msg description] UTF8String]);
+#endif
+
+      if ([msg count] == 2)
 	{
 	  NSString	*word = [[msg objectAtIndex: 1] lowercaseString];
           NSString      *s;
