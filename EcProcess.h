@@ -715,7 +715,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * order to perform final cleanup and have the process exit with the
  * expected status.<br />
  * Called automatically in the main thread by the -ecHandleQuit method.
- * Subclasses overriding -ecHandleQuit must call the superclass
+ * Subclasses overriding -ecDidQuit must call the superclass
  * implementation at the end of their handling code.
  */
 - (oneway void) ecDidQuit;
