@@ -283,6 +283,7 @@
   if (nil != (self = [super init]))
     {
       NSDate	*begin;
+      NSThread  *t;
 
       _host = [host copy];
       _name = [name copy];
@@ -292,9 +293,12 @@
       _alarmsCleared = [NSMutableSet new];
       _managedObjects = [NSMutableSet new];
 
-      [NSThread detachNewThreadSelector: @selector(run)
-			       toTarget: self
-			     withObject: nil];
+      t = [[NSThread alloc] initWithTarget: self
+                                  selector: @selector(run)
+                                    object: nil];
+      [t setName: @"alarmdest"];
+      [AUTORELEASE(t) start];
+
       begin = [NSDate date];
       while (NO == [self isRunning])
 	{
