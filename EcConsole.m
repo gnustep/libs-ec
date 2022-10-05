@@ -764,7 +764,14 @@ static NSString	*originalUserName = nil;
 
 - (id) initWithDefaults: (NSDictionary*)defs
 {
-  ASSIGN(originalUserName, NSUserName());
+  /* When executing a command using sudo, we should use the original username
+   */
+  ASSIGN(originalUserName,
+    [[[NSProcessInfo processInfo] environment] objectForKey: @"SUDO_USER"]);
+  if (nil == originalUserName)
+    {
+      ASSIGN(originalUserName, NSUserName());
+    }
   self = [super initWithDefaults: defs];
   if (self)
     {
