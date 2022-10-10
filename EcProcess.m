@@ -5706,7 +5706,11 @@ With two parameters ('maximum' and a number),\n\
 	    {
 	      case SIGPROF: 
 	      case SIGABRT: 
-		break;
+		break;          /* Not overridable */
+
+	      case SIGUSR1: 
+	      case SIGUSR2: 
+		break;          /* For apps ... not errors */
 
 	      case SIGPIPE: 
 	      case SIGTTOU: 
