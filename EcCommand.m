@@ -1420,7 +1420,7 @@ valgrindLog(NSString *name)
 	  if (setE != nil)
 	    {
 	      [env removeAllObjects];
-	      [env addEntriesFromDictionary: addE];
+	      [env addEntriesFromDictionary: setE];
 	    }
 	  if (addE != nil)
 	    {
