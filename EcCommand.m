@@ -556,8 +556,10 @@ desiredName(Desired state)
   NSTimeInterval        debUndeleted;
   NSTimeInterval        logUncompressed;
   NSTimeInterval        logUndeleted;
-  NSInteger		compressAfter;
-  NSInteger		deleteAfter;
+  NSInteger		debCompressAfter;
+  NSInteger		debDeleteAfter;
+  NSInteger		logCompressAfter;
+  NSInteger		logDeleteAfter;
   BOOL                  sweeping;
 }
 - (void) alarmCode: (AlarmCode)ac
@@ -3398,6 +3400,53 @@ NSLog(@"Problem %@", localException);
   return found;
 }
 
+- (void) cmdDefaultsChanged: (NSNotification*)n
+{
+  [self cmdUpdated];
+}
+
+- (NSString*) cmdUpdated
+{
+  NSUserDefaults        *defs = [self cmdDefaults];
+  NSInteger             i;
+
+  i = [defs integerForKey: @"CompressDebugAfter"];
+  if (i < 1)
+    {
+      i = 7;
+    }
+  debCompressAfter = i;
+  i = [defs integerForKey: @"DeleteDebugAfter"];
+  if (i < 1)
+    {
+      i = 90;
+    }
+  debDeleteAfter = i;
+  if (debDeleteAfter < debCompressAfter)
+    {
+      debDeleteAfter = debCompressAfter;
+    }
+
+  i = [defs integerForKey: @"CompressLogsAfter"];
+  if (i < 1)
+    {
+      i = 7;
+    }
+  logCompressAfter = i;
+  i = [defs integerForKey: @"DeleteLogsAfter"];
+  if (i < 1)
+    {
+      i = 180;
+    }
+  logDeleteAfter = i;
+  if (logDeleteAfter < logCompressAfter)
+    {
+      logDeleteAfter = logCompressAfter;
+    }
+
+  return nil;
+}
+
 - (void) disableLaunching
 {
   launchEnabled = NO;
@@ -5261,8 +5310,10 @@ NSLog(@"Problem %@", localException);
       [m appendString: @"  Launching is currently suspended.\n"];
     }
   [m appendFormat: @"  %@\n", [LaunchInfo description]];
-  [m appendFormat: @"  Compress/Delete after %d/%d days.\n",
-    (int)compressAfter, (int)deleteAfter];
+  [m appendFormat: @"  Debug Compress/Delete after %d/%d days.\n",
+    (int)debCompressAfter, (int)debDeleteAfter];
+  [m appendFormat: @"  Log Compress/Delete after %d/%d days.\n",
+    (int)logCompressAfter, (int)logDeleteAfter];
   return m;
 }
 
@@ -5774,11 +5825,7 @@ NSLog(@"Problem %@", localException);
    * would start compressing but no further ... we don't want to delete
    * all debug!
    */
-  purgeAfter = [[self cmdDefaults] integerForKey: @"CompressDebugAfter"];
-  if (purgeAfter < 1)
-    {
-      purgeAfter = 7;
-    }
+  purgeAfter = debCompressAfter;
 
   mgr = [NSFileManager defaultManager];
 
@@ -5815,6 +5862,8 @@ NSLog(@"Problem %@", localException);
   NSTimeInterval        latestDeleteAt;
   NSTimeInterval        now;
   NSTimeInterval        ti;
+  NSInteger             deleteAfter;
+  NSInteger             compressAfter;
   NSFileManager         *mgr;
   NSString		*dir;
   NSString		*file;
@@ -5827,34 +5876,13 @@ NSLog(@"Problem %@", localException);
    */
   if (deb)
     {
-      compressAfter = [[self cmdDefaults] integerForKey: @"CompressDebugAfter"];
-      if (compressAfter < 1)
-	{
-	  compressAfter = 7;
-	}
-      deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteDebugAfter"];
-      if (deleteAfter < 1)
-	{
-	  deleteAfter = 90;
-	}
+      compressAfter = debCompressAfter;
+      deleteAfter = debDeleteAfter;
     }
   else
     {
-      compressAfter = [[self cmdDefaults] integerForKey: @"CompressLogsAfter"];
-      if (compressAfter < 1)
-	{
-	  compressAfter = 7;
-	}
-      deleteAfter = [[self cmdDefaults] integerForKey: @"DeleteLogsAfter"];
-      if (deleteAfter < 1)
-	{
-	  deleteAfter = 180;
-	}
-    }
-
-  if (deleteAfter < compressAfter)
-    {
-      deleteAfter = compressAfter;
+      compressAfter = logCompressAfter;
+      deleteAfter = logDeleteAfter;
     }
 
   mgr = [[NSFileManager new] autorelease];
