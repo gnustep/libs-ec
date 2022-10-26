@@ -1,3 +1,10 @@
+2022-10-26 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcAlarmDestination.h:
+	* EcAlarmDestination.m:
+	Keep track of the alarm thread and signal it to flush alarms on
+	shutdown.
+
 2022-10-10 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m: Do not override signals which are intended for

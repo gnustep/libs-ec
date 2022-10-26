@@ -244,6 +244,7 @@
 - (void) dealloc
 {
   [self shutdown];
+  DESTROY(_thread);
   DESTROY(_backups);
   DESTROY(_destination);
   DESTROY(_monitor);
@@ -283,7 +284,6 @@
   if (nil != (self = [super init]))
     {
       NSDate	*begin;
-      NSThread  *t;
 
       _host = [host copy];
       _name = [name copy];
@@ -293,11 +293,11 @@
       _alarmsCleared = [NSMutableSet new];
       _managedObjects = [NSMutableSet new];
 
-      t = [[NSThread alloc] initWithTarget: self
-                                  selector: @selector(run)
-                                    object: nil];
-      [t setName: @"alarmdest"];
-      [AUTORELEASE(t) start];
+      _thread = [[NSThread alloc] initWithTarget: self
+                                        selector: @selector(run)
+                                          object: nil];
+      [_thread setName: @"alarmdest"];
+      [_thread start];
 
       begin = [NSDate date];
       while (NO == [self isRunning])
@@ -570,9 +570,14 @@
   [_name release];
   _name = nil;
   [_alarmLock unlock];
-  if (NO == wasShuttingDown)
+  if (NO == wasShuttingDown && [_thread isExecuting])
     {
       NSDate	*begin;
+
+      [_thread performSelector: @selector(_timeout:)
+                      onThread: _thread
+                    withObject: nil
+                 waitUntilDone: NO];
 
       /* Unless we are called recursively, lets wait for a while for
        * the alarm thread to terminate.

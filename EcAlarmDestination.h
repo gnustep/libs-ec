@@ -101,6 +101,7 @@
   NSMutableSet			*_alarmsActive;
   NSMutableSet			*_alarmsCleared;
   NSMutableSet			*_managedObjects;
+  NSThread                      *_thread;
   NSTimer			*_timer;
   BOOL				_isRunning;
   BOOL				_shouldStop;
