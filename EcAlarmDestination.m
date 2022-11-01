@@ -574,10 +574,10 @@
     {
       NSDate	*begin;
 
-      [_thread performSelector: @selector(_timeout:)
-                      onThread: _thread
-                    withObject: nil
-                 waitUntilDone: NO];
+      [self performSelector: @selector(_timeout:)
+                   onThread: _thread
+                 withObject: nil
+              waitUntilDone: NO];
 
       /* Unless we are called recursively, lets wait for a while for
        * the alarm thread to terminate.
