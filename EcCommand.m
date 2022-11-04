@@ -2287,6 +2287,17 @@ valgrindLog(NSString *name)
 	    self, [NSThread callStackSymbols]);
 	}
       [self resetDelay];
+      if (terminationStatusKnown)
+        {
+          if (-3 == terminationStatus)  // configuration error
+            {
+              /* Defer the actual launch for 5 minutes since a config error
+               * requires human intervention and is unlikely to be fixed
+               * very quickly.
+               */
+              deferredDate = [NSDate timeIntervalSinceReferenceDate] + 300.0;
+            }
+        }
       startingAlarm = NO;
       startingDate = [NSDate timeIntervalSinceReferenceDate];
       startingTimer = [NSTimer
@@ -4362,11 +4373,19 @@ NSLog(@"Problem %@", localException);
 
                           if (NO == all || [u count] > 0)
                             {
+                              NSString  *r;
+
                               if ([u count] > 0)
                                 {
                                   [s appendFormat:
                                     @"  %-32.32s is queued waiting for %@\n",
                                     [key UTF8String], u];
+                                }
+                              else if (nil != (r = [l reasonToPreventLaunch]))
+                                {
+                                  [s appendFormat:
+                                    @"  %-32.32s queued: %@\n",
+                                    [key UTF8String], r];
                                 }
                               else
                                 {
