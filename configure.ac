@@ -113,6 +113,15 @@ then
   fi
 fi
 LIBS=$oldlibs
+
+oldlibs=$LIBS
+AC_CHECK_LIB([crypt],[crypt])
+if test "$ac_cv_lib_crypt_crypt" = "yes";
+then
+  AC_SUBST([LIBCRYPT], ["-lcrypt"])
+fi
+LIBS=$oldlibs
+
 AC_OUTPUT(config.make)
 
 

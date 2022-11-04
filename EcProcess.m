@@ -45,6 +45,10 @@
 
 #include "config.h"
 
+#if     defined(HAVE_LIBCRYPT)
+extern char *crypt(const char *key, const char *salt);
+#endif
+
 #if     HAVE_VALGRIND_VALGRIND_H
 #include <valgrind/valgrind.h>
 #else
@@ -752,7 +756,6 @@ static NSMutableSet	*cmdActions = nil;
 static id		cmdServer = nil;
 static id		cmdPTimer = nil;
 static NSDictionary	*cmdConf = nil;
-static NSDictionary	*cmdOperators = nil;
 static NSDate		*cmdFirst = nil;
 static NSDate		*cmdLast = nil;
 static BOOL		cmdIsTransient = NO;
@@ -1382,7 +1385,6 @@ findMode(NSDictionary* d, NSString* s)
       DESTROY(cmdLast);
       DESTROY(cmdLogMap);
       DESTROY(cmdName);
-      DESTROY(cmdOperators);
       DESTROY(cmdPTimer);
       DESTROY(cmdServer);
       DESTROY(cmdUser);
@@ -3526,31 +3528,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	[self cmdError: @"%@", message];
 	break;
     }
-}
-
-- (NSMutableDictionary*) cmdOperator: (NSString*)name password: (NSString*)pass
-{
-  NSMutableDictionary	*d = (NSMutableDictionary*)cmdOperators;
-
-  if (d == nil || [d isKindOfClass: [NSDictionary class]] == NO)
-    {
-      return nil;
-    }
-  d = [d objectForKey: name];
-  if (d == nil || [d isKindOfClass: [NSDictionary class]] == NO)
-    {
-      return nil;
-    }
-  d = [d mutableCopy];
-  if (pass != nil && [[d objectForKey: @"Password"] isEqual: pass] == YES)
-    {
-      [d setObject: @"yes" forKey: @"Password"];
-    }
-  else
-    {
-      [d setObject: @"no" forKey: @"Password"];
-    }
-  return AUTORELEASE(d);
 }
 
 - (id) cmdNewServer
@@ -6672,12 +6649,6 @@ With two parameters ('maximum' and a number),\n\
               [newConfig setObject: obj forKey: key];
             }
         }
-    }
-
-  dict = [info objectForKey: @"Operators"];
-  if (dict != nil && dict != cmdOperators)
-    {
-      ASSIGNCOPY(cmdOperators, dict);
     }
 
   if (nil == cmdConf || [cmdConf isEqual: newConfig] == NO)

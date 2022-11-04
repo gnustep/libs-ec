@@ -38,6 +38,12 @@
 #import "EcUserDefaults.h"
 #import "NSFileHandle+Printf.h"
 
+#include "config.h"
+
+#if     defined(HAVE_LIBCRYPT)
+extern char *crypt(const char *key, const char *salt);
+#endif
+
 /*
  * Catagory so that NSHost objects can be safely used as dictionary keys.
  */
@@ -734,6 +740,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  wd = cmdWord(cmd, 0);
 	  connected = NO;
 	}
+#if     !defined(HAVE_LIBCRYPT)
       if (comp(wd, @"password") == 0)
 	{
 	  NSRange	r = [[console name] rangeOfString: @":"];
@@ -781,6 +788,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      return;
 	    }
 	}
+#endif
 
       /*
        *	If we are not connected, but have an 'on ....' at the start of
@@ -1089,7 +1097,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"Commands are -\n"
 	      @"Help\tAlarms\tArchive\tClear\tConfig\tConnect\t"
 	      @"Flush\tHost\tList\tMemory\tOn\t"
-	      @"Password\tRepeat\tRestart\tQuit\tSet\tStatus\t"
+#if     !defined(HAVE_LIBCRYPT)
+	      @"Password\t"
+#endif
+	      @"Repeat\tRestart\tQuit\tSet\tStatus\t"
 	      @"Suppress\tTell\tUnset\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"Use 'tell xxx help' to get help for a specific client.\n"
@@ -1194,10 +1205,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		  m = @"On host ...\nSends a command to the named host.\n"
                       @"eg. 'on remotehost tell myserver help'.\n";
 		}
+#if     !defined(HAVE_LIBCRYPT)
 	      else if (comp(wd, @"Password") >= 0)
 		{
 		  m = @"Password <oldpass> <newpass>\nSets your password.\n";
 		}
+#endif
 	      else if (comp(wd, @"Quit") >= 0)
 		{
 		  m = @"Quit 'self'\n"
@@ -2259,8 +2272,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   if (operators != nil)
     {
       NSRange		r = [n rangeOfString: @":"];
-      NSString		*s = [n substringToIndex: r.location];
-      NSDictionary	*info = [operators objectForKey: s];
+      NSString		*user = [n substringToIndex: r.location];
+      NSDictionary	*info = [operators objectForKey: user];
       NSString		*passwd = [info objectForKey: @"Password"];
 
       if (nil == info)
@@ -2283,18 +2296,52 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		       from: nil];
 	  return @"Unknown user name";
 	}
-      else if (passwd && [passwd length] && [passwd isEqual: p] == NO)
-	{
-	  m = [NSString stringWithFormat:
-	    cmdLogFormat(LT_AUDIT,
-            @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
-            @" info '%@' (bad password)"), n];
-	  [self information: m
-		       type: LT_AUDIT
-                         to: nil
-		       from: nil];
-	  return @"Bad username/password combination";
-	}
+
+      /* We have three cases:
+       * Empty/missing Password ... can log in without a password
+       * Password == User ... can log in with username as password
+       * Other ... the entered password must hash to the stored one
+       *  (or be equal to the stored one if built without crypt).
+       */
+      if (passwd && [passwd length])
+        {
+#if     defined(HAVE_LIBCRYPT)
+          char  *ptr = (char*)[passwd UTF8String];
+          int   len = strlen(ptr);
+
+          if (len > 2 && NO == [passwd isEqual: user])
+            {
+              char      salt[len+1];
+              int       slen = 2;
+
+              /* Old crypt format is 2 chars of salt followed by key
+               * New format salt is $id$chars$ where id is a single digit
+               * and chars are up to 16 random characters.
+               */
+              if ('$' == ptr[0] && isdigit(ptr[1]) && '$' == ptr[2]
+                && strchr(ptr + 3, '$') != 0)
+                {
+                  slen = strchr(ptr + 3, '$') - ptr + 1;
+                }
+              memcpy(salt, ptr, slen);
+              salt[slen] = '\0';
+              ptr = crypt([p UTF8String], salt);
+              p = [NSString stringWithUTF8String: ptr];
+           }
+#endif
+          if ([passwd isEqual: p] == NO)
+            {
+              m = [NSString stringWithFormat:
+                cmdLogFormat(LT_AUDIT,
+                @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+                @" info '%@' (bad password)"), n];
+              [self information: m
+                           type: LT_AUDIT
+                             to: nil
+                           from: nil];
+              return @"Bad username/password combination";
+            }
+        }
     }
   obj = [[ConsoleInfo alloc] initFor: c name: n with: self pass: p];
   [consoles addObject: obj];

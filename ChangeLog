@@ -1,5 +1,16 @@
 2022-11-04 Richard Frith-Macdonald <rfm@gnu.org>
 
+	* configure.ac:	check for crypt
+	* config.h.in: regenerate
+	* config.make.in: regenerate
+	* configure: regenerate
+	* EcProcess.h: remove -cmdOperator: method.
+	* EcProcess.m: remove -cmdOperator: method.
+	* EcControl.m: Implement hashed passwords but allow
+	password=username in plaintext for backward compatibility.
+
+2022-11-04 Richard Frith-Macdonald <rfm@gnu.org>
+
 	* EcCommand.m: When a process shuts down due to a configuration error
 	autolaunch is deferred for 5 minutes because human intervention is
 	unlikely to be rapid (thereiis no point repeatedly trying to autolaunch

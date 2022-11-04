@@ -1020,14 +1020,6 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (id) cmdNewServer;
 
-/** Return dictionary giving info about specified operator.  If the
- * password string matches the password of the operator (or the operator
- * has no password) then the dictionary field @"Password" will be set to
- * @"yes", otherwise it will be @"no".
- * If the named operator does not exist, the method will return nil.
- */
-- (NSMutableDictionary*)cmdOperator: (NSString*)name password: (NSString*)pass;
-
 /** This method notes the supplied status and sets a nil quit reason, it
  * then calls -ecWillQuit, -ecHandleQuit, and finally calls
  * -ecDidQuit at process termination.<br />
