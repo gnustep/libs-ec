@@ -1,17 +1,26 @@
 {
   /* This file configures the names/passwords of the people allowed to use
    * the Console program to control the system.
+   * On systems where security is not an issue, the Password my be an empty
+   * string (allows any login attempt) or may be identical to the username
+   * (the user must enter their username as their password).
+   * The format for a hashed password is that created by the mkpasswd
+   * program and the crypt() function.  The SHA512 hash (starts '$6$')
+   * is preferred.
    * Just add a definition for yourself as below:
    */
   richard = {
-    Password = richard;
+    Password = hashedPasswordOrUsernameOrEmptyString;
   };
 
   /* If the entry with no name exists, it will be used to allow login for
    * any username which doesn't exist in this file.
+   * The format for a hashed password is that created by the mkpasswd
+   * program and the crypt() function.  The SHA512 hash (starts '$6$')
+   * is preferred.
    */
   "" = {
-    Password = password;
+    Password = hashedPasswordOrEmptyString;
   };
 
   /* If Password is omitted or is empty, then any password is accepted
