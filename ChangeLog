@@ -1,3 +1,13 @@
+2022-11-07 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcControl.m: Make Control specific config clearer and avoid
+	polluting server specific config space with it.
+	* EcCommand.m: Pass along more TLS control vlaues to clients
+	* EcProcess.m: Clean up setting TLS configuration, fix to be present
+	in all necessary code paths, add support for GSTLSVerifyClient,
+	GSTLSVerifyServer and GSTLSServerName in process config, so we can
+	control inter process verification.
+
 2022-11-04 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* configure.ac:	check for crypt

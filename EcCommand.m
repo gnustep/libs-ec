@@ -1543,12 +1543,29 @@ valgrindLog(NSString *name)
 			  [opts setObject: opt forKey: GSTLSDebug];
 			}
 
-		      /* Pass on the TLS priority settings from the Command
-		       * server configuration to the client.
+		      /* Pass on the TLS priority settings and other config
+                       * from the Command server to the client.
 		       */
 		      if ((opt = [defs objectForKey: GSTLSPriority]) != nil)
 			{
 			  [opts setObject: opt forKey: GSTLSPriority];
+			}
+		      if ((opt = [defs objectForKey: GSTLSCAFile]) != nil)
+			{
+			  [opts setObject: opt forKey: GSTLSCAFile];
+			}
+		      if ((opt = [defs objectForKey: GSTLSRevokeFile]) != nil)
+			{
+			  [opts setObject: opt forKey: GSTLSRevokeFile];
+			}
+
+		      if ((opt = [defs objectForKey: @"GSTLSVerifyClient"]))
+			{
+			  [opts setObject: opt forKey: @"GSTLSVerifyClient"];
+			}
+		      if ((opt = [defs objectForKey: @"GSTLSVerifyServer"]))
+			{
+			  [opts setObject: opt forKey: @"GSTLSVerifyServer"];
 			}
 
 		      [defs setObject: opts

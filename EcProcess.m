@@ -32,6 +32,84 @@
 #import <GNUstepBase/NSObject+GNUstepBase.h>
 #if     GS_USE_GNUTLS
 #import <GNUstepBase/GSTLS.h>
+
+static void
+setupTLS(NSUserDefaults *u)
+{
+#if       !defined(TLS_DISTRIBUTED_OBJECTS)
+  if ([u boolForKey: @"EncryptedDO"])
+#endif
+    {
+      /* Enable encrypted DO if supported by the base library.
+       */
+      if ([NSSocketPort respondsToSelector:
+        @selector(setClientOptionsForTLS:)])
+        {
+          NSDictionary          *d;
+          NSMutableDictionary   *opts;
+          BOOL                  verifyClient = NO;
+          BOOL                  verifyServer = NO;
+
+          d = [u dictionaryForKey: @"NSSocketPortOptionsForTLS"];
+          if (nil == d)
+            {
+              opts = [NSMutableDictionary dictionary];
+            }
+          else
+            {
+              id        o;
+
+              /* If we were passed data rather than filenames
+               * we must set it up as cached data corresponding
+               * to well known names.
+               */
+              opts = AUTORELEASE([d mutableCopy]);
+              o = [opts objectForKey: GSTLSCertificateKeyFile];
+              if ([o isKindOfClass: [NSData class]])
+                {
+                  [GSTLSObject setData: o
+                            forTLSFile: @"self-signed-key"];
+                  [opts setObject: @"self-signed-key"
+                           forKey: GSTLSCertificateKeyFile];
+                }
+              o = [opts objectForKey: GSTLSCertificateFile];
+              if ([o isKindOfClass: [NSData class]])
+                {
+                  [GSTLSObject setData: o
+                            forTLSFile: @"self-signed-crt"];
+                  [opts setObject: @"self-signed-crt"
+                           forKey: GSTLSCertificateFile];
+                }
+              if ([[opts objectForKey: @"GSTLSVerifyClient"] boolValue]
+                || [[opts objectForKey: GSTLSVerify] boolValue])
+                {
+                  verifyClient = YES;
+                }
+              [opts removeObjectForKey: @"GSTLSVerifyClient"];
+              if ([[opts objectForKey: @"GSTLSVerifyServer"] boolValue]
+                || [[opts objectForKey: GSTLSVerify] boolValue])
+                {
+                  verifyServer = YES;
+                }
+              [opts removeObjectForKey: @"GSTLSVerifyServer"];
+            }
+
+          [opts setObject: (verifyClient ? @"YES" : @"NO") forKey: GSTLSVerify];
+          [NSSocketPort
+            performSelector: @selector(setClientOptionsForTLS:)
+                 withObject: opts];
+          [opts setObject: (verifyServer ? @"YES" : @"NO") forKey: GSTLSVerify];
+          [NSSocketPort
+            performSelector: @selector(setServerOptionsForTLS:)
+                 withObject: opts];
+        }
+    }
+}
+#else
+static void
+setupTLS(NSUserDefaults *u)
+{
+}
 #endif
 
 #import "EcProcess.h"
@@ -233,6 +311,7 @@ trim(char *str)
   return endp - str;
 }
 #endif
+
 
 @interface      EcDefaultRegistration : NSObject
 {
@@ -1663,56 +1742,9 @@ findMode(NSDictionary* d, NSString* s)
               [cmdDefs removeVolatileDomainForName: NSArgumentDomain];
               [cmdDefs setVolatileDomain: m forName: NSArgumentDomain];
             }
-#if     GS_USE_GNUTLS
-#if       !defined(TLS_DISTRIBUTED_OBJECTS)
-	  if ([cmdDefs boolForKey: @"EncryptedDO"])
-#endif
-	    {
-	      /* Enable encrypted DO if supported by the base library.
-	       */
-	      if ([NSSocketPort respondsToSelector:
-		@selector(setClientOptionsForTLS:)])
-		{
-		  defs = [cmdDefs
-		    dictionaryForKey: @"NSSocketPortOptionsForTLS"];
-		  if (defs != nil)
-		    {
-		      NSMutableDictionary   *opts;
-		      id                    o;
-
-		      /* If we were passed data rather than filenames
-		       * we must set it up as cached data corresponding
-		       * to well known names.
-		       */
-		      opts = AUTORELEASE([defs mutableCopy]);
-		      o = [opts objectForKey: GSTLSCertificateKeyFile];
-		      if ([o isKindOfClass: [NSData class]])
-			{
-			  [GSTLSObject setData: o
-				    forTLSFile: @"self-signed-key"];
-			  [opts setObject: @"self-signed-key"
-				   forKey: GSTLSCertificateKeyFile];
-			}
-		      o = [opts objectForKey: GSTLSCertificateFile];
-		      if ([o isKindOfClass: [NSData class]])
-			{
-			  [GSTLSObject setData: o
-				    forTLSFile: @"self-signed-crt"];
-			  [opts setObject: @"self-signed-crt"
-				   forKey: GSTLSCertificateFile];
-			}
-		      [NSSocketPort
-			performSelector: @selector(setClientOptionsForTLS:)
-			     withObject: opts];
-		      [NSSocketPort
-			performSelector: @selector(setServerOptionsForTLS:)
-			     withObject: opts];
-		    }
-		}
-	    }
-#endif
         }
 
+      setupTLS(cmdDefs);
       cmdUser = EC_EFFECTIVE_USER;
       if (nil == cmdUser)
 	{
@@ -3217,25 +3249,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     }
   if (nil == ecLock)
     {
-#if     GS_USE_GNUTLS
-#if       !defined(TLS_DISTRIBUTED_OBJECTS)
-      if ([[NSUserDefaults standardUserDefaults] boolForKey: @"EncryptedDO"])
-#endif
-	{
-	  /* Enable encrypted DO if supported by the base library.
-	   */
-	  if ([NSSocketPort respondsToSelector:
-	    @selector(setClientOptionsForTLS:)])
-	    {
-	      NSDictionary  *opts = [NSDictionary dictionary];
-
-	      [NSSocketPort performSelector: @selector(setClientOptionsForTLS:)
-				 withObject: opts];
-	      [NSSocketPort performSelector: @selector(setServerOptionsForTLS:)
-				 withObject: opts];
-	    }
-	}
-#endif
+      setupTLS([NSUserDefaults standardUserDefaults]);
       ecLock = [NSRecursiveLock new];
       dateClass = [NSDate class];
       cDateClass = [NSCalendarDate class];
