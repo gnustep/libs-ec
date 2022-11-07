@@ -349,6 +349,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   NSMutableArray	*consoles;
   NSString		*logname;
   NSDictionary		*config;
+  NSDictionary		*controlConfig;
   NSMutableDictionary	*operators;
   NSMutableDictionary	*fileBodies;
   NSMutableDictionary	*fileDates;
@@ -1814,6 +1815,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   DESTROY(configFailed);
   DESTROY(configIncludeFailed);
   DESTROY(alarmFilter);
+  DESTROY(controlConfig);
   [super dealloc];
 }
 
@@ -3124,6 +3126,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       NSEnumerator		*rootEnum;
       id			hostKey;
       NSString                  *digest = nil;
+      BOOL                      foundControlConfig = NO;
 
       if ([conf isKindOfClass: [NSDictionary class]] == NO)
 	{
@@ -3275,6 +3278,43 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 
 	      app = [self recursiveInclude: hostObj];
+              if ([appKey isEqual: @""] || [appKey isEqual: @"Control"])
+                {
+                  if (NO == [hostKey isEqual: @"*"])
+                    {
+                      NSString	*e;
+                      NSString  *k = appKey;
+
+                      if (0 == [k length])
+                        {
+                          k = @"\"\"";
+                        }
+                      e = [NSString stringWithFormat:
+                        @"%@ app-level has special key '%@' in host '%@'\n",
+                        path, k, hostKey];
+                      ASSIGN(configFailed, e);
+                      [[self cmdLogFile: logname] printf: @"%@", configFailed];
+                      return NO;
+                    }
+                  if (foundControlConfig)
+                    {
+                      NSString	*e;
+
+                      e = [NSString stringWithFormat:
+                        @"%@ app-level has both 'Control' and '\"\"' in '%@'\n",
+                        path, hostKey];
+                      ASSIGN(configFailed, e);
+                      [[self cmdLogFile: logname] printf: @"%@", configFailed];
+                      return NO;
+                    }
+                  foundControlConfig = YES;
+                  if (NO == [controlConfig isEqual: app])
+                    {
+                      ASSIGN(controlConfig, app);
+                      changed = YES;
+                    }
+                  continue;
+                }
 	      [host setObject: app forKey: appKey];
               /* Set EcControlKey for all apps on all hosts.
                */
@@ -3282,6 +3322,15 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    }
 	  [root setObject: host forKey: hostKey];
 	}
+
+      if (NO == foundControlConfig)
+        {
+          if (controlConfig)
+            {
+              DESTROY(controlConfig);
+              changed = YES;
+            }
+        }
 
       if (config == nil || [config isEqual: root] == NO)
 	{
@@ -3294,7 +3343,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
     {
       NSString  *alerterDef;
       NSString  *str;
-      id        myConfig = nil;
 
       /* Merge the global configuration and Control server specific
        * configuration into this process' user defaults.
@@ -3302,7 +3350,6 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       d = [config objectForKey: @"*"];          // Config across all hosts
       if ([d isKindOfClass: [NSDictionary class]])
         {
-          myConfig = [d objectForKey: @""];     // Empty process name
           d = [d objectForKey: @"*"];
         }
       if (YES == [d isKindOfClass: [NSDictionary class]])
@@ -3316,9 +3363,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
       /* Control server specific config.
        */
-      if ([myConfig isKindOfClass: [NSDictionary class]])
+      if ([controlConfig isKindOfClass: [NSDictionary class]])
         {
-          [dict addEntriesFromDictionary: myConfig];
+          [dict addEntriesFromDictionary: controlConfig];
         }
 
       /* If AlertConfig.plist was found, it overrides any value for Alerter

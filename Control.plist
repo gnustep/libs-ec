@@ -6,6 +6,10 @@
      */
     * = {
     };
+    Control = {
+      /* Section for the Control server on any master host.
+       */
+    };
     Feep = {
       /* Section for the process Feep on any/all hosts.
        */
