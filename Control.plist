@@ -87,6 +87,23 @@
 	 * After PingTime seconds of unresponsiveness an alarm is raised.
 	 * Then after HungTime seconds restart is initiated and HungTool runs.
 	 * Then after StopTime seconds the process is forcibly killed.
+         *
+         * If the system is running with encrypted Distributed Objects then
+         * child processes may be launched with specific TLS options (rather
+         * than inheriting the configuration of the Command server) by adding
+         * ClientOptionsForTLS = {dictionary};
+         * to specify the options used when the child connects to another
+         * process (eg when the mchild registers with the Command server) and
+         * ServerOptionsForTLS = {dictionary};
+         * to specify the options used when another process connects to the
+         * child process.
+         * If the child is supposed to use the same options in both cases,
+         * a single OptionsForTLS dictionary may be used instead.
+         * The contents of the dictionary are TLS configuration keys and
+         * values as per the gnustep-base documentation:
+         * GSTLSCAFile GSTLSCertificateFile GSTLSCertificateKeyFile
+         * GSTLSCertificateKeyPassword GSTLSDebug GSTLSPriority
+         * GSTLSRemoteHosts GSTLSRevokeFile GSTLSServerName GSTLSVerify
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary

@@ -1483,6 +1483,88 @@ valgrindLog(NSString *name)
 	      if ([[command cmdDefaults] boolForKey: @"EncryptedDO"])
 #endif
 		{
+                  NSDictionary  *c;
+                  NSDictionary  *s;
+                  NSDictionary  *g;
+
+                  /* Try looking up options in the launch configuration
+                   */
+                  c = [conf objectForKey: @"ClientOptionsForTLS"];
+                  if (c && NO == [c isKindOfClass: [NSDictionary class]])
+                    {
+                      [NSException raise: NSInvalidArgumentException
+                                  format: @"invalid ClientOptionsForTLS"];
+                    }
+                  s = [conf objectForKey: @"ServerOptionsForTLS"];
+                  if (s && NO == [c isKindOfClass: [NSDictionary class]])
+                    {
+                      [NSException raise: NSInvalidArgumentException
+                                  format: @"invalid ServerOptionsForTLS"];
+                    }
+
+                  if (nil == g && nil == c && nil == s)
+                    {
+                      /* No process options specified, try using any
+                       * options specfied for the Command server.
+                       */
+                      c = [defs objectForKey: @"ClientOptionsForTLS"];
+                      s = [defs objectForKey: @"ServerOptionsForTLS"];
+                      g = [defs objectForKey: @"OptionsForTLS"];
+                    }
+
+                  if (nil == c && nil != s)
+                    {
+                      [NSException raise: NSInvalidArgumentException
+                                  format: @"missing ClientOptionsForTLS"];
+                    }
+                  if (nil == s && nil != c)
+                    {
+                      [NSException raise: NSInvalidArgumentException
+                                  format: @"missing OptionsForTLS"];
+                    }
+                  if (g)
+                    {
+                      if (c)
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                                      format: @"both OptionsForTLS and"
+                            @" ClientOptionsForTLS"];
+                        }
+                      if (s)
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                                      format: @"both OptionsForTLS and"
+                            @" ServerOptionsForTLS"];
+                        }
+                      if (nil == [g objectForKey: GSTLSCertificateFile])
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                            format: @"missing %@ in OptionsForTLS",
+                            GSTLSCertificateFile];
+                        }
+                      if (nil == [g objectForKey: GSTLSCertificateKeyFile])
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                            format: @"missing %@ in OptionsForTLS",
+                            GSTLSCertificateKeyFile];
+                        }
+                    }
+                  else
+                    {
+                      if (nil == [s objectForKey: GSTLSCertificateFile])
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                            format: @"missing %@ in ServerOptionsForTLS",
+                            GSTLSCertificateFile];
+                        }
+                      if (nil == [s objectForKey: GSTLSCertificateKeyFile])
+                        {
+                          [NSException raise: NSInvalidArgumentException
+                            format: @"missing %@ in ServerOptionsForTLS",
+                            GSTLSCertificateKeyFile];
+                        }
+                    }
+
 		  /* Enable encrypted DO if supported by the base library.
 		   * If TLS is supported, all Distributed Object communications
 		   * between our processes must be encrypted.  Generally we can
@@ -1490,7 +1572,16 @@ valgrindLog(NSString *name)
 		   * launch, so the subprocesses don't need to waste a lot of
 		   * CPU (and real) time generating their own keys.
 		   */
-		  if ([defs objectForKey: @"NSSocketPortOptionsForTLS"] == nil)
+                  if (g)
+                    {
+		      [defs setObject: g forKey: @"OptionsForTLS"];
+                    }
+                  else if (c && s)
+                    {
+                      [defs setObject: c forKey: @"ClientOptionsForTLS"];
+                      [defs setObject: s forKey: @"ServerOptionsForTLS"];
+                    }
+		  else
 		    {
 		      NSUserDefaults		*defs = [command cmdDefaults];
 		      NSMutableDictionary	*opts;
@@ -1558,18 +1649,12 @@ valgrindLog(NSString *name)
 			{
 			  [opts setObject: opt forKey: GSTLSRevokeFile];
 			}
-
-		      if ((opt = [defs objectForKey: @"GSTLSVerifyClient"]))
+		      if ((opt = [defs objectForKey: GSTLSVerify]))
 			{
-			  [opts setObject: opt forKey: @"GSTLSVerifyClient"];
-			}
-		      if ((opt = [defs objectForKey: @"GSTLSVerifyServer"]))
-			{
-			  [opts setObject: opt forKey: @"GSTLSVerifyServer"];
+			  [opts setObject: opt forKey: GSTLSVerify];
 			}
 
-		      [defs setObject: opts
-			       forKey: @"NSSocketPortOptionsForTLS"];
+		      [defs setObject: opts forKey: @"OptionsForTLS"];
 		    }
 		}
 #endif
