@@ -1501,6 +1501,12 @@ valgrindLog(NSString *name)
                       [NSException raise: NSInvalidArgumentException
                                   format: @"invalid ServerOptionsForTLS"];
                     }
+                  g = [conf objectForKey: @"OptionsForTLS"];
+                  if (g && NO == [g isKindOfClass: [NSDictionary class]])
+                    {
+                      [NSException raise: NSInvalidArgumentException
+                                  format: @"invalid OptionsForTLS"];
+                    }
 
                   if (nil == g && nil == c && nil == s)
                     {
@@ -1549,7 +1555,7 @@ valgrindLog(NSString *name)
                             GSTLSCertificateKeyFile];
                         }
                     }
-                  else
+                  else if (s)
                     {
                       if (nil == [s objectForKey: GSTLSCertificateFile])
                         {

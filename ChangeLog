@@ -1,3 +1,8 @@
+2022-11-11 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	Fix a few incorrect checks for TLS certificate presence.
+
 2022-11-09 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* Control.plist:
