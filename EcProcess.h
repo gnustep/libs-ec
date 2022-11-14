@@ -314,7 +314,6 @@ typedef enum    {
 - (oneway void) reply: (NSString*)msg
 		   to: (NSString*)n
 		 from: (NSString*)c;
-- (BOOL) restart: (NSString*)name reason: (NSString*)reason;
 - (oneway void) servers: (in bycopy NSData*)a
 		     on: (id<Command>)s;
 - (oneway void) unmanage: (NSString*)name;
