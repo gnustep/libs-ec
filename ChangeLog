@@ -1,3 +1,10 @@
+2022-11-14 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcCommand.m:
+	Add new method of Command server (-restart:reason:) to requst that
+	it restart an individual process.
+
 2022-11-11 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

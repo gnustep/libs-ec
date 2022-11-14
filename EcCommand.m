@@ -5928,6 +5928,26 @@ NSLog(@"Problem %@", localException);
     }
 }
 
+- (BOOL) restart: (NSString*)name reason: (NSString*)reason
+{
+  LaunchInfo	*l = [LaunchInfo existing: name];
+
+  if (nil == l)
+    {
+      NSString  *m;
+
+      m = [NSString stringWithFormat: cmdLogFormat(LT_CONSOLE,
+        @"unrecognized name to restart %@"), name];
+      [self information: m from: nil to: nil type: LT_CONSOLE];
+      return NO;
+    }
+  else
+    {
+      [l restart: reason];
+    }
+  return YES;
+}
+
 - (NSString*) makeSpace
 {
   NSInteger             purgeAfter;

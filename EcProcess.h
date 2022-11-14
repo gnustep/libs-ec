@@ -262,6 +262,12 @@ typedef enum    {
 		   to: (NSString*)n
 		 from: (NSString*)c;
 
+/** Request immediate restart of the named process.<br />
+ * The reason string is displayed in reporting etc.<br />
+ * Returns YES if the process was found, NO otherwise.
+ */
+- (BOOL) restart: (NSString*)name reason: (NSString*)reason;
+
 /** Shut down the Command server and all its clients.<br />
  * Clients which fail to shut down gracefully before the specified timestamp
  * will be forcibly killed. The timestamp is constrained to be at least half
@@ -308,6 +314,7 @@ typedef enum    {
 - (oneway void) reply: (NSString*)msg
 		   to: (NSString*)n
 		 from: (NSString*)c;
+- (BOOL) restart: (NSString*)name reason: (NSString*)reason;
 - (oneway void) servers: (in bycopy NSData*)a
 		     on: (id<Command>)s;
 - (oneway void) unmanage: (NSString*)name;
