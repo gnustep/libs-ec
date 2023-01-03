@@ -4358,7 +4358,7 @@ NSLog(@"Problem %@", localException);
           if (count < 2)
             {
 	      m = @"The 'clear' command requires an alarm"
-                @" notificationID or the word all\n";
+                @" address or the word all\n";
             }
           else
             {

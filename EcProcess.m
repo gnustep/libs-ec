@@ -4397,7 +4397,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           if (count < 2)
             {
 	      [self cmdPrintf: @"The 'clear' command requires an alarm"
-                @" notificationID or the word all\n"];
+                @" address or the word all\n"];
             }
           else
             {
