@@ -1049,7 +1049,18 @@ desiredName(Desired state)
 
 - (void) clearHung
 {
-  hungDate = 0.0;
+  if (hungDate != 0.0)
+    {
+      hungDate = 0.0;
+      /* A process which is no longer hung may become operationally
+       * stable after a short period.
+       */
+      nextStableDate = [NSDate timeIntervalSinceReferenceDate] + 10.0;
+      if (clientLostDate > 0.0)
+        {
+          nextStableDate += 250.0;
+        }
+    }
 }
 
 - (EcClientI*) client
@@ -2302,6 +2313,11 @@ valgrindLog(NSString *name)
   if (hungDate <= 0.0)
     {
       hungDate = [NSDate timeIntervalSinceReferenceDate];
+      /* A hung process is not considered stable or becoming stable, since
+       * stable means stably operational.
+       */
+      [self setStable: NO];
+      nextStableDate = 0.0;
     }
 }
 
@@ -3407,8 +3423,8 @@ valgrindLog(NSString *name)
 	    perceivedSeverity: EcAlarmSeverityCleared
 	    proposedRepairAction: repair
 	    additionalText: additional];
-	    [l alarm: a];
-	    [self alarm: a];
+	  [l alarm: a];
+	  [self alarm: a];
 	}
     }
   else
@@ -4206,18 +4222,19 @@ NSLog(@"Problem %@", localException);
 	       * a delay between launch attempts.
 	       */
 	      [l resetDelay];
-	      if (NO == [l stable] && [l mayBecomeStable])
-		{
-		  /* After the first few ping responses from a client we assume
-		   * that client has completed startup and is running OK.
-		   * We can therefore clear any loss of client alarm, any
-		   * alarm for being unable to register, and launch failure
-		   * or fatal configuration alarms.
-		   */
-		  [l setStable: YES];
-		  [self clearAll: [l name] addText: @"process is now stable"];
-		}
 	    }
+          if (NO == [l stable] && [l mayBecomeStable] > 0.0
+            && [l mayBecomeStable] <= [NSDate timeIntervalSinceReferenceDate])
+            {
+              /* After the client has been responding to pings for a while,
+               * we assume that client has completed startup and is running OK.
+               * We can therefore clear any loss of client alarm, any
+               * alarm for being unable to register, and launch failure
+               * or fatal configuration alarms.
+               */
+              [l setStable: YES];
+              [self clearAll: [l name] addText: @"process is now stable"];
+            }
 	}
     }
 }
@@ -4288,6 +4305,37 @@ NSLog(@"Problem %@", localException);
 	{
 	  /* Quietly ignore.	*/
 	}
+      else if (comp(wd, @"alarms") >= 0)
+        {
+	  NSMutableArray	*a = [NSMutableArray array];
+          NSEnumerator          *e = [launchInfo objectEnumerator];
+          LaunchInfo            *l;
+
+          while (nil != (l = [e nextObject]))
+            {
+              [a addObjectsFromArray: [l alarms]];
+            }
+
+	  if (0 == [a count])
+	    {
+              m = @"No alarms currently active.\n";
+	    }
+	  else
+	    {
+              NSMutableString   *ms = [NSMutableString string];
+	      int	        i;
+
+              m = ms;
+	      [a sortUsingSelector: @selector(compare:)];
+	      [ms appendFormat: @"Current alarms -\n"];
+	      for (i = 0; i < [a count]; i++)
+		{
+		  EcAlarm	*alarm = [a objectAtIndex: i];
+
+		  [ms appendFormat: @"%@\n", [alarm description]];
+		}
+	    }
+	}
       else if (comp(wd, @"archive") >= 0)
 	{
 	  NSCalendarDate	*when;
@@ -4295,13 +4343,94 @@ NSLog(@"Problem %@", localException);
 	  m = [NSString stringWithFormat: @"\n%@\n", [self ecArchive: nil]];
 	  when = [NSCalendarDate date];
 	}
+      else if (comp(wd, @"clear") >= 0)
+        {
+	  NSMutableArray	*a = [NSMutableArray array];
+          NSEnumerator          *e = [launchInfo objectEnumerator];
+          NSUInteger            count = [cmd count];
+          LaunchInfo            *l;
+
+          while (nil != (l = [e nextObject]))
+            {
+              [a addObjectsFromArray: [l alarms]];
+            }
+
+          if (count < 2)
+            {
+	      m = @"The 'clear' command requires an alarm"
+                @" notificationID or the word all\n";
+            }
+          else
+            {
+              NSMutableString   *ms = [NSMutableString string];
+              NSUInteger        alarmCount = [a count];
+              EcAlarm	        *alarm;
+              EcAlarm	        *clear;
+              NSUInteger        index;
+
+              m = ms;
+              for (index = 1; index < count; index++)
+                {
+                  NSUInteger    addr;
+                  NSString      *arg = [cmd objectAtIndex: index];
+
+                  if ([arg caseInsensitiveCompare: _(@"all")] == NSOrderedSame)
+                    {
+                      NSUInteger        i;
+
+                      for (i = 0; i < alarmCount; i++)
+                        {
+                          alarm = [a objectAtIndex: i];
+                          clear = [alarm clear];
+                          [ms appendFormat: @"Clearing %@\n", alarm];
+                          l = [LaunchInfo existing: [alarm moComponent]];
+                          [l alarm: clear];
+                          [self alarm: clear];
+                        }
+                    }
+                  else if (1 == sscanf([arg UTF8String], "%" PRIxPTR, &addr))
+                    {
+                      NSUInteger	i;
+
+                      alarm = nil;
+                      for (i = 0; i < alarmCount; i++)
+                        {
+                          alarm = [a objectAtIndex: i];
+                          if ((NSUInteger)alarm == addr)
+                            {
+                              break;
+                            }
+                          alarm = nil;
+                        }
+                      if (nil == alarm)
+                        {
+                          [ms appendFormat:
+                            @"No alarm found with the address '%@'\n", arg];
+                        }
+                      else
+                        {
+                          [ms appendFormat: @"Clearing %@\n", alarm];
+                          clear = [alarm clear];
+                          l = [LaunchInfo existing: [alarm moComponent]];
+                          [l alarm: clear];
+                          [self alarm: clear];
+                        }
+                    }
+                  else
+                    {
+                      [ms appendFormat:
+                        @"Not a hexadecimal address: '%@'\n", arg];
+                    }
+                }
+            }
+        }
       else if (comp(wd, @"help") >= 0)
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
 	    {
 	      m = @"Commands are -\n"
-	      @"Help\tArchive\tControl\tLaunch\tList\tMemory\t"
+	      @"Help\tAlarms\tArchive\tClear\tControl\tLaunch\tList\tMemory\t"
               @"Quit\tRestart\tStatus\tTell\n\n"
 	      @"Type 'help' followed by a command word for details.\n"
 	      @"A command line consists of a sequence of words, "
@@ -4328,12 +4457,26 @@ NSLog(@"Problem %@", localException);
 	    }
 	  else
 	    {
-	      if (comp(wd, @"Archive") >= 0)
+	      if (comp(wd, @"Alarms") >= 0)
+		{
+		  m = @"Alarms\nLists all the alarms currently raised by this "
+		      @"Command process. Typically alarms about a client "
+                      @"process hanging or failing to launch properly.\n"
+                      @"These clear automatically when processes are stable.\n";
+		}
+	      else if (comp(wd, @"Archive") >= 0)
 		{
 		  m = @"Archive\nArchives the log file. The archived log "
 		      @"file is stored in a subdirectory whose name is of "
 		      @"the form YYYYMMDDhhmmss being the date and time at "
 		      @"which the archive was created.\n";
+		}
+	      else if (comp(wd, @"Clear") >= 0)
+		{
+		  m = @"Clear <all|addresslist>\nClears all alarms or the "
+		      @"alarms whose addresses are in the space separated "
+                      @"list.\nShould never be needed since these alarms "
+                      @"are cleared automatically when processes restart.\n";
 		}
 	      else if (comp(wd, @"Control") >= 0)
 		{

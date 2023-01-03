@@ -1,3 +1,9 @@
+2023-01-03 Richard Frith-Macdonald <rfm@gnu.org>
+
+	EcCommand.m: Fix clearing of alarms about a process when it becomes
+	stable.  Implement 'alarms' and 'clear' commands like those in client
+	processes.
+
 2022-11-14 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:
