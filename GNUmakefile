@@ -25,8 +25,8 @@ include $(GNUSTEP_MAKEFILES)/common.make
 -include ../local.make
 
 PACKAGE_NAME=EnterpriseControlConfigurationLogging
-PACKAGE_VERSION=1.1.4
-Ec_INTERFACE_VERSION=1.1
+PACKAGE_VERSION=1.2.0
+Ec_INTERFACE_VERSION=1.2
 
 SVN_BASE_URL=svn+ssh://svn.gna.org/svn/gnustep/libs
 SVN_MODULE_NAME=ec
