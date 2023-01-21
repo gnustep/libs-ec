@@ -893,6 +893,7 @@ static int      memSize = 1024;         // Report KB
 static NSTimeInterval   memTime = 0.0;  // Time of last check
 static uint64_t memMaximum = 0;
 static uint64_t	memAllowed = 0;
+static uint64_t	memInitial = 0;
 static uint64_t	excAvge = 0;    // current period average
 static uint64_t	memAvge = 0;    // current period average
 static uint64_t	excStrt = 0;    // excluded usage at first check
@@ -6284,19 +6285,58 @@ With two parameters ('maximum' and a number),\n\
     {
       excPeak = excLast;
     }
+  if (0 == memInitial)
+    {
+      memInitial = memPeak;
+    }
 
   /* If we have a defined maximum memory usage for the process,
    * we should perform a restart once that limit is passed.
    */
-  if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
+  if (memMaximum > 0)
     {
-      if (NO == memRestart)
+      static EcAlarm    *raised = nil;
+      uint64_t          minMax = (memInitial * 12) / 10;
+
+      if (minMax > (memMaximum * 1024 * 1024))
         {
-          memRestart = YES;
-          NSLog(@"MemoryMaximum exceeded ... initiating restart");
-          [self ecRestart: @"memory usage limit reached"];
+          memMaximum = 0;
+          if (nil == raised)
+            {
+              EcAlarm   *a;
+
+              a = [EcAlarm alarmForManagedObject: nil
+                at: nil
+                withEventType: EcAlarmEventTypeProcessingError
+                probableCause: EcAlarmConfigurationOrCustomizationError
+                specificProblem: @"MemoryMaximum too low"
+                perceivedSeverity: EcAlarmSeverityMajor
+                proposedRepairAction: @"Reconfigure MemoryMaximum to good value"
+                additionalText: @"configuration ignored"];
+              ASSIGN(raised, a);
+              [self alarm: raised];
+            }
         }
-      return;
+      else
+        {
+          if (raised)
+            {
+              EcAlarm   *a = [raised clear];
+
+              DESTROY(raised);
+              [self alarm: a];
+            }
+        }
+      if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
+        {
+          if (NO == memRestart)
+            {
+              memRestart = YES;
+              NSLog(@"MemoryMaximum exceeded ... initiating restart");
+              [self ecRestart: @"memory usage limit reached"];
+            }
+          return;
+        }
     }
 
   setMemBase();
