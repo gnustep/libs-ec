@@ -392,7 +392,7 @@ static NSTimeInterval   initAt = 0.0;
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
 static BOOL		ecQuitHandled = NO;	// Has ecHandleQuit run?
 static NSTimeInterval	ecQuitLimit = 180.0;	// Time allowed for quit
-static NSInteger        ecQuitStatus = 0;      // Status for the quit
+static NSInteger        ecQuitStatus = 0;       // Status for the quit
 static NSString         *ecQuitReason = nil;    // Reason for the quit
 
 /* Test to see if the process is trying to quit gracefully.
@@ -6300,10 +6300,20 @@ With two parameters ('maximum' and a number),\n\
 
       if (minMax > (memMaximum * 1024 * 1024))
         {
+          unsigned long oldMaximum = (unsigned long)memMaximum;
+
           memMaximum = 0;
           if (nil == raised)
             {
               EcAlarm   *a;
+              NSString  *repair;
+              NSString  *additional;
+
+              repair = [NSString stringWithFormat:
+                @"Reconfigure MemoryMaximum to good value (at least %luMiB)",
+                (unsigned long)(minMax / (1024 * 1024))];
+              additional = [NSString stringWithFormat:
+                @"configurated (%luMiB) ignored", oldMaximum];
 
               a = [EcAlarm alarmForManagedObject: nil
                 at: nil
@@ -6311,8 +6321,8 @@ With two parameters ('maximum' and a number),\n\
                 probableCause: EcAlarmConfigurationOrCustomizationError
                 specificProblem: @"MemoryMaximum too low"
                 perceivedSeverity: EcAlarmSeverityMajor
-                proposedRepairAction: @"Reconfigure MemoryMaximum to good value"
-                additionalText: @"configuration ignored"];
+                proposedRepairAction: repair
+                additionalText: additional];
               ASSIGN(raised, a);
               [self alarm: raised];
             }
