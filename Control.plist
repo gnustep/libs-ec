@@ -127,6 +127,7 @@
           Time = 30;            // Interval for relaunching after crash
 	};
       };
+
       /* Specify launch order ... Feep first, Bar second
        * Processes not listed here are launched in lexicographical order
        * after any processes which are listed.
@@ -135,17 +136,33 @@
         Feep,                                   // Launch Feep first
         Bar                                     // Launch Bar second
       );
+
       /* Specify how many tasks the Command server may have launching
        * concurrently (default is 20).  You may want to set this to a
        * lower value in order to reduce load when the system start up.
        */
       LaunchLimit = 20;
+
       /* Specify whether, when the Command server starts, launching of
        * tasks should be suspeneded (as if the 'suspend' command had been
        * sent to it from the Console).
        * By default this is NO.
        */
       LaunchStartSuspended = NO;
+
+      /* Optionally specify an alternative default environment for launched
+       * processes.  If this is not set then the environment in which the
+       * Command server was launched is used.
+       *  SetE = {
+       *  };
+       */
+
+      /* Optionally specify additions to the default environment for launched
+       * processes.  This is typically used to modify the information that
+       * comes from the enveironment the Command server was launched in.
+       *  AddE = {
+       *  };
+       */
 
       /* Configure all tasks to be run under valgrind specifying the path
        * to the process, which may be overridden on a per-process basis

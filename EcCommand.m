@@ -519,8 +519,12 @@ desiredName(Desired state)
  *   Defaults to 180, but logs may still be deleted as if this were set
  *   to CompressLogsAfter if NodesFree or SpaceFree is reached.
  *
- * Environment
+ * SetE
  *   A dictionary setting the default environment for launched processes.
+ *
+ * AddE
+ *   A dictionary overriding parts of the default environment for launched
+ *   processes.
  *
  * Launch
  *   A dictionary describing the processes which the server is responsible
@@ -4064,13 +4068,29 @@ NSLog(@"Problem %@", localException);
               ASSIGNCOPY(launchOrder, newOrder);
             }
 
-	  o = [d objectForKey: @"Environment"];
-	  if ([o isKindOfClass: [NSDictionary class]] == NO)
+	  o = [d objectForKey: @"SetE"];
+          if (o != nil && NO == [o isKindOfClass: [NSDictionary class]])
+            {
+	      NSLog(@"Bad global 'SetE' information in latest config update");
+	      o = nil;
+            }
+          if (nil == o)
+            {
+              o = [[NSProcessInfo processInfo] environment];
+            }
+          NSMutableDictionary   *env = [o mutableCopy];
+
+	  o = [d objectForKey: @"AddE"];
+	  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 	    {
-	      NSLog(@"No 'Environment' information in latest config update");
+	      NSLog(@"Bad global 'AddE' information in latest config update");
 	      o = nil;
 	    }
-	  ASSIGN(environment, o);
+          if (o)
+            {
+	      [env addEntriesFromDictionary: o];
+            }
+	  ASSIGN(environment, env);
 
 	  k = [d objectForKey: @"NodesFree"];
 	  if (YES == [k isKindOfClass: [NSString class]])
