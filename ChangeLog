@@ -1,3 +1,12 @@
+2023-01-21 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Allow SetE and AddE configuration for the Command
+	server to set up the default environment variables to be used for
+	launched child processes.
+	EcProcess.m: If MemoryMaximum is set to a value less than the initial
+	memory usage of the process plus 20%, it is ignored but an alarm is
+	raised.  Once the configuration is fixed the alarm is cleared.
+
 2023-01-13 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* GNUmakefile: bump version to 1.2.0 for release
