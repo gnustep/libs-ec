@@ -6310,10 +6310,10 @@ With two parameters ('maximum' and a number),\n\
               NSString  *additional;
 
               repair = [NSString stringWithFormat:
-                @"Reconfigure MemoryMaximum to good value (at least %luMiB)",
+                @"Reconfigure MemoryMaximum to good value (at least %luMB)",
                 (unsigned long)(minMax / (1024 * 1024))];
               additional = [NSString stringWithFormat:
-                @"configurated (%luMiB) ignored", oldMaximum];
+                @"configured value (%luMB) ignored", oldMaximum];
 
               a = [EcAlarm alarmForManagedObject: nil
                 at: nil
