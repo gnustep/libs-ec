@@ -1,3 +1,11 @@
+2023-02-14 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.m: When using the 'defaults' command from the Console,
+	writing or deleting a key without the prefix should implicitly
+	alter the default for both the prefixed and unprefixed versions
+	of the key.  This ensures that any low level code that does not use
+	prefixes to access the defaults will still read the updated value. 
+
 2023-01-21 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Allow SetE and AddE configuration for the Command
