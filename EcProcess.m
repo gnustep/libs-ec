@@ -385,6 +385,8 @@ static Class	dateClass = 0;
 static Class	stringClass = 0;
 static int	cmdSignalled = 0;
 
+static NSDictionary     *ecOperators = nil;     // Operator configuration
+
 static NSTimeInterval   initAt = 0.0;
 
 /* Internal value for use only by quitting mechanism.
@@ -988,24 +990,39 @@ setMemBase()
     }
 }
 
+/* Returns the found command, or nil if none is found, or an empty string
+ * if there was a match but it was in the array of commands to be blockd.
+ */
 static NSString*
-findAction(NSString *cmd)
+findAction(NSString *cmd, NSArray *blocked)
 {
   NSString	*found = nil;
+  BOOL          match = NO;
 
   cmd = [cmd lowercaseString];
   [ecLock lock];
-  if (nil == (found = [cmdActions member: cmd]))
+  if (nil == (found = [cmdActions member: cmd])
+    || [blocked containsObject: found])
     {
       NSEnumerator	*enumerator;
       NSString		*name;
 
+      if (found)
+        {
+          found = nil;
+          match = YES;
+        }
       enumerator = [cmdActions objectEnumerator];
       while (nil != (name = [enumerator nextObject]))
 	{
 	  if (YES == [name hasPrefix: cmd])
 	    {
-	      if (nil == found)
+              match = YES;
+              if ([blocked containsObject: name])
+                {
+                  continue;     // This match is blocked
+                }
+	      else if (nil == found)
 		{
 		  found = name;
 		}
@@ -1017,7 +1034,18 @@ findAction(NSString *cmd)
 	    }
 	}
     }
-  cmd = [found retain];
+  if (found)
+    {
+      cmd = [found retain];
+    }
+  else if (match)
+    {
+      cmd = @"";
+    }
+  else
+    {
+      cmd = nil;
+    }
   [ecLock unlock];
   return [cmd autorelease];
 }
@@ -4233,7 +4261,73 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [ecLock unlock];
 }
 
-- (NSString*) cmdMesg: (NSArray*)msg
+- (void) ecOperators: (NSDictionary*)dict
+{
+  if (NO == [dict isKindOfClass: [NSDictionary class]])
+    {
+      dict = nil;
+    }
+  [ecLock lock];
+  ASSIGN(ecOperators, dict);
+  [ecLock unlock];
+}
+
+- (NSArray*) ecBlocked: (NSString*)operator
+{
+  NSArray       *blocked = nil;
+  NSString	*name;
+  id            obj;
+
+  if (nil == operator)
+    {
+      name = @"";
+    }
+  else
+    {
+      NSRange   r = [operator rangeOfString: @":"];
+
+      if (r.length > 0)
+        {
+          name = [operator substringToIndex: r.location];
+        }
+      else
+        {
+          name = operator;
+        }
+    }
+
+  [ecLock lock];
+  obj = [ecOperators objectForKey: name];
+  if ([obj isKindOfClass: [NSDictionary class]])
+    {
+      obj = [obj objectForKey: @"Blocked"];
+    }
+  else
+    {
+      obj = nil;
+    }
+  if (nil == obj && [operator length] > 0)
+    {
+      obj = [ecOperators objectForKey: @""];    // default
+      if ([obj isKindOfClass: [NSDictionary class]])
+        {
+          obj = [obj objectForKey: @"Blocked"];
+        }
+      else
+        {
+          obj = nil;
+        }
+    }
+  if ([obj isKindOfClass: [NSArray class]])
+    {
+      blocked = (NSArray*)AUTORELEASE(RETAIN(obj));
+    }
+  [ecLock unlock];
+
+  return blocked;
+}
+
+- (NSString*) ecMesg: (NSArray*)msg from: (NSString*)operator
 {
   NSMutableString	*saved;
   NSString		*result;
@@ -4245,10 +4339,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       return @"no command specified\n";
     }
 
-  cmd = findAction([msg objectAtIndex: 0]);
+  cmd = findAction([msg objectAtIndex: 0], [self ecBlocked: operator]);
   if (nil == cmd)
     {
       return @"unrecognised command\n";
+    }
+  else if (0 == [cmd length])
+    {
+      return @"blocked command\n";
     }
 
   sel = NSSelectorFromString([NSString stringWithFormat: @"cmdMesg%@:", cmd]);
@@ -4285,7 +4383,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     options: NSPropertyListMutableContainers
     format: 0
     error: 0];
-  val = [self cmdMesg: msg];
+  val = [self ecMesg: msg from: name];
   if (cmdServer)
     {
       NS_DURING
@@ -4858,7 +4956,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       NSString	*found;
 
       cmd = [msg objectAtIndex: 1];
-      found = findAction(cmd);
+      found = findAction(cmd, nil);
 
       if ([cmd caseInsensitiveCompare: @"control"] == NSOrderedSame)
 	{
@@ -4878,6 +4976,10 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       else if (nil == found)
 	{
 	  [self cmdPrintf: @"Unable to find the '%@' command -\n", cmd];
+	}
+      else if ([found length] == 0)
+	{
+	  [self cmdPrintf: @"The '%@' command is blocked -\n", cmd];
 	}
       else if ([found caseInsensitiveCompare: @"help"] != NSOrderedSame)
 	{
@@ -6708,6 +6810,12 @@ With two parameters ('maximum' and a number),\n\
       NSLog(@"Configuration change during process shutdown ... ignored.");
       return;   // Ignore config updates while quitting
     }
+
+  /* The configuration should contain information about any operators
+   * who are allowed to issue commands to this process.
+   */
+  [self ecOperators: [info objectForKey: @"Operators"]];
+
   newConfig = [NSMutableDictionary dictionaryWithCapacity: 32];
   /*
    *	Put all values for this application in the cmdConf dictionary.
@@ -6792,7 +6900,7 @@ With two parameters ('maximum' and a number),\n\
     {
       return nil;
     }
-  return [self cmdMesg: words];
+  return [self ecMesg: words from: nil];
 }
 
 - (bycopy NSData*) ecTestConfigForKey: (in bycopy NSString*)key

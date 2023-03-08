@@ -13,8 +13,29 @@
     Password = hashedPasswordOrUsernameOrEmptyString;
   };
 
+  /* If Password is omitted or is empty, then any password is accepted
+   * to allow the user to log in.
+   */
+  guest = {
+    Password = "";
+  };
+
+  /* If a Blocked array is supplied, the operator is prevented from
+   * using any of the commands listed in the array.
+   */
+  restricted = {
+    Password = hashedPasswordOrUsernameOrEmptyString;
+    Blocked = (
+      launch,
+      quit,
+      restart
+    );
+  };
+
   /* If the entry with no name exists, it will be used to allow login for
    * any username which doesn't exist in this file.
+   * This entry will also be used to supply a Blocked array for any user
+   * whose own entry does not supply one.
    * The format for a hashed password is that created by the mkpasswd
    * program and the crypt() function.  The SHA512 hash (starts '$6$')
    * is preferred.
@@ -23,10 +44,4 @@
     Password = hashedPasswordOrEmptyString;
   };
 
-  /* If Password is omitted or is empty, then any password is accepted
-   * to allow the user to log in.
-   */
-  guest = {
-    Password = "";
-  };
 }

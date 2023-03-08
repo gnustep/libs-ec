@@ -98,6 +98,19 @@ static int	comp(NSString *s0, NSString *s1)
     }
 }
 
+static BOOL matchCmd(NSString *word, NSString *reference, NSArray *blocked)
+{
+  if (comp(word, reference) < 0)
+    {
+      return NO;
+    }
+  if ([blocked containsObject: reference])
+    {
+      return NO;
+    }
+  return YES;
+}
+
 static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   if (a != nil && [a count] > pos)
@@ -708,6 +721,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   else
     {
       NSMutableString	*full;
+      NSArray   *blocked;
       NSString	*hname = nil;
       NSString	*m = @"";
       NSString	*wd = cmdWord(cmd, 0);
@@ -831,6 +845,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    }
 	}
 
+      /* Find the commands blocked for this user.
+       */
+      blocked = [self ecBlocked: [console name]];
+ 
       if (connected == YES || hname != nil)
 	{
 	  NSArray	*hosts;
@@ -947,7 +965,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  /* Quietly ignore.	*/
 	}
-      else if (comp(wd, @"alarms") >= 0)
+      else if (matchCmd(wd, @"alarms", blocked))
 	{
 	  NSArray	*a = [sink alarms];
 
@@ -970,11 +988,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (comp(wd, @"archive") >= 0)
+      else if (matchCmd(wd, @"archive", blocked))
 	{
 	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
 	}
-      else if (comp(wd, @"clear") >= 0)
+      else if (matchCmd(wd, @"clear", blocked))
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -1036,7 +1054,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	        @"external SNMP monitoring systems.\n";
 	    }
 	}
-      else if (comp(wd, @"connect") >= 0)
+      else if (matchCmd(wd, @"connect", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1048,7 +1066,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      [console setConnectedServ: wd];
 	    }
 	}
-      else if (comp(wd, @"config") >= 0)
+      else if (matchCmd(wd, @"config", blocked))
 	{
 	  BOOL	changed;
 
@@ -1084,13 +1102,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                          to: nil
                        from: nil];
 	}
-      else if (comp(wd, @"flush") >= 0)
+      else if (matchCmd(wd, @"flush", blocked))
 	{
 	  [alerter flushSms];
 	  [alerter flushEmail];
 	  m = @"Flushed alert messages\n";
 	}
-      else if (comp(wd, @"help") >= 0)
+      else if (matchCmd(wd, @"help", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1312,7 +1330,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (comp(wd, @"host") >= 0)
+      else if (matchCmd(wd, @"host", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1330,7 +1348,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (comp(wd, @"list") >= 0)
+      else if (matchCmd(wd, @"list", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"consoles") >= 0)
@@ -1407,7 +1425,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (comp(wd, @"memory") >= 0)
+      else if (matchCmd(wd, @"memory", blocked))
 	{
 	  if (GSDebugAllocationActive(YES) == NO)
 	    {
@@ -1430,7 +1448,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = [NSString stringWithCString: list];
 	    }
 	}
-      else if (comp(wd, @"quit") >= 0)
+      else if (matchCmd(wd, @"quit", blocked))
 	{
 	  m = @"Try 'help quit' for information about shutting down.\n";
 	  wd = cmdWord(cmd, 1);
@@ -1442,7 +1460,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      exit(0);
 	    }
 	}
-      else if (comp(wd, @"restart") >= 0)
+      else if (matchCmd(wd, @"restart", blocked))
         {
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
@@ -1495,7 +1513,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                 @" or 'on host restart ...\n";
             }
         }
-      else if (comp(wd, @"set") >= 0)
+      else if (matchCmd(wd, @"set", blocked))
 	{
 	  m = @"ok - set confirmed.\n";
 	  wd = cmdWord(cmd, 1);
@@ -1545,11 +1563,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"unknown parameter to 'set'\n";
 	    }
 	}
-      else if (comp(wd, @"status") >= 0)
+      else if (matchCmd(wd, @"status", blocked))
 	{
 	  m = [self description];
 	}
-      else if (comp(wd, @"suppress") >= 0)
+      else if (matchCmd(wd, @"suppress", blocked))
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -1590,7 +1608,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	        @"external SNMP monitoring systems.\n";
 	    }
 	}
-      else if (comp(wd, @"tell") >= 0)
+      else if (matchCmd(wd, @"tell", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -1629,7 +1647,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"Tell where?.\n";
 	    }
 	}
-      else if (comp(wd, @"unset") >= 0)
+      else if (matchCmd(wd, @"unset", blocked))
 	{
 	  m = @"ok - unset confirmed.\n";
 	  wd = cmdWord(cmd, 1);
@@ -3338,6 +3356,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
           ASSIGN(config, root);
 	}
     }
+
+  [self ecOperators: operators];
 
   if (YES == changed)
     {

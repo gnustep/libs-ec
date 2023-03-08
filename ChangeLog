@@ -1,3 +1,13 @@
+2023-03-08 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m:
+	* EcControl.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	* Operators.plist:
+	Implement a Blocked array to list the commands that an operator should
+	not be allowed to perform.
+
 2023-02-14 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m: When using the 'defaults' command from the Console,

@@ -105,6 +105,19 @@ static int	comp(NSString *s0, NSString *s1)
     }
 }
 
+static BOOL matchCmd(NSString *word, NSString *reference, NSArray *blocked)
+{
+  if (comp(word, reference) < 0)
+    {
+      return NO;
+    }
+  if ([blocked containsObject: reference])
+    {
+      return NO;
+    }
+  return YES;
+}
+
 static NSString*
 cmdWord(NSArray* a, unsigned int pos)
 {
@@ -4318,6 +4331,7 @@ NSLog(@"Problem %@", localException);
     }
   else if (t == nil)
     {
+      NSArray   *blocked = [self ecBlocked: f];
       NSString	*m = @"";
       NSString	*wd = cmdWord(cmd, 0);
 
@@ -4325,7 +4339,7 @@ NSLog(@"Problem %@", localException);
 	{
 	  /* Quietly ignore.	*/
 	}
-      else if (comp(wd, @"alarms") >= 0)
+      else if (matchCmd(wd, @"alarms", blocked))
         {
 	  NSMutableArray	*a = [NSMutableArray array];
           NSEnumerator          *e = [launchInfo objectEnumerator];
@@ -4356,14 +4370,14 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (comp(wd, @"archive") >= 0)
+      else if (matchCmd(wd, @"archive", blocked))
 	{
 	  NSCalendarDate	*when;
 
 	  m = [NSString stringWithFormat: @"\n%@\n", [self ecArchive: nil]];
 	  when = [NSCalendarDate date];
 	}
-      else if (comp(wd, @"clear") >= 0)
+      else if (matchCmd(wd, @"clear", blocked))
         {
 	  NSMutableArray	*a = [NSMutableArray array];
           NSEnumerator          *e = [launchInfo objectEnumerator];
@@ -4444,7 +4458,7 @@ NSLog(@"Problem %@", localException);
                 }
             }
         }
-      else if (comp(wd, @"help") >= 0)
+      else if (matchCmd(wd, @"help", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -4565,7 +4579,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (comp(wd, @"launch") >= 0)
+      else if (matchCmd(wd, @"launch", blocked))
 	{
           if (NO == launchEnabled)
             {
@@ -4711,7 +4725,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"I need the name of a program to launch.\n";
 	    }
 	}
-      else if (comp(wd, @"list") >= 0)
+      else if (matchCmd(wd, @"list", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0 || comp(wd, @"clients") >= 0)
@@ -4819,7 +4833,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (comp(wd, @"memory") >= 0)
+      else if (matchCmd(wd, @"memory", blocked))
 	{
 	  if (GSDebugAllocationActive(YES) == NO)
 	    {
@@ -4842,7 +4856,7 @@ NSLog(@"Problem %@", localException);
 	      m = [NSString stringWithCString: list];
 	    }
 	}
-      else if (comp(wd, @"quit") >= 0)
+      else if (matchCmd(wd, @"quit", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -4958,7 +4972,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"Quit what?.\n";
 	    }
 	}
-      else if (comp(wd, @"restart") >= 0)
+      else if (matchCmd(wd, @"restart", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -5061,7 +5075,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"Restart what?.\n";
 	    }
 	}
-      else if (comp(wd, @"resume") >= 0)
+      else if (matchCmd(wd, @"resume", blocked))
         {
           if (NO == launchEnabled)
             {
@@ -5075,7 +5089,7 @@ NSLog(@"Problem %@", localException);
               m = @"Launching was/is not suspended.\n";
             }
         }
-      else if (comp(wd, @"status") >= 0)
+      else if (matchCmd(wd, @"status", blocked))
         {
           m = [self description];
 	  if ([(wd = cmdWord(cmd, 1)) length] > 0)
@@ -5123,7 +5137,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
         }
-      else if (comp(wd, @"suspend") >= 0)
+      else if (matchCmd(wd, @"suspend", blocked))
         {
           if (NO == launchEnabled)
             {
@@ -5135,7 +5149,7 @@ NSLog(@"Problem %@", localException);
               m = @"Launching is now suspended.\n";
             }
         }
-      else if (comp(wd, @"tell") >= 0)
+      else if (matchCmd(wd, @"tell", blocked))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -7157,6 +7171,7 @@ NSLog(@"Unregister with status %d", s);
     {
       [newConfig setObject: operators forKey: @"Operators"];
     }
+  [self ecOperators: operators];
 
   /* Finally, replace old config with new if they differ.
    */

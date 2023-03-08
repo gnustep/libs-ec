@@ -1019,7 +1019,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * argument will be nil (and your method should respond with a short 
  * description of the command).
  */
-- (NSString*) cmdMesg: (NSArray*)msg;
+- (NSString*) ecMesg: (NSArray*)msg from: (NSString*)operator;
 
 /** Attempt to establish connection to Command server etc.
  * Return a proxy to that server if it is available.
@@ -1169,9 +1169,18 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) cmdMatch: (NSString*)val toKey: (NSString*)key;
 
+/** Returns an array of commands that the named operator is not permitted
+ * to use.
+ */
+- (NSArray*) ecBlocked: (NSString*)operator;
+
+/** Sets the operator config.
+ */
+- (void) ecOperators: (NSDictionary*)operators;
+
 /** Handle with care - this method invokes the cmdMesg... methods.
  */
-- (NSString*) cmdMesg: (NSArray*)msg;
+- (NSString*) ecMesg: (NSArray*)msg from: (NSString*)operator;
 
 /** Returns the name by which this process is known to the Command server.
  */
