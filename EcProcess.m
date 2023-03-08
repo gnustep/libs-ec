@@ -4723,7 +4723,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	{
 	  NSString	*mode = (NSString*)[msg objectAtIndex: 1];
 	  NSString	*key = (NSString*)[msg objectAtIndex: 2];
-	  NSString	*k2;
 	  unsigned	hours = 0;	
           id            old;
           id            val;
@@ -4734,15 +4733,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	    && (hours = [key intValue]) > 0 && hours <= 168)
 	    {
 	      key = (NSString*)[msg objectAtIndex: 3];
-	    }
-
-	  /* If we support a prefix and the key was supplied without it,
-	   * we want k2 to contain the version of the key with the prefix.
-	   */
-	  k2 = [cmdDefs key: key];
-	  if ([k2 isEqualToString: key])
-	    {
-	      k2 = nil;
 	    }
 
           old = [cmdDefs objectForKey: key];
@@ -4760,11 +4750,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                 }
               else
                 {
-                  [cmdDefs setCommand: nil forKey: key];
-                  if (k2)
-                    {
-                      [cmdDefs setCommand: nil forKey: k2];
-                    }
+                  [cmdDefs setCommand: nil forKey: [cmdDefs key: key]];
                   val = [cmdDefs objectForKey: key];
                 }
             }
@@ -4786,11 +4772,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		  NSTimeInterval	t = hours * 60.0 * 60.0;
 
                   val = [msg objectAtIndex: 4];
-                  [cmdDefs setCommand: val forKey: key lifetime: t];
-		  if (k2)
-                    {
-                      [cmdDefs setCommand: val forKey: k2 lifetime: t];
-                    }
+                  [cmdDefs setCommand: val
+			       forKey: [cmdDefs key: key]
+			     lifetime: t];
                   val = [cmdDefs objectForKey: key];
                 }
               else if ([msg count] == 4)
@@ -4822,11 +4806,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               else if ([msg count] == 4)
                 {
                   val = [msg objectAtIndex: 3];
-                  [cmdDefs setCommand: val forKey: key];
-                  if (k2)
-                    {
-                      [cmdDefs setCommand: val forKey: k2];
-                    }
+                  [cmdDefs setCommand: val forKey: [cmdDefs key: key]];
                   val = [cmdDefs objectForKey: key];
                 }
               else if ([msg count] == 3)
