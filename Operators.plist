@@ -25,7 +25,10 @@
    * default operator (or no default operator), all commands are available,
    * but otherwise any error in the config (a Commands entry which is neither
    * a string nor an array, or a string which does not reference an operator
-   * entry with a Command arry) means that no commands are available.
+   * entry with a Command array) means that no commands are available.
+   * An entry of the form 'Commands = ();' for the default operator is
+   * sufficient to disable all commands for all operators until/unless
+   * commands are specifically enabled for them.
    *
    * NB. There are a few special cases for commands as follows:
    * The 'quit' command is always permitted for the Console itself, and
@@ -33,6 +36,9 @@
    * The special key words for routing commands; 'connect', 'tell', and 'on'
    * are not considered to be commands and therefore do not need to be
    * listed in Commands arrays.
+   * The 'config' command needs to be listed for at least one operator in
+   * order to be able to change configuration.  Without it, configuration
+   * could only be changed by killing and restarting the Control server.
    *
    * Just add a definition for yourself as below:
    */
