@@ -1,12 +1,39 @@
 {
   /* This file configures the names/passwords of the people allowed to use
-   * the Console program to control the system.
+   * the Console program to control the system and the commands that each
+   * operator may use.
+   *
    * On systems where security is not an issue, the Password my be an empty
    * string (allows any login attempt) or may be identical to the username
    * (the user must enter their username as their password).
+   *
    * The format for a hashed password is that created by the mkpasswd
    * program and the crypt() function.  The SHA512 hash (starts '$6$')
    * is preferred.
+   *
+   * As a special case, the password '-' may be used for a dummy operator
+   * entry which does not permit login to the Console, but defines a set
+   * of commands referenced from other entries.
+   *
+   * The (optional) Commands value is either an array listing the commands
+   * that the operator can use, or the name of another operator entry which
+   * contains such a list of commands.
+   *
+   * The omission of the Commands entry means that the commands array is
+   * supplied from the default entry (if there is one).
+   * If there is no Commands entry for the operator, and no entry for the
+   * default operator (or no default operator), all commands are available,
+   * but otherwise any error in the config (a Commands entry which is neither
+   * a string nor an array, or a string which does not reference an operator
+   * entry with a Command arry) means that no commands are available.
+   *
+   * NB. There are a few special cases for commands as follows:
+   * The 'quit' command is always permitted for the Console itself, and
+   * only needs to be listed to quit client processes, Command or Control.
+   * The special key words for routing commands; 'connect', 'tell', and 'on'
+   * are not considered to be commands and therefore do not need to be
+   * listed in Commands arrays.
+   *
    * Just add a definition for yourself as below:
    */
   richard = {
@@ -20,21 +47,23 @@
     Password = "";
   };
 
-  /* If a Blocked array is supplied, the operator is prevented from
-   * using any of the commands listed in the array.
+  /* Where a Commands array is supplied, the operator is prevented from
+   * using any of the commands not listed in the array.
    */
   restricted = {
     Password = hashedPasswordOrUsernameOrEmptyString;
-    Blocked = (
+    Commands = (
       launch,
+      list,
       quit,
-      restart
+      restart,
+      status
     );
   };
 
   /* If the entry with no name exists, it will be used to allow login for
    * any username which doesn't exist in this file.
-   * This entry will also be used to supply a Blocked array for any user
+   * This entry will also be used to supply a Commands array for any user
    * whose own entry does not supply one.
    * The format for a hashed password is that created by the mkpasswd
    * program and the crypt() function.  The SHA512 hash (starts '$6$')
@@ -42,6 +71,9 @@
    */
   "" = {
     Password = hashedPasswordOrEmptyString;
+    Commands = (
+      status
+    );
   };
 
 }

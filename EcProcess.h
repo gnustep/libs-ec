@@ -1169,10 +1169,10 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) cmdMatch: (NSString*)val toKey: (NSString*)key;
 
-/** Returns an array of commands that the named operator is not permitted
+/** Returns an array of commands that the named operator is permitted
  * to use.
  */
-- (NSArray*) ecBlocked: (NSString*)operator;
+- (NSArray*) ecCommands: (NSString*)operator;
 
 /** Sets the operator config.
  */

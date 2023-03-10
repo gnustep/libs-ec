@@ -98,17 +98,17 @@ static int	comp(NSString *s0, NSString *s1)
     }
 }
 
-static BOOL matchCmd(NSString *word, NSString *reference, NSArray *blocked)
+static BOOL matchCmd(NSString *word, NSString *reference, NSArray *allow)
 {
   if (comp(word, reference) < 0)
     {
       return NO;
     }
-  if ([blocked containsObject: reference])
+  if (nil == allow || [allow containsObject: reference])
     {
-      return NO;
+      return YES;
     }
-  return YES;
+  return NO;
 }
 
 static NSString*	cmdWord(NSArray* a, unsigned int pos)
@@ -721,7 +721,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   else
     {
       NSMutableString	*full;
-      NSArray   *blocked;
+      NSArray   *allow;
       NSString	*hname = nil;
       NSString	*m = @"";
       NSString	*wd = cmdWord(cmd, 0);
@@ -845,9 +845,9 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	    }
 	}
 
-      /* Find the commands blocked for this user.
+      /* Find the commands allowed for this user.
        */
-      blocked = [self ecBlocked: [console name]];
+      allow = [self ecCommands: [console name]];
  
       if (connected == YES || hname != nil)
 	{
@@ -965,7 +965,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	{
 	  /* Quietly ignore.	*/
 	}
-      else if (matchCmd(wd, @"alarms", blocked))
+      else if (matchCmd(wd, @"alarms", allow))
 	{
 	  NSArray	*a = [sink alarms];
 
@@ -988,11 +988,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"archive", blocked))
+      else if (matchCmd(wd, @"archive", allow))
 	{
 	  m = [NSString stringWithFormat: @"\n%@\n\n", [self ecArchive: nil]];
 	}
-      else if (matchCmd(wd, @"clear", blocked))
+      else if (matchCmd(wd, @"clear", allow))
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -1054,7 +1054,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	        @"external SNMP monitoring systems.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"connect", blocked))
+      else if (matchCmd(wd, @"connect", nil))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1066,7 +1066,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      [console setConnectedServ: wd];
 	    }
 	}
-      else if (matchCmd(wd, @"config", blocked))
+      else if (matchCmd(wd, @"config", allow))
 	{
 	  BOOL	changed;
 
@@ -1102,13 +1102,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                          to: nil
                        from: nil];
 	}
-      else if (matchCmd(wd, @"flush", blocked))
+      else if (matchCmd(wd, @"flush", allow))
 	{
 	  [alerter flushSms];
 	  [alerter flushEmail];
 	  m = @"Flushed alert messages\n";
 	}
-      else if (matchCmd(wd, @"help", blocked))
+      else if (matchCmd(wd, @"help", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1330,7 +1330,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"host", blocked))
+      else if (matchCmd(wd, @"host", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -1348,7 +1348,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"list", blocked))
+      else if (matchCmd(wd, @"list", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"consoles") >= 0)
@@ -1425,7 +1425,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"memory", blocked))
+      else if (matchCmd(wd, @"memory", allow))
 	{
 	  if (GSDebugAllocationActive(YES) == NO)
 	    {
@@ -1448,7 +1448,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = [NSString stringWithCString: list];
 	    }
 	}
-      else if (matchCmd(wd, @"quit", blocked))
+      else if (matchCmd(wd, @"quit", allow))
 	{
 	  m = @"Try 'help quit' for information about shutting down.\n";
 	  wd = cmdWord(cmd, 1);
@@ -1460,7 +1460,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      exit(0);
 	    }
 	}
-      else if (matchCmd(wd, @"restart", blocked))
+      else if (matchCmd(wd, @"restart", allow))
         {
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
@@ -1513,7 +1513,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                 @" or 'on host restart ...\n";
             }
         }
-      else if (matchCmd(wd, @"set", blocked))
+      else if (matchCmd(wd, @"set", allow))
 	{
 	  m = @"ok - set confirmed.\n";
 	  wd = cmdWord(cmd, 1);
@@ -1563,11 +1563,11 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"unknown parameter to 'set'\n";
 	    }
 	}
-      else if (matchCmd(wd, @"status", blocked))
+      else if (matchCmd(wd, @"status", allow))
 	{
 	  m = [self description];
 	}
-      else if (matchCmd(wd, @"suppress", blocked))
+      else if (matchCmd(wd, @"suppress", allow))
 	{
 	  NSArray	*a = [sink alarms];
 	  unsigned	index = 1;
@@ -1608,7 +1608,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	        @"external SNMP monitoring systems.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"tell", blocked))
+      else if (matchCmd(wd, @"tell", nil))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -1647,7 +1647,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      m = @"Tell where?.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"unset", blocked))
+      else if (matchCmd(wd, @"unset", allow))
 	{
 	  m = @"ok - unset confirmed.\n";
 	  wd = cmdWord(cmd, 1);
@@ -2317,12 +2317,26 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  return @"Unknown user name";
 	}
 
-      /* We have three cases:
+      /* We have four cases:
        * Empty/missing Password ... can log in without a password
        * Password == User ... can log in with username as password
+       * Password == '-' ... login prohibited
        * Other ... the entered password must hash to the stored one
        *  (or be equal to the stored one if built without crypt).
        */
+      if ([passwd isEqual: @"-"])
+        {
+          m = [NSString stringWithFormat:
+            cmdLogFormat(LT_AUDIT,
+            @"CONSOLE_LOGIN_FAILED 1 Rejected console with"
+            @" info '%@' (prohibited user)"), n];
+          [self information: m
+                       type: LT_AUDIT
+                         to: nil
+                       from: nil];
+          return @"Bad username/password combination";
+        }
+
       if (passwd && [passwd length])
         {
 #if     defined(HAVE_LIBCRYPT)

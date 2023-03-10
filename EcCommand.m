@@ -105,17 +105,17 @@ static int	comp(NSString *s0, NSString *s1)
     }
 }
 
-static BOOL matchCmd(NSString *word, NSString *reference, NSArray *blocked)
+static BOOL matchCmd(NSString *word, NSString *reference, NSArray *allow)
 {
   if (comp(word, reference) < 0)
     {
       return NO;
     }
-  if ([blocked containsObject: reference])
+  if (nil == allow || [allow containsObject: reference])
     {
-      return NO;
+      return YES;
     }
-  return YES;
+  return NO;
 }
 
 static NSString*
@@ -4331,7 +4331,7 @@ NSLog(@"Problem %@", localException);
     }
   else if (t == nil)
     {
-      NSArray   *blocked = [self ecBlocked: f];
+      NSArray   *allow = [self ecCommands: f];
       NSString	*m = @"";
       NSString	*wd = cmdWord(cmd, 0);
 
@@ -4339,7 +4339,7 @@ NSLog(@"Problem %@", localException);
 	{
 	  /* Quietly ignore.	*/
 	}
-      else if (matchCmd(wd, @"alarms", blocked))
+      else if (matchCmd(wd, @"alarms", allow))
         {
 	  NSMutableArray	*a = [NSMutableArray array];
           NSEnumerator          *e = [launchInfo objectEnumerator];
@@ -4370,14 +4370,14 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"archive", blocked))
+      else if (matchCmd(wd, @"archive", allow))
 	{
 	  NSCalendarDate	*when;
 
 	  m = [NSString stringWithFormat: @"\n%@\n", [self ecArchive: nil]];
 	  when = [NSCalendarDate date];
 	}
-      else if (matchCmd(wd, @"clear", blocked))
+      else if (matchCmd(wd, @"clear", allow))
         {
 	  NSMutableArray	*a = [NSMutableArray array];
           NSEnumerator          *e = [launchInfo objectEnumerator];
@@ -4458,7 +4458,7 @@ NSLog(@"Problem %@", localException);
                 }
             }
         }
-      else if (matchCmd(wd, @"help", blocked))
+      else if (matchCmd(wd, @"help", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0)
@@ -4579,7 +4579,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"launch", blocked))
+      else if (matchCmd(wd, @"launch", allow))
 	{
           if (NO == launchEnabled)
             {
@@ -4725,7 +4725,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"I need the name of a program to launch.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"list", blocked))
+      else if (matchCmd(wd, @"list", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] == 0 || comp(wd, @"clients") >= 0)
@@ -4833,7 +4833,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
 	}
-      else if (matchCmd(wd, @"memory", blocked))
+      else if (matchCmd(wd, @"memory", allow))
 	{
 	  if (GSDebugAllocationActive(YES) == NO)
 	    {
@@ -4856,7 +4856,7 @@ NSLog(@"Problem %@", localException);
 	      m = [NSString stringWithCString: list];
 	    }
 	}
-      else if (matchCmd(wd, @"quit", blocked))
+      else if (matchCmd(wd, @"quit", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -4972,7 +4972,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"Quit what?.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"restart", blocked))
+      else if (matchCmd(wd, @"restart", allow))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
@@ -5075,7 +5075,7 @@ NSLog(@"Problem %@", localException);
 	      m = @"Restart what?.\n";
 	    }
 	}
-      else if (matchCmd(wd, @"resume", blocked))
+      else if (matchCmd(wd, @"resume", allow))
         {
           if (NO == launchEnabled)
             {
@@ -5089,7 +5089,7 @@ NSLog(@"Problem %@", localException);
               m = @"Launching was/is not suspended.\n";
             }
         }
-      else if (matchCmd(wd, @"status", blocked))
+      else if (matchCmd(wd, @"status", allow))
         {
           m = [self description];
 	  if ([(wd = cmdWord(cmd, 1)) length] > 0)
@@ -5137,7 +5137,7 @@ NSLog(@"Problem %@", localException);
 		}
 	    }
         }
-      else if (matchCmd(wd, @"suspend", blocked))
+      else if (matchCmd(wd, @"suspend", allow))
         {
           if (NO == launchEnabled)
             {
@@ -5149,7 +5149,7 @@ NSLog(@"Problem %@", localException);
               m = @"Launching is now suspended.\n";
             }
         }
-      else if (matchCmd(wd, @"tell", blocked))
+      else if (matchCmd(wd, @"tell", nil))
 	{
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)

@@ -994,7 +994,7 @@ setMemBase()
  * if there was a match but it was in the array of commands to be blockd.
  */
 static NSString*
-findAction(NSString *cmd, NSArray *blocked)
+findAction(NSString *cmd, NSArray *allow)
 {
   NSString	*found = nil;
   BOOL          match = NO;
@@ -1002,7 +1002,7 @@ findAction(NSString *cmd, NSArray *blocked)
   cmd = [cmd lowercaseString];
   [ecLock lock];
   if (nil == (found = [cmdActions member: cmd])
-    || [blocked containsObject: found])
+    || (allow && NO == [allow containsObject: found]))
     {
       NSEnumerator	*enumerator;
       NSString		*name;
@@ -1018,9 +1018,9 @@ findAction(NSString *cmd, NSArray *blocked)
 	  if (YES == [name hasPrefix: cmd])
 	    {
               match = YES;
-              if ([blocked containsObject: name])
+              if (allow && NO == [allow containsObject: name])
                 {
-                  continue;     // This match is blocked
+                  continue;     // This match is not allowed
                 }
 	      else if (nil == found)
 		{
@@ -4272,11 +4272,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   [ecLock unlock];
 }
 
-- (NSArray*) ecBlocked: (NSString*)operator
+- (NSArray*) ecCommands: (NSString*)operator
 {
-  NSArray       *blocked = nil;
-  NSString	*name;
-  id            obj;
+  static NSArray        *empty = nil;
+  NSArray               *allow = nil;
+  NSString	        *name;
+  id                    obj;
 
   if (nil == operator)
     {
@@ -4297,34 +4298,63 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     }
 
   [ecLock lock];
+  if (nil == empty)
+    {
+      empty = [NSArray new];
+    }
+
   obj = [ecOperators objectForKey: name];
+  if (NO == [obj isKindOfClass: [NSDictionary class]])
+    {
+      NSLog(@"Operator '%@' not found; no access to commands", operator);
+      obj = empty;
+    }
+  else if (nil == [obj objectForKey: @"Commands"] && [name length] > 0)
+    {
+      obj = [ecOperators objectForKey: @""];
+      if (NO == [obj isKindOfClass: [NSDictionary class]])
+        {
+          obj = nil;    // Non-dictionary default entry ignored.
+        }
+    }
   if ([obj isKindOfClass: [NSDictionary class]])
     {
-      obj = [obj objectForKey: @"Blocked"];
-    }
-  else
-    {
-      obj = nil;
-    }
-  if (nil == obj && [operator length] > 0)
-    {
-      obj = [ecOperators objectForKey: @""];    // default
-      if ([obj isKindOfClass: [NSDictionary class]])
+      obj = [obj objectForKey: @"Commands"];
+      if ([obj isKindOfClass: [NSString class]])
         {
-          obj = [obj objectForKey: @"Blocked"];
+          /* A string is the name to get the Commands of another agent.
+           */
+          name = (NSString*)obj;
+          obj = [ecOperators objectForKey: name];
+          if ([obj isKindOfClass: [NSDictionary class]])
+            {
+              obj = [obj objectForKey: @"Commands"];
+              if (NO == [obj isKindOfClass: [NSArray class]])
+                {
+                  NSLog(@"Operator '%@' Commands link to '%@' which does"
+                    @" not have Commands; no access to commands",
+                    operator, name);
+                  obj = empty;
+                }
+            }
+          else
+            {
+              NSLog(@"Operator '%@' Commands link to '%@' not found;"
+                @" no access to commands", operator, name);
+              obj = empty;
+            }
         }
-      else
+      else if (obj != nil && NO == [obj isKindOfClass: [NSArray class]])
         {
-          obj = nil;
+          NSLog(@"Operator '%@' Commands entry invalid;"
+            @" no access to commands", operator);
+          obj = empty;
         }
     }
-  if ([obj isKindOfClass: [NSArray class]])
-    {
-      blocked = (NSArray*)AUTORELEASE(RETAIN(obj));
-    }
+  allow = (NSArray*)AUTORELEASE(RETAIN(obj));
   [ecLock unlock];
 
-  return blocked;
+  return allow;
 }
 
 - (NSString*) ecMesg: (NSArray*)msg from: (NSString*)operator
@@ -4339,7 +4369,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       return @"no command specified\n";
     }
 
-  cmd = findAction([msg objectAtIndex: 0], [self ecBlocked: operator]);
+  cmd = findAction([msg objectAtIndex: 0], [self ecCommands: operator]);
   if (nil == cmd)
     {
       return @"unrecognised command\n";
