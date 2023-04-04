@@ -1455,8 +1455,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
 	    {
 	      [sink setMonitor: nil];
-              [alerter shutdown];
-	      DESTROY(alerter);
+              if (alerter)
+                {
+                  [alerter shutdown];
+                  NSLog(@"Uninstalled alerter: %@",
+                    NSStringFromClass([alerter class]));
+                  DESTROY(alerter);
+                }
 	      exit(0);
 	    }
 	}
@@ -1816,8 +1821,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) dealloc
 {
   [sink setMonitor: nil];
-  [alerter shutdown];
-  DESTROY(alerter);
+  if (alerter)
+    {
+      [alerter shutdown];
+      NSLog(@"Uninstalled alerter: %@",
+        NSStringFromClass([alerter class]));
+      DESTROY(alerter);
+    }
   [self cmdLogEnd: logname];
   if (timer != nil)
     {
@@ -2147,6 +2157,13 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       [self update];		// Regenerate info from Control.plist
       if (nil == alerter)
 	{
+          m = [NSString stringWithFormat:
+            @"Rejected new host '%@' (not ready yet; no alerter) at %@\n",
+            n, [NSDate date]];
+          [self information: m
+                       type: LT_CONSOLE
+                         to: nil
+                       from: nil];
 	  return nil;			// Not fully configured yet
 	}
     }
@@ -3470,12 +3487,18 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       else if ([alerter class] != alerterClass)
         {
 	  [sink setMonitor: nil];
-          [alerter shutdown];
-          DESTROY(alerter);
+          if (alerter)
+            {
+              [alerter shutdown];
+              NSLog(@"Uninstalled alerter: %@",
+                NSStringFromClass([alerter class]));
+              DESTROY(alerter);
+            }
         }
       if (nil == alerter)
         {
           alerter = [alerterClass new];
+          NSLog(@"Installed alerter: %@", NSStringFromClass([alerter class]));
         }
 
       /* An alerter which confrms to the correct protocol is assumed to

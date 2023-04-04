@@ -5515,6 +5515,10 @@ NSLog(@"Problem %@", localException);
               rootProxyForConnectionWithRegisteredName: ctlName
                                                   host: ctlHost
            usingNameServer: [NSSocketPortNameServer sharedInstance] ];
+          if (nil == control)
+            {
+              NSLog(@"Connecting to Control server: faled");
+            }
         }
       NS_HANDLER
         {
@@ -5548,6 +5552,8 @@ NSLog(@"Problem %@", localException);
                 {
                   // Control server not yet ready.
                   DESTROY(control);
+                  NSLog(@"Registering %@ with Control server: not ready yet",
+                    host);
                 }
               else
                 {
@@ -5561,6 +5567,7 @@ NSLog(@"Problem %@", localException);
                   if ([conf objectForKey: @"rejected"] == nil)
                     {
                       [self updateConfig: dat];
+                      NSLog(@"Registered %@ with Control server", host);
                     }
                   else
                     {
