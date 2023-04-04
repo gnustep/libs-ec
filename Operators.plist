@@ -3,21 +3,27 @@
    * the Console program to control the system and the commands that each
    * operator may use.
    *
-   * On systems where security is not an issue, the Password my be an empty
-   * string (allows any login attempt) or may be identical to the username
-   * (the user must enter their username as their password).
+   * There may be a default operator configuration specified (using an empty
+   * string as its name) which behaves specially.
+   *
+   * The Password field normally contains a password hash used to authenticate
+   * login as that operator, but may also be an empty string (allows any login
+   * attempt) or may be identical to the username (the user must enter their
+   * username as their password) or may be a hyphen (to prevent login as that
+   * operator).
    *
    * The format for a hashed password is that created by the mkpasswd
    * program and the crypt() function.  The SHA512 hash (starts '$6$')
    * is preferred.
    *
-   * As a special case, the password '-' may be used for a dummy operator
-   * entry which does not permit login to the Console, but defines a set
-   * of commands referenced from other entries.
-   *
    * The (optional) Commands value is either an array listing the commands
    * that the operator can use, or the name of another operator entry which
-   * contains such a list of commands.
+   * contains such a list of commands. The referenced operator entry defines
+   * a 'role' capable of executing the defined set of commands.
+   *
+   * When the password '-'  is used to prevent login, the Commands setting
+   * of the operator may still be referenced as a role by the entries of
+   * other operators.
    *
    * The omission of the Commands entry means that the commands array is
    * supplied from the default entry (if there is one).
@@ -29,6 +35,13 @@
    * An entry of the form 'Commands = ();' for the default operator is
    * sufficient to disable all commands for all operators until/unless
    * commands are specifically enabled for them.
+   *
+   * It is possible to log in to the Console using an operator name which is
+   * not explicitly configured.  In that case the default operator entry is
+   * used as follows:
+   * 1. The Passord from the default entry is used to permit/refuse the login.
+   * 2. The Commands from the default entry is used to define the commands that
+   * the operator may use, and if this is not present no commands may be used.
    *
    * NB. There are a few special cases for commands as follows:
    * The 'quit' command is always permitted for the Console itself, and
