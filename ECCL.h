@@ -89,8 +89,9 @@
           interactive command-line based interface for controlling the
           entire system via the Control server.<br />
           It may also be used in a non-interactive mode to send commands to
-          any process and wait for responses.  In non-interactive mode the
-          tool uses the following additional
+          any process and wait for responses.  The non-interactive mode is
+          designed to provide a variety of exist status for use in scripting.
+          In non-interactive mode the tool uses the following additional
           command-line-arguments/user-default-keys and/or
           environment variables:
         </p> 
@@ -99,21 +100,25 @@
         Pass (or the ConsolePass environment variable) specifies the
         password for the user login to the Control server.<br />
         Line (or the ConsoleLine environment variable) specifies the
-        command line to be used (as if type in interactively).
+        command line to be used (as if typed in interactively).
         If the command line is sent, the process exit status is 0, but
         if a failure occurs the status is 1 (except as noted below).<br />
         Wait (or the ConsoleWait environment variable) specifies the
-        number of seconds to wait for the result of the command.
+        number of seconds to wait for a Want/Fail pattern to be matched.
         If this timeout occurs, the process exit status is 2.<br />
         Want (or the ConsoleWant environment variable) specifies the
-        regular expression to match a single line success response to the
-        command.<br />
+        regular expression to match a single line success message to the
+        Console process.  If this response is matched the process exit
+        status is 0.<br />
         Fail (or the ConsoleFail environment variable) specifies the regular
-        expression to match a single line failure response to the command.
+        expression to match a single line failure message to the Console
+        process.
         If this response is matched, the process exit status is 3.<br />
+        While waiting for a pattern to be matched, any messages received
+        by the Console process are provided as output (to STDOUT).<br />
         Quiet (or the ConsoleQuiet environment variable) is a boolean
         which, if true, will suppress any output while waiting for a
-        response.<br />
+        pattern to be matched.<br />
 	If the Control server cannot be contacted, the process exit status
 	is 10.<br />
 	If the Control server actively refuses the login, the exit status
