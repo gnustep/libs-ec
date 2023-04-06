@@ -107,12 +107,10 @@
         number of seconds to wait for a Want/Fail pattern to be matched.
         If this timeout occurs, the process exit status is 2.<br />
         Want (or the ConsoleWant environment variable) specifies the
-        regular expression to match a single line success message to the
-        Console process.  If this response is matched the process exit
-        status is 0.<br />
+        regular expression to match a single message to the Console process.
+        If this response is matched the process exit status is 0.<br />
         Fail (or the ConsoleFail environment variable) specifies the regular
-        expression to match a single line failure message to the Console
-        process.
+        expression to match a single message to the Console process.
         If this response is matched, the process exit status is 3.<br />
         While waiting for a pattern to be matched, any messages received
         by the Console process are provided as output (to STDOUT).<br />
@@ -122,7 +120,9 @@
 	If the Control server cannot be contacted, the process exit status
 	is 10.<br />
 	If the Control server actively refuses the login, the exit status
-	is 11.
+	is 11.<br />
+        NB. Command line arguments take precedence over environment variables
+        even if the command line aregument is an empty string.
       </section>
 
       <section>

@@ -863,8 +863,7 @@ static NSString	*originalUserName = nil;
 		}
 	    }
 
-          s = [defs stringForKey: @"Line"];
-          if (0 == [s length])
+          if (nil == (s = [defs stringForKey: @"Line"]))
             {
               s = [env objectForKey: @"ConsoleLine"];
             }
@@ -874,9 +873,10 @@ static NSString	*originalUserName = nil;
 
               /* Now, we may delay for 'Wait' seconds looking for a response
                * containing the 'Want' pattern or the 'Fail' pattern.
+               * An empty string as a command line argument turns off
+               * pattern matching specified in the environment.
                */
-              s = [defs stringForKey: @"Want"];
-              if (0 == [s length])
+              if (nil == (s = [defs stringForKey: @"Want"]))
                 {
                   s = [env objectForKey: @"ConsoleWant"];
                 }
@@ -886,8 +886,7 @@ static NSString	*originalUserName = nil;
                                                               options: 0
                                                                 error: 0];
                 }
-              s = [defs stringForKey: @"Fail"];
-              if (0 == [s length])
+              if (nil == (s = [defs stringForKey: @"Fail"]))
                 {
                   s = [env objectForKey: @"ConsoleFail"];
                 }
@@ -901,8 +900,7 @@ static NSString	*originalUserName = nil;
                 {
                   NSTimeInterval    ti;
 
-                  s = [defs stringForKey: @"Wait"];
-                  if (0 == [s length])
+                  if (nil == (s = [defs stringForKey: @"Wait"]))
                     {
                       s = [env objectForKey: @"ConsoleWait"];
                       if (0 == [s length])
@@ -915,8 +913,17 @@ static NSString	*originalUserName = nil;
                     target: self selector: @selector(waitEnded:)
                     userInfo: nil repeats: NO];
 
-                  if (YES == [defs boolForKey: @"Quiet"]
-                    || YES == [[env objectForKey: @"ConsoleQuiet"] boolValue])
+                  if ([defs objectForKey: @"Quiet"])
+                    {
+                      if ([defs boolForKey: @"Quiet"])
+                        {
+                          /* If we don't want any output, return without
+                           * setting the output channel up.
+                           */
+                          return self;
+                        }
+                    }
+                  else if ([[env objectForKey: @"ConsoleQuiet"] boolValue])
                     {
                       /* If we don't want any output, return without
                        * setting the output channel up.
