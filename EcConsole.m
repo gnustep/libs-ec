@@ -583,7 +583,7 @@ static NSString	*originalUserName = nil;
     }
 }
 
-- (void) doLine:(NSString *)_line
+- (void) doLine: (NSString *)_line
 {
   NSAutoreleasePool *arp;
   NSMutableArray *words;
@@ -817,6 +817,9 @@ static NSString	*originalUserName = nil;
 
       if (user && pass)
         {
+          BOOL  mark = NO;
+          BOOL  prompt = YES;
+
           interactive = NO;
 	  server = [NSConnection rootProxyForConnectionWithRegisteredName: name
 	    host: host
@@ -835,6 +838,7 @@ static NSString	*originalUserName = nil;
 		}
 	      [self cmdQuit: 10];
 	      DESTROY(self);
+              return nil;
 	    }
 	  else
 	    {
@@ -862,6 +866,47 @@ static NSString	*originalUserName = nil;
 		  return nil;
 		}
 	    }
+
+          if ([defs objectForKey: @"Mark"])
+            {
+              mark = [defs boolForKey: @"Mark"];
+            }
+          else
+            {
+              if ([env objectForKey: @"ConsoleMark"])
+                {
+                  mark = [[env objectForKey: @"ConsoleMark"] boolValue];
+                }
+            }
+
+          /* Tell the Control server to mark start and end of messages
+           * if required.
+           */
+          if (mark)
+            {
+              [self doCommand: [NSMutableArray arrayWithObjects:
+                @"silent", @"set", @"display", @"mark", nil]];
+            }
+
+          if ([defs objectForKey: @"Prompt"])
+            {
+              prompt = [defs boolForKey: @"Prompt"];
+            }
+          else
+            {
+              if ([env objectForKey: @"ConsolePrompt"])
+                {
+                  prompt = [[env objectForKey: @"ConsolePrompt"] boolValue];
+                }
+            }
+
+          /* Tell the Control server not to prompt if necessary
+           */
+          if (NO == prompt)
+            {
+              [self doCommand: [NSMutableArray arrayWithObjects:
+                @"silent", @"unset", @"display", @"prompt", nil]];
+            }
 
           if (nil == (s = [defs stringForKey: @"Line"]))
             {

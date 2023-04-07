@@ -204,6 +204,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   BOOL		errors;
   BOOL		alerts;
   BOOL          audits;
+  BOOL          mark;
+  BOOL          prompt;
 }
 - (id) initFor: (id)o
 	  name: (NSString*)n
@@ -215,15 +217,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (BOOL) getAudits;
 - (BOOL) getErrors;
 - (BOOL) getGeneral;
+- (BOOL) getMark;
+- (BOOL) getPrompt;
 - (BOOL) getWarnings;
 - (NSString*) pass;
-- (NSString*) promptAfter: (NSString*)msg;
+- (NSString*) promptAfter: (NSString*)msg from: (NSString*)sender;
 - (void) setAlerts: (BOOL)flag;
 - (void) setAudits: (BOOL)flag;
 - (void) setConnectedHost: (NSString*)c;
 - (void) setConnectedServ: (NSString*)c;
 - (void) setErrors: (BOOL)flag;
 - (void) setGeneral: (BOOL)flag;
+- (void) setMark: (BOOL)flag;
+- (void) setPrompt: (BOOL)flag;
 - (void) setWarnings: (BOOL)flag;
 @end
 
@@ -267,6 +273,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return general;
 }
 
+- (BOOL) getMark
+{
+  return mark;
+}
+
+- (BOOL) getPrompt
+{
+  return prompt;
+}
+
 - (BOOL) getWarnings
 {
   return warnings;
@@ -288,6 +304,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
       alerts = YES;
       audits = NO;
       errors = YES;
+      mark = NO;
+      prompt = YES;
     }
   return self;
 }
@@ -297,23 +315,40 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
   return pass;
 }
 
-- (NSString*) promptAfter: (NSString*)msg
+- (NSString*) promptAfter: (NSString*)msg from: (NSString*)sender
 {
-  if (chost && cserv)
+  NSString      *sMark = @"";
+  NSString      *eMark = @"";
+
+  if (sender && mark)
     {
-      return [NSString stringWithFormat: @"%@\n%@:%@> ", msg, chost, cserv];
+      sMark = [NSString stringWithFormat: @"[start message from %@]\n", sender];
+      eMark = [NSString stringWithFormat: @"\n[end message from %@]", sender];
+    }
+  if (NO == prompt)
+    {
+      return [NSString stringWithFormat: @"%@%@%@",
+        sMark, msg, eMark];
+    }
+  else if (chost && cserv)
+    {
+      return [NSString stringWithFormat: @"%@%@%@\n%@:%@> ",
+        sMark, msg, eMark, chost, cserv];
     }
   else if (chost)
     {
-      return [NSString stringWithFormat: @"%@\n%@:> ", msg, chost];
+      return [NSString stringWithFormat: @"%@%@%@\n%@:> ",
+        sMark, msg, eMark, chost];
     }
   else if (cserv)
     {
-      return [NSString stringWithFormat: @"%@\n:%@> ", msg, cserv];
+      return [NSString stringWithFormat: @"%@%@%@\n:%@> ",
+        sMark, msg, eMark, cserv];
     }
   else
     {
-      return [NSString stringWithFormat: @"%@\nControl> ", msg];
+      return [NSString stringWithFormat: @"%@%@%@\nControl> ",
+        sMark, msg, eMark];
     }
 }
 
@@ -345,6 +380,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 - (void) setGeneral: (BOOL)flag
 {
   general = flag;
+}
+
+- (void) setMark: (BOOL)flag
+{
+  mark = (flag ? YES : NO);
+}
+
+- (void) setPrompt: (BOOL)flag
+{
+  prompt = (flag ? YES : NO);
 }
 
 - (void) setWarnings: (BOOL)flag
@@ -519,7 +564,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 	  NS_DURING
 	    {
-	      [[c obj] information: [c promptAfter: desc]];
+	      [[c obj] information: [c promptAfter: desc from: nil]];
 	    }
 	  NS_HANDLER
 	    {
@@ -689,12 +734,19 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 {
   NSMutableArray	*cmd;
   ConsoleInfo		*console;
+  BOOL                  silent = NO;
 
   cmd = [NSPropertyListSerialization
     propertyListWithData: dat
     options: NSPropertyListMutableContainers
     format: 0
     error: 0];
+  if ([[cmd firstObject] isEqual: @"silent"])
+    {
+      silent = YES;
+      [cmd removeObjectAtIndex: 0];
+    }
+
   console = (ConsoleInfo*)[self findIn: consoles byName: f];
   if (console == nil)
     {
@@ -1272,6 +1324,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"    displays alert (and critical severity alarm) messages.\n"
 		      @"  set display audits\n"
 		      @"    displays audit messages.\n"
+		      @"  set display mark\n"
+		      @"    marks start and end of messages.\n"
+		      @"  set display prompt\n"
+		      @"    outputs a prompt at the end of each message.\n"
 		      @"\n";
 		}
 	      else if (comp(wd, @"Status") >= 0)
@@ -1326,6 +1382,8 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		      @"  unset display errors\n"
 		      @"  unset display alerts\n"
 		      @"  unset display audits\n"
+		      @"  unset display mark\n"
+		      @"  unset display prompt\n"
 		      @"\n";
 		}
 	    }
@@ -1533,10 +1591,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  m = [NSString stringWithFormat: @"display settings -\n"
 		    @"general: %d warnings: %d errors: %d alerts: %d"
-                    @" alerts: %d\n",
+                    @" audits: %d mark:%@ prompt:%@\n",
 		    [console getGeneral], [console getWarnings],
 		    [console getErrors], [console getAlerts],
-                    [console getAudits]];
+                    [console getAudits],
+                    ([console getMark] ? @"yes" : @"no"),
+                    ([console getPrompt] ? @"yes" : @"no")];
 		}
 	      else if (comp(wd, @"alerts") >= 0)
 		{
@@ -1553,6 +1613,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"general") >= 0)
 		{
 		  [console setGeneral: YES];
+		}
+	      else if (comp(wd, @"mark") >= 0)
+		{
+		  [console setMark: YES];
+		}
+	      else if (comp(wd, @"prompt") >= 0)
+		{
+		  [console setPrompt: YES];
 		}
 	      else if (comp(wd, @"warnings") >= 0)
 		{
@@ -1667,10 +1735,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 		{
 		  m = [NSString stringWithFormat: @"display settings -\n"
 		    @"general: %d warnings: %d errors: %d alerts: %d"
-                    @" audits: %d\n",
+                    @" audits: %d mark:%@ prompt:%@\n",
 		    [console getGeneral], [console getWarnings],
 		    [console getErrors], [console getAlerts],
-                    [console getAudits]];
+                    [console getAudits],
+                    ([console getMark] ? @"yes" : @"no"),
+                    ([console getPrompt] ? @"yes" : @"no")];
 		}
 	      else if (comp(wd, @"alerts") >= 0)
 		{
@@ -1687,6 +1757,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	      else if (comp(wd, @"general") >= 0)
 		{
 		  [console setGeneral: NO];
+		}
+	      else if (comp(wd, @"mark") >= 0)
+		{
+		  [console setMark: NO];
+		}
+	      else if (comp(wd, @"prompt") >= 0)
+		{
+		  [console setPrompt: NO];
 		}
 	      else if (comp(wd, @"warnings") >= 0)
 		{
@@ -1707,12 +1785,12 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  m = [NSString stringWithFormat: @"Unknown command - '%@'\n", wd];
 	}
 
-      if (m != nil)
+      if (m != nil && NO == silent)
 	{
 	  [self information: m
 		       type: LT_CONSOLE
 			 to: [console name]
-		       from: nil];
+		       from: ecFullName()];
 	}
     }
 }
@@ -1998,11 +2076,10 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 	  NS_DURING
 	    {
-	      /*
-	       *	Finally - we send the message to the console along with
-	       *	a prompt.
+	      /* Finally - we send the message to the console along with
+	       * a prompt.
 	       */
-	      [[c obj] information: [c promptAfter: inf]];
+	      [[c obj] information: [c promptAfter: inf from: from]];
 	    }
 	  NS_HANDLER
 	    {

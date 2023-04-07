@@ -5255,7 +5255,7 @@ NSLog(@"Problem %@", localException);
 	  m = [NSString stringWithFormat: @"Unknown command - '%@'\n", wd];
 	}
 
-      [self information: m from: t to: f type: LT_CONSOLE];
+      [self reply: m to: f from: ecFullName()];
     }
   else
     {
@@ -6109,6 +6109,8 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
+      NSLog(@"reply: %@ to: %@ from: %@ - discarded (no connection to Control)",
+        msg, n, c);
     }
 }
 

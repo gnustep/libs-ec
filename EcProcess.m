@@ -888,6 +888,23 @@ ecHostName()
   return [name autorelease];
 }
 
+static NSString		*fullName = nil;
+NSString *
+ecFullName()
+{
+  NSString	*name;
+
+  [ecLock lock];
+  if (nil == fullName)
+    {
+      fullName = [[NSString alloc] initWithFormat: @"%@:%@",
+        ecHostName(), cmdLogName()];
+    }
+  name = [fullName retain];
+  [ecLock unlock];
+  return [name autorelease];
+}
+
 static EcAlarmSeverity memAlarm = EcAlarmSeverityMajor;
 static NSString	*memType = nil;
 static NSString	*memUnit = @"KB";
@@ -4418,7 +4435,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     {
       NS_DURING
 	{
-	  [cmdServer reply: val to: name from: cmdLogName()];
+	  [cmdServer reply: val to: name from: ecFullName()];
 	}
       NS_HANDLER
 	{

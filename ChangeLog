@@ -1,3 +1,15 @@
+2023-04-07 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* ECCL.h:
+	* EcCommand.m:
+	* EcConsole.m:
+	* EcControl.m:
+	* EcProcess.h:
+	* EcProcess.m:
+	Add display options 'mark' and 'prompt' to control output format to
+	make it easier to perform pattern matching when using Console in a
+	script.
+
 2023-03-10 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m:

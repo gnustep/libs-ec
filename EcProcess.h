@@ -323,13 +323,14 @@ typedef enum    {
 /*
  *	Useful functions -
  */
-extern void		cmdSetHome(NSString *home);
-extern NSString*	cmdDataDir();
-extern NSString*	cmdLogsDir(NSString *date);
-extern NSString*	cmdLogKey(EcLogType t);
-extern NSString*	cmdLogName();
-extern NSString*	cmdLogFormat(EcLogType t, NSString *fmt);
-extern void             ecSetLogsSubdirectory(NSString *pathComponent);
+extern void	cmdSetHome(NSString *home);
+extern NSString *cmdDataDir();
+extern NSString *cmdLogsDir(NSString *date);
+extern NSString *cmdLogKey(EcLogType t);
+extern NSString *cmdLogName();
+extern NSString *cmdLogFormat(EcLogType t, NSString *fmt);
+extern NSString *ecFullName();
+extern void     ecSetLogsSubdirectory(NSString *pathComponent);
 
 /** Return the native thread ID of the current thread, or NSNotFound if
  * that is not available.
