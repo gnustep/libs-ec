@@ -1389,7 +1389,7 @@ findMode(NSDictionary* d, NSString* s)
   shouldMakeNewConnection: (NSConnection*)newConn
 {
   [EcProc cmdDbg: cmdConnectDbg
-	     msg: @"New connection 0x%p created", newConn];
+	     msg: @"New connection %p created", newConn];
   return YES;
 }
 
@@ -3418,7 +3418,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     {
       [[self ecAlarmDestination] setDestination: nil];
       DESTROY(cmdServer);
-      NSLog(@"lost connection 0x%p to command server\n", connection);
+      NSLog(@"lost connection %p to command server\n", connection);
       /*
        *	Cause timeout to go off really soon so we will try to
        *	re-establish the link to the server.
