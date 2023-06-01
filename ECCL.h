@@ -122,7 +122,7 @@
 	If the Control server actively refuses the login, the exit status
 	is 11.<br />
         NB. Command line arguments take precedence over environment variables
-        even if the command line aregument is an empty string.<br />
+        even if the command line argument is an empty string.<br />
         A couple of extra variables alter the format of output as follows:<br />
         Mark (or the ConsoleMark environment variable) can be set to YES to
         specify that each message is marked with a consistent start and end
