@@ -46,6 +46,7 @@
 #define	DLY	300.0
 #define	FIB	0.1
 
+
 static NSCalendarDate *
 date(NSTimeInterval t)
 {
@@ -1467,10 +1468,72 @@ valgrindLog(NSString *name)
           [task setArguments: args];
 	  [task setEnvironment: env];
 	  [task setLaunchPath: prog];
-          if (home != nil && [home length] > 0)
-            {
-              [task setCurrentDirectoryPath: home];
-            }
+
+	  if ([home isKindOfClass: [NSString class]]
+	    && [(home = [home stringByTrimmingSpaces]) length] > 0)
+	    {
+	      NSFileManager	*mgr = [NSFileManager defaultManager];
+	      NSString		*base = [command ecUserDirectory];
+	      NSString		*dir = home;
+	      BOOL		ok = NO;
+
+	      base = [base stringByStandardizingPath];
+	      dir = [dir stringByStandardizingPath];
+	      if (NO == [dir isAbsolutePath])
+		{
+		  dir = [base stringByAppendingPathComponent: home];
+	          dir = [dir stringByStandardizingPath];
+		}
+	      if ([mgr fileExistsAtPath: dir isDirectory: &ok] == NO
+		|| ok == NO)
+		{
+		  NSLog(@"Failed to find path '%@' (Home '%@') for %@",
+		    dir, home, name);
+		  dir = nil;
+		  home = nil;
+		}
+	      else
+		{
+		  NSUInteger	l = [base length];
+
+		  if ([dir length] > l && [dir hasPrefix: base]
+		    && [dir characterAtIndex: l] == '\\')
+		    {
+		      NSString	*original = home;
+
+		      home = [dir substringFromIndex: l + 1];
+		      if (NO == [original isEqual: home])
+			{
+			  NSLog(@"Home = '%@' changed to '%@' for %@",
+			    original, home, name);
+			}
+		    }
+		  else
+		    {
+		      NSLog(@"Home = '%@' can't be used for %@",
+			home, name);
+		      home = nil;
+		    }
+		}
+
+	      if (dir)
+		{
+		  if ([mgr isWritableFileAtPath: dir])
+		    {
+		      [task setCurrentDirectoryPath: dir];
+		    }
+		  else
+		    {
+		      NSLog(@"Failed to write path '%@' (Home '%@') for %@",
+			dir, home, name);
+		    }
+		}
+	    }
+	  else
+	    {
+	      NSLog(@"Bad Home = '%@' ignored for %@", home, name);
+	      home = nil;
+	    }
 
 	  if ([task validatedLaunchPath] == nil)
 	    {
@@ -4372,10 +4435,7 @@ NSLog(@"Problem %@", localException);
 	}
       else if (matchCmd(wd, @"archive", allow))
 	{
-	  NSCalendarDate	*when;
-
 	  m = [NSString stringWithFormat: @"\n%@\n", [self ecArchive: nil]];
-	  when = [NSCalendarDate date];
 	}
       else if (matchCmd(wd, @"clear", allow))
         {
@@ -5022,9 +5082,7 @@ NSLog(@"Problem %@", localException);
                 {
 		  unsigned	i;
 		  BOOL		found = NO;
-                  NSDate        *when;
 
-                  when = [NSDate dateWithTimeIntervalSinceNow: 30.0];
 		  for (i = 0; i < [a count]; i++)
 		    {
 		      EcClientI	*c = [a objectAtIndex: i];
@@ -6922,7 +6980,7 @@ NSLog(@"Problem %@", localException);
 
   [task setArguments: args];
   [task setLaunchPath: prog];
-  if (home != nil && [home length] > 0)
+  if (home)
     {
       [task setCurrentDirectoryPath: home];
     }

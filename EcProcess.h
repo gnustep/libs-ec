@@ -189,6 +189,9 @@ typedef enum    {
 /** Asks the client whether it is awake (-ecAwaken has been called)
  */
 - (BOOL) ecDidAwaken;
+/** Asks the client whether it is completely awake (-ecAwaken has ended)
+ */
+- (BOOL) ecDidAwakenCompletely;
 /** Instructs the client process to connect and re-register with the Command
  * server.
  */
@@ -620,7 +623,7 @@ extern NSString*	cmdVersion(NSString *ver);
  * -initWithDefaults: method.<br />
  * The default implementation simply sets the ProgramName and
  * HomeDirectory defaults to the current program name and
- * the current directory ('.').<br />
+ * the user home directory ('.').<br />
  * Subclasses may override this method to provide additional
  * default configuration for processes using them. The returned
  * dictionary is mutable so that a subclass may simply modify
@@ -1335,9 +1338,18 @@ extern NSString*	cmdVersion(NSString *ver);
  * NO otherwise.  You may use this in conjunction with -ecDoLock and
  * -ecUnLock to ensure that you have thread-safe initialisation of your
  * program (though the locking is normally unnecessary if -ecAwaken is
- * only called from -ecRun).
+ * only called from -ecRun).<br />
+ * As long as subclasses call the superclass implementation of -ecAwaken
+ * at the start of their own implementation, this will be true during the
+ * entire awakening process.
  */
 - (BOOL) ecDidAwaken;
+
+/** Returns YES if the internbal call to the -ecAwaken method has ended,
+ * NO otherwise.  This should tell you whether the process has completely
+ * woken up.
+ */
+- (BOOL) ecDidAwakenCompletely;
 
 /** Records the timestamp of the latest significant input for this process.
  * If when is nil the current timestmp is used.

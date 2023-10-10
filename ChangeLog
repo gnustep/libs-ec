@@ -1,3 +1,19 @@
+2023-10-07 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h: clarify comment a little
+	* EcCommand.m: Check that the Home configured in the launch
+	information is (if defined) a relative path inside the ECCL
+	user directory, that the Home directory exists, and that it
+	is writable.
+	Create a debug log of any problems.
+
+2023-07-25 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	* EcTest.m:
+	Add -ecDidAwakenCompletely
+
 2023-04-07 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* ECCL.h:

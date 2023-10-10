@@ -138,7 +138,7 @@ EcTestConnect(NSString *name, NSString *host, NSTimeInterval timeout)
         {
           if (YES == [(EcProcess*)proxy cmdIsClient])
             {
-              if (NO == [(EcProcess*)proxy ecDidAwaken])
+              if (NO == [(EcProcess*)proxy ecDidAwakenCompletely])
                 {
                   /* We must wait for the connected process to register
                    * with the Command server (if it's not transient) and

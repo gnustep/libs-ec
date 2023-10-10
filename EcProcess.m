@@ -2714,6 +2714,7 @@ static NSString	*noFiles = @"No log files to archive";
 }
 
 static BOOL     ecDidAwaken = NO;
+static BOOL     ecDidAwakenCompletely = NO;
 
 - (void) ecAwaken
 {
@@ -2773,6 +2774,11 @@ static BOOL     ecDidAwaken = NO;
 - (BOOL) ecDidAwaken
 {
   return ecDidAwaken;
+}
+
+- (BOOL) ecDidAwakenCompletely
+{
+  return ecDidAwakenCompletely;
 }
 
 - (oneway void) ecDidQuit
@@ -4007,6 +4013,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   /* Called to permit subclasses to initialise before entering run loop.
    */
   [self ecAwaken];
+  edDidAwakenCompletely = YES;
   RELEASE(arp);
   arp = [NSAutoreleasePool new];
 
