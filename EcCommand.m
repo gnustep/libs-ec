@@ -1518,13 +1518,13 @@ valgrindLog(NSString *name)
 
 	      if (dir)
 		{
-		  if ([mgr isWritableFileAtPath: dir])
+		  if ([mgr isExecutableFileAtPath: dir])
 		    {
 		      [task setCurrentDirectoryPath: dir];
 		    }
 		  else
 		    {
-		      NSLog(@"Failed to write path '%@' (Home '%@') for %@",
+		      NSLog(@"Failed to access path '%@' (Home '%@') for %@",
 			dir, home, name);
 		    }
 		}
