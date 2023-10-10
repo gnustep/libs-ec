@@ -4013,7 +4013,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   /* Called to permit subclasses to initialise before entering run loop.
    */
   [self ecAwaken];
-  edDidAwakenCompletely = YES;
+  ecDidAwakenCompletely = YES;
   RELEASE(arp);
   arp = [NSAutoreleasePool new];
 

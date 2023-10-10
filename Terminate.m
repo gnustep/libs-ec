@@ -79,7 +79,7 @@ main()
       printf("  By default a 30 second shutdown is requested and the\n");
       printf("  command finishes without waiting for it to complete.\n");
       printf("  NB. The -CommandName option may be used to specify the name\n");
-      printf("  of an individual process to be terminated (or restarted\n");
+      printf("  of the Command server to be terminated.\n");
       printf("  if that process is configured to autolaunch).\n");
       printf("  Possible exit statuses are:\n");
       printf("  0 termination requested (completed if -Wait was used).\n");
