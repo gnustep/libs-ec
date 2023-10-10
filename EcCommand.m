@@ -1487,7 +1487,7 @@ valgrindLog(NSString *name)
 	      if ([mgr fileExistsAtPath: dir isDirectory: &ok] == NO
 		|| ok == NO)
 		{
-		  NSLog(@"Failed to find path '%@' (Home '%@') for %@",
+		  NSLog(@"Unable to find path '%@' (Home '%@') for %@",
 		    dir, home, name);
 		  dir = nil;
 		  home = nil;
@@ -1518,14 +1518,30 @@ valgrindLog(NSString *name)
 
 	      if (dir)
 		{
-		  if ([mgr isExecutableFileAtPath: dir])
+		  if (NO == [mgr isExecutableFileAtPath: dir])
 		    {
-		      [task setCurrentDirectoryPath: dir];
+		      /* We must be able to change into the home directory
+		       * for the task to execute there.
+		       */
+		      NSLog(@"Unable to access path '%@' (Home '%@') for %@",
+			dir, home, name);
+		      home = nil;
+		      dir = nil;
+		    }
+		  else if ([self mayCoreDump] 
+		    && NO == [mgr isWritableFileAtPath: dir])
+		    {
+		      /* We must be able to write into the home directory
+		       * for the task to be able to code dump.
+		       */
+		      NSLog(@"Unable to write path '%@' (Home '%@') for %@",
+			dir, home, name);
+		      home = nil;
+		      dir = nil;
 		    }
 		  else
 		    {
-		      NSLog(@"Failed to access path '%@' (Home '%@') for %@",
-			dir, home, name);
+		      [task setCurrentDirectoryPath: dir];
 		    }
 		}
 	    }
