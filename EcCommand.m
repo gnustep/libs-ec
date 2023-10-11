@@ -1497,7 +1497,7 @@ valgrindLog(NSString *name)
 		  NSUInteger	l = [base length];
 
 		  if ([dir length] > l && [dir hasPrefix: base]
-		    && [dir characterAtIndex: l] == '\\')
+		    && [dir characterAtIndex: l] == '/')
 		    {
 		      NSString	*original = home;
 
