@@ -23,7 +23,7 @@
     /* Section for the host named localhost
      */
     * = {
-      /* Common section for any/all processses on localhost.
+      /* Common section for any/all processes on localhost.
        */
     };
     Bar = {
@@ -76,7 +76,7 @@
 	 *			about the hung process.  It's arguments will
 	 *			be the process name and the process ID.
 	 * QuitTime = (integer)	If greater than zero this the interval before
-	 *			a process is forcably killed if it is stopping
+	 *			a process is forcibly killed if it is stopping
 	 *			or restarting too slowly.  The default (used
 	 *			if this is not specified and greater than zero)
 	 *			is 120 seconds (or as specified by the
@@ -93,7 +93,7 @@
          * than inheriting the configuration of the Command server) by adding
          * ClientOptionsForTLS = {dictionary};
          * to specify the options used when the child connects to another
-         * process (eg when the mchild registers with the Command server) and
+         * process (eg when the child registers with the Command server) and
          * ServerOptionsForTLS = {dictionary};
          * to specify the options used when another process connects to the
          * child process.
@@ -144,7 +144,7 @@
       LaunchLimit = 20;
 
       /* Specify whether, when the Command server starts, launching of
-       * tasks should be suspeneded (as if the 'suspend' command had been
+       * tasks should be suspended (as if the 'suspend' command had been
        * sent to it from the Console).
        * By default this is NO.
        */
@@ -159,7 +159,7 @@
 
       /* Optionally specify additions to the default environment for launched
        * processes.  This is typically used to modify the information that
-       * comes from the enveironment the Command server was launched in.
+       * comes from the environment the Command server was launched in.
        *  AddE = {
        *  };
        */
