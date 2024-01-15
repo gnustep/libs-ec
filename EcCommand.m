@@ -3790,12 +3790,42 @@ NSLog(@"Problem %@", localException);
 
   if (nil == config || [config isEqual: newConfig] == NO)
     {
-      NSDictionary	*d;
-      NSArray		*a;
-      unsigned		i;
+      NSMutableDictionary	*m;
+      NSDictionary		*d;
+      NSArray			*a;
+      unsigned			i;
 
       ASSIGN(config, newConfig);
+      /* Get the specific Command server config
+       */
       d = [config objectForKey: [self cmdName]];
+      if ([d isKindOfClass: [NSDictionary class]])
+	{
+	  m = AUTORELEASE([d mutableCopy]);
+	}
+      else
+	{
+	  m = [NSMutableDictionary dictionary];
+	}
+      /* Merge in any generic config
+       */
+      d = [config objectForKey: @"*"];
+      if ([d isKindOfClass: [NSDictionary class]] == YES)
+	{
+	  NSEnumerator	*enumerator = [d keyEnumerator];
+	  NSString	*key;
+
+	  while ((key = [enumerator nextObject]) != nil)
+	    {
+	      if ([m objectForKey: key] == nil)
+		{
+		  id	obj = [d objectForKey: key];
+
+		  [m setObject: obj forKey: key];
+		}
+	    }
+	}
+      d = m;
       launchLimit = 0;
       if ([d isKindOfClass: [NSDictionary class]] == YES)
 	{
@@ -3811,10 +3841,7 @@ NSLog(@"Problem %@", localException);
 
           NS_DURING
             {
-              NSMutableDictionary       *m = AUTORELEASE([d mutableCopy]);
-
               [self cmdUpdate: m];
-              d = m;
             }
           NS_HANDLER
             {
@@ -4217,6 +4244,7 @@ NSLog(@"Problem %@", localException);
 	}
       else
 	{
+	  // should be impossible
 	  NSLog(@"No '%@' information in latest config update", [self cmdName]);
 	}
 
@@ -7210,6 +7238,23 @@ NSLog(@"Unregister with status %d", s);
 	  NSMutableDictionary	*general = [dict objectForKey: key];
 	  NSString		*app = key;
 
+	  if (partial && NO == [partial isKindOfClass: [NSDictionary class]])
+	    {
+	      [[self logFile]
+		printf: @"Existing config for %@ not a dictionary\n", app];
+	      continue;
+	    }
+	  if (NO == [general isKindOfClass: [NSDictionary class]])
+	    {
+	      [[self logFile]
+		printf: @"General config for %@ not a dictionary\n", app];
+	      continue;
+	    }
+	  if ([app isEqual: @"*"])
+	    {
+	      [[self logFile]
+		printf: @"Updatng config for '*'\n"];
+	    }
 	  if (partial == nil)
 	    {
 	      /*

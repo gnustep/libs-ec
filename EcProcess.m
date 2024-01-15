@@ -2954,6 +2954,27 @@ static BOOL     ecDidAwakenCompletely = NO;
       NSUInteger        count = [stack count];
       NSUInteger        index;
 
+      /* Delete the frame containign this method, so we show the
+       * trace to the actual point where the method was called.
+       */
+      for (index = 0; index < count; index++)
+	{
+          NSString  	*line = [stack objectAtIndex: index];
+	  NSRange	r;
+	
+	  r = [line rangeOfString:
+	    @"_ecException_specificProblem_perceivedSeverity_message_"];
+	  if (r.length > 0)
+	    {
+	      NSMutableArray	*m = AUTORELEASE([stack mutableCopy]);
+
+	      r = NSMakeRange(0, index + 1);
+	      [m removeObjectsInRange: r];
+	      stack = m;
+	      count = [stack count];
+	      break;
+	    }
+	}
       [full appendString: @"\nCall Stack trace:\n"];
       for (index = 0; index < count; index++)
         {
