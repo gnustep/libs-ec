@@ -1,4 +1,10 @@
-2024-01-R15Richard Frith-Macdonald <rfm@gnu.org>
+2024-02-06 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Combine code for 'quit' into a single method to try
+	to consistently manage shutdown for both running processes and those
+	in the queue attempting to restart.
+
+2024-01-15 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m: Remove excess frame in stack trace log
 	* EcCommand.m: Fixup handling of config update to use the common

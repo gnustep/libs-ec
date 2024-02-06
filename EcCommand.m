@@ -637,7 +637,7 @@ desiredName(Desired state)
 - (void) newConfig: (NSMutableDictionary*)newConfig;
 - (NSFileHandle*) openLog: (NSString*)lname;
 - (void) pingControl;
-- (void) quitAll;
+- (NSString*) quit: (NSString*)name exact: (BOOL)isFullName;
 - (void) requestConfigFor: (id<CmdConfig>)c;
 - (NSData*) registerClient: (id)c
                 identifier: (int)p
@@ -4989,82 +4989,34 @@ NSLog(@"Problem %@", localException);
 		}
 	      else if (comp(wd, @"all") == 0)
 		{
-		  [self quitAll];
+		  [self quit: @"" exact: NO];
 		  m = @"All clients have been asked to shut down.\n";
 		}
+              else if (isdigit([wd characterAtIndex: 0]))
+                {
+                  int   i = [wd intValue];
+
+                  if (i < [clients count])
+                    {
+                      NSString  *n = [[clients objectAtIndex: i] name];
+
+                      m = [self quit: n exact: YES];
+                      if (0 == [m length])
+                        {
+                          m = [NSString stringWithFormat: 
+                            @"Nothing to shut down as '%@'\n", wd];
+                        }
+                    }
+                  else
+                    {
+		      m = [NSString stringWithFormat: 
+			@"Nothing to shut down as '%@'\n", wd];
+                    }
+                }
 	      else
 		{
-		  NSArray	*a;
-		  unsigned	i;
-		  BOOL		found = NO;
-
-		  a = [self findAll: clients byAbbreviation: wd];
-		  for (i = 0; i < [a count]; i++)
-		    {
-		      EcClientI	*c = [a objectAtIndex: i];
-
-		      NS_DURING
-			{
-			  LaunchInfo	*l;
-
-			  m = [m stringByAppendingFormat: 
-			    @"Sending 'quit' to '%@'\n", [c name]];
-			  m = [m stringByAppendingString:
-			    @"  Please wait for this to be 'removed' before "
-			    @"proceeding.\n"];
-			  l = [LaunchInfo existing: [c name]];
-                          if (nil == l)
-                            {
-                              [[c obj] cmdQuit: 0];
-                            }
-                          else
-                            {
-                              [l setManual: YES];       // autolauch overridden
-                              [l stop: @"Console quit command"];
-                              [l checkAbandonedStartup];
-                            }
-			  [self clearAll: [c name]
-				 addText: @"manually stopped"];
-			  found = YES;
-			}
-		      NS_HANDLER
-			{
-			  NSLog(@"Caught exception: %@", localException);
-			}
-		      NS_ENDHANDLER
-		    }
-		  if (NO == found && [launchInfo count] > 0)
-		    {
-		      NSEnumerator	*enumerator;
-		      NSString		*key;
-
-		      enumerator = [launchOrder objectEnumerator];
-		      while ((key = [enumerator nextObject]) != nil)
-			{
-			  if (comp(wd, key) >= 0)
-			    {
-			      LaunchInfo	*l;
-
-                              found = YES;
-			      l = [LaunchInfo existing: key];
-                              if ([l desired] == Dead)
-				{
-				  m = [m stringByAppendingFormat:
-				    @"Suspended %@ already\n", key];
-				}
-			      else
-				{
-                                  [l stop: @"Console quit command"];
-				  m = [m stringByAppendingFormat:
-				    @"Suspended %@\n", key];
-				}
-                              [l checkAbandonedStartup];
-			      [self clearAll: [l name]
-				     addText: @"manually stopped"];
-			    }
-			}
-		    }
-		  if (NO == found)
+                  m = [self quit: wd exact: NO];
+		  if (0 == [m length])
 		    {
 		      m = [NSString stringWithFormat: 
 			@"Nothing to shut down as '%@'\n", wd];
@@ -6053,33 +6005,76 @@ NSLog(@"Problem %@", localException);
   [self information: m from: c to: nil type: t];
 }
 
-- (void) quitAll
+- (NSString*) quit: (NSString*)match exact: (BOOL)isFullName
 {
-  NSEnumerator  *e;
-  LaunchInfo    *l;
-  EcClientI	*c;
+  NSEnumerator  	*e;
+  LaunchInfo    	*l;
+  EcClientI		*c;
+  unsigned		stopped = 0;
+  NSMutableString	*m = [NSMutableString string];
 
   e = [launchInfo objectEnumerator];
   while (nil != (l = [e nextObject]))
     {
-      [l setManual: YES];       // manually stopped
-      [l stop: @"quit all instruction"];
-      [l checkAbandonedStartup];
+      int       result = comp(match, [l name]);
+
+      if (0 == result || (NO == isFullName && result > 0))
+	{
+	  [l setManual: YES];		// manually stopped
+	  if ([l desired] == Dead)
+	    {
+	      [m appendFormat: @"Suspended '%@' already\n", [l name]];
+	    }
+	  else if ([l isStarting])
+	    {
+	      [m appendFormat: @"Cancelled '%@' launch\n", [l name]];
+	      [l stop: @"quit instruction"];
+	    }
+	  else if (NO == [l isActive])
+	    {
+	      [m appendFormat: @"Suspended '%@'\n", [l name]];
+	      [l stop: @"quit instruction"];
+	    }
+	  else
+	    {
+	      stopped++;
+	      [m appendFormat: @"Sending 'quit' to '%@'\n", [l name]];
+	      [l stop: @"quit instruction"];
+	    }
+	  [l checkAbandonedStartup];
+	  [self clearAll: [l name]
+		 addText: @"manually stopped"];
+	}
     }
 
   e = [[self unconfiguredClients] objectEnumerator];
   while (nil != (c = [e nextObject]))
     {
-      NS_DURING
-        {
-          [[c obj] cmdQuit: 0];
-        }
-      NS_HANDLER
-        {
-          NSLog(@"Caught exception: %@", localException);
-        }
-      NS_ENDHANDLER
+      int       result = comp(match, [l name]);
+
+      if (0 == result || (NO == isFullName && result > 0))
+	{
+	  stopped++;
+	  [m appendFormat: @"Sending 'quit' to '%@'\n", [c name]];
+	  NS_DURING
+	    {
+	      [[c obj] cmdQuit: 0];
+	    }
+	  NS_HANDLER
+	    {
+	      NSLog(@"Caught exception: %@", localException);
+	    }
+	  NS_ENDHANDLER
+	  [self clearAll: [l name]
+		 addText: @"manually stopped"];
+	}
     }
+  if (stopped > 0)
+    {
+      [m appendFormat: @"  Please wait for process%@ to be 'removed' before "
+	@"proceeding.\n", (stopped > 1 ? @"es" : @"")];
+    }
+  return m;
 }
 
 /*
@@ -6546,7 +6541,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      [self quitAll];
+      [self quit: @"" exact: NO];
       terminating = [NSTimer scheduledTimerWithTimeInterval: ti + 1.0
 						     target: self
 						   selector: _cmd
