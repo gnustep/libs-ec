@@ -5215,7 +5215,7 @@ NSLog(@"Problem %@", localException);
 	      if (comp(dest, @"all") == 0)
 		{
 		  unsigned	i;
-		  NSArray	*a = [[NSArray alloc] initWithArray: clients];
+		  NSArray	*a = [NSArray arrayWithArray: clients];
 
 		  for (i = 0; i < [a count]; i++)
 		    {
@@ -6957,11 +6957,11 @@ NSLog(@"Problem %@", localException);
 - (void) hungRestart: (LaunchInfo*)l
 {
   NSString              *prog;
-  NSTask                *task;
   NSArray               *args;
   NSString              *base;
   NSString              *home;
   NSString              *pid;
+  NSTask              	*task;
 
   base = [[self ecUserDirectory] stringByAppendingPathComponent: @"DebugLogs"];
 
@@ -7060,7 +7060,7 @@ NSLog(@"Problem %@", localException);
 
 - (void) hungToolTerminated: (NSNotification*)n
 {
-  NSTask        *task = (NSTask*)[n object];
+  NSTask	*task = (NSTask*)[n object];
   NSString      *msg;
 
   if (NSTaskTerminationReasonUncaughtSignal == [task terminationReason])
@@ -7079,6 +7079,8 @@ NSLog(@"Problem %@", localException);
                from: nil
                  to: nil
                type: LT_CONSOLE];
+  /* The task was left retained by -hungRestart: so we must destroy it.
+   */
   RELEASE(task);
 }
 
