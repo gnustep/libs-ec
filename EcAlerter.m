@@ -1677,8 +1677,14 @@ replaceFields(NSDictionary *fields, NSString *template)
 	{
 	  [m setObject: [alarm moComponent]
 		forKey: @"AlarmComponent"];
+	  [m setObject: [EcAlarm stringFromEventType: [alarm eventType]]
+		forKey: @"AlarmEventType"];
 	  [m setObject: [EcAlarm stringFromProbableCause: [alarm probableCause]]
 		forKey: @"AlarmProbableCause"];
+	  [m setObject: [EcAlarm stringFromSeverity: [alarm perceivedSeverity]]
+		forKey: @"AlarmPerceivedSeverity"];
+	  [m setObject: [EcAlarm stringFromTrend: [alarm trendIndicator]]
+		forKey: @"AlarmTrendIndicator"];
 	  [m setObject: [alarm specificProblem]
 		forKey: @"AlarmSpecificProblem"];
 	  [m setObject: [alarm proposedRepairAction]

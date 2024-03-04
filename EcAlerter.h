@@ -271,6 +271,12 @@
  *   <desc>The proposed repair action if the alert is an alarm</desc>
  *   <term>AlarmAdditionalText</term>
  *   <desc>The additional text if the alert is an alarm</desc>
+ *   <term>AlarmEventType</term>
+ *   <desc>The general categorisation of alarm if the alert is an alarm</desc>
+ *   <term>AlarmPerceivedSeverity</term>
+ *   <desc>The severity of alarm if the alert is an alarm</desc>
+ *   <term>AlarmTrendIndicator</term>
+ *   <desc>The severity trend of alarm if the alert is an alarm</desc>
  *   <term>Duration</term>
  *   <desc>The duration (minutes) if the event is an alarm.</desc>
  *   <term>Hours</term>
