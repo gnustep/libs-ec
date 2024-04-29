@@ -1,3 +1,11 @@
+2024-04-29 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcCommand.m: Record the name and host of the Control server so that,
+	if they are changed and the new values don't work, we can still try
+	the old values.  This copes with the situation where the processes
+	start up using values from the NSUserDefaults system but then something
+	in Control.plist overrides those values for the running process.
+
 2024-02-06 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Combine code for 'quit' into a single method to try

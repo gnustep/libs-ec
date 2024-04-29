@@ -5539,6 +5539,8 @@ NSLog(@"Problem %@", localException);
 
   if (nil == control && NO == trying)
     {
+      static NSString	*oldHost = nil;
+      static NSString	*oldName = nil;
       NSUserDefaults	*defs;
       NSString		*ctlName;
       NSString		*ctlHost;
@@ -5564,15 +5566,35 @@ NSLog(@"Problem %@", localException);
 
       NS_DURING
         {
+	  NSSocketPortNameServer	*ns;
+
           NSLog(@"Connecting to %@ on %@", ctlName, ctlHost);
+          ns = [NSSocketPortNameServer sharedInstance];
           control = (id<Control>)[NSConnection
               rootProxyForConnectionWithRegisteredName: ctlName
                                                   host: ctlHost
-           usingNameServer: [NSSocketPortNameServer sharedInstance] ];
+				       usingNameServer: ns];
           if (nil == control)
             {
-              NSLog(@"Connecting to Control server: faled");
+	      if ((oldHost && NO == [oldHost isEqual: ctlHost])
+	        || (oldName && NO == [oldName isEqual: ctlName]))
+		{
+		  NSLog(@"Connecting to %@ on %@", oldName, oldHost);
+		  control = (id<Control>)[NSConnection
+		      rootProxyForConnectionWithRegisteredName: ctlName
+							  host: ctlHost
+				               usingNameServer: ns];
+		  if (control)
+		    {
+		      NSLog(@"Configured name and host pair did not work."
+			@" Used %@ and %@ instead.", oldName, oldHost);
+		    }
+		}
             }
+	  if (nil == control)
+	    {
+	      NSLog(@"Connecting to Control server: failed");
+	    }
         }
       NS_HANDLER
         {
@@ -5583,6 +5605,14 @@ NSLog(@"Problem %@", localException);
       c = control;
       if (RETAIN(c) != nil)
         {
+	  if (NO == [oldHost isEqual: ctlHost])
+	    {
+	      ASSIGN(oldHost, ctlHost);
+	    }
+	  if (NO == [oldName isEqual: ctlName])
+	    {
+	      ASSIGN(oldName, ctlName);
+	    }
           /* Re-initialise control server ping */
           DESTROY(outstanding);
           fwdSequence = 0;
