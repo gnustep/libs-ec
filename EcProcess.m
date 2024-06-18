@@ -5472,7 +5472,7 @@ With two parameters ('maximum' and a number),\n\
                 {
                   if ([op caseInsensitiveCompare: @"class"] == NSOrderedSame)
                     {
-                      GSDebugAllocationActiveRecordingObjects(c);
+                      GSDebugAllocationRecordObjects(c);
                       [self cmdPrintf: @"Recording instances of '%@'.\n", arg];
                     }
                   else if ([op caseInsensitiveCompare: @"list"]
