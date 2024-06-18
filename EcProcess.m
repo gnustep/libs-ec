@@ -5215,7 +5215,7 @@ With the single parameter 'no',\n\
 With the single parameter 'default',\n\
   the gathering of memory usage statistics reverts to the default setting.\n\
 With two parameters ('class' and a class name),\n\
-  new instances of the class are recorded.\n\
+  new instances of the class are recorded/traced.\n\
 With two parameters ('list' and a class),\n\
   recorded instances of the class are reported.\n\
 With two parameters ('alarm' and a severity name),\n\
@@ -5472,23 +5472,25 @@ With two parameters ('maximum' and a number),\n\
                 {
                   if ([op caseInsensitiveCompare: @"class"] == NSOrderedSame)
                     {
-                      GSDebugAllocationRecordObjects(c, YES);
-                      [self cmdPrintf: @"Recording instances of '%@'.\n", arg];
+                      GSDebugAllocationRecordAndTrace(c,
+			YES, (NSObject*(*)(id))1);
+                      [self cmdPrintf: @"Tracking instances of '%@'.\n", arg];
                     }
                   else if ([op caseInsensitiveCompare: @"list"]
 		    == NSOrderedSame)
                     {
-                      NSArray       *array;
-                      NSUInteger    count;
-                      NSUInteger    index;
+                      NSMapTable	*map;
+		      NSEnumerator	*e;
+		      NSObject		*k;
 
-                      array = GSDebugAllocationListRecordedObjects(c);
-                      [self cmdPrintf: @"Current instances of '%@':\n", arg];
-                      count = [array count];
-                      for (index = 0; index < count; index++)
+                      map = GSDebugAllocationTaggedObjects(c);
+                      [self cmdPrintf: @"Tracked instances of '%@':\n", arg];
+		      e = [map keyEnumerator];
+                      while ((k = [e nextObject]) != nil)
                         {
-                          [self cmdPrintf: @"%6lu %@\n",
-                            (unsigned long)index, [array objectAtIndex: index]];
+			  NSObject	*v = [map objectForKey: k];
+
+                          [self cmdPrintf: @"%@ allocated at %@\n", k, v];
                         }
                     }
                   else
