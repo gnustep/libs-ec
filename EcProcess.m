@@ -6516,16 +6516,22 @@ With two parameters ('maximum' and a number),\n\
               [self alarm: a];
             }
         }
-      if (memMaximum > 0 && memPeak > (memMaximum * 1024 * 1024))
-        {
-          if (NO == memRestart)
-            {
-              memRestart = YES;
-              NSLog(@"MemoryMaximum exceeded ... initiating restart");
-              [self ecRestart: @"memory usage limit reached"];
-            }
-          return;
-        }
+      if (memMaximum > 0)
+	{
+          int64_t	excess = memPeak - (memMaximum * 1024 * 1024);
+
+	  if (excess > 0)
+	    {
+	      if (NO == memRestart)
+		{
+		  memRestart = YES;
+		  NSLog(@"MemoryMaximum exceeded by %ll bytes"
+		    @" ... initiating restart", (long long)excess);
+		  [self ecRestart: @"memory usage limit reached"];
+		}
+	      return;
+	    }
+	}
     }
 
   setMemBase();
