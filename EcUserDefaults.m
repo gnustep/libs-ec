@@ -376,7 +376,7 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
     {
       NSDate	*expires = [lifetimes objectForKey: key];
 
-      if ([expires laterDate: now] == now)
+      if ([expires laterDate: now] != expires)
 	{
 	  [lifetimes removeObjectForKey: key];
 	  [overrides removeObjectForKey: key];
