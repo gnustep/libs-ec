@@ -605,8 +605,8 @@ desiredName(Desired state)
   shouldMakeNewConnection: (NSConnection*)newConn;
 - (id) connectionBecameInvalid: (NSNotification*)notification;
 - (NSDictionary*) environment;
-- (NSArray*) findAll: (NSArray*)a
-      byAbbreviation: (NSString*)s;
+- (NSMutableArray*) findAll: (NSArray*)a
+	     byAbbreviation: (NSString*)s;
 - (EcClientI*) findIn: (NSArray*)a
        byAbbreviation: (NSString*)s;
 - (EcClientI*) findIn: (NSArray*)a
@@ -2352,10 +2352,13 @@ valgrindLog(NSString *name)
 
   if (old == desired)
     {
+      NSDate	*old;
+
       NSLog(@"-setDesired:%@ unchanged for %@", desiredName(desired), self);
 
       if (terminateBy != nil && [self isStopping]
-        && [[stoppingTimer fireDate] earlierDate: terminateBy] == terminateBy)
+        && ((old = [stoppingTimer fireDate]) == nil
+	  || [old earlierDate: terminateBy] != old))
         {
           /* Force timer reset to match terminateBy
            */
@@ -4845,7 +4848,7 @@ NSLog(@"Problem %@", localException);
 		  m = @"Current client processes -\n";
 		  for (i = 0; i < [clients count]; i++)
 		    {
-		      EcClientI *c = [clients objectAtIndex: i];
+		      EcClientI 	*c = [clients objectAtIndex: i];
 		      LaunchInfo	*l = [LaunchInfo existing: [c name]];
                       char              *s = "";
 
@@ -5033,8 +5036,8 @@ NSLog(@"Problem %@", localException);
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0)
 	    {
-              NSString  *reason = nil;
-              NSArray   *a = nil;
+              NSString  	*reason = nil;
+              NSMutableArray   	*a = nil;
 
 	      if (comp(wd, @"self") == 0)
 		{
@@ -5064,7 +5067,7 @@ NSLog(@"Problem %@", localException);
 		}
 	      else if (comp(wd, @"all") == 0)
 		{
-		  a = clients;
+		  a = AUTORELEASE([clients mutableCopy]);
                   reason = [NSString stringWithFormat:
                     @"Console 'restart all' from '%@'", f];
                 }
@@ -5076,40 +5079,48 @@ NSLog(@"Problem %@", localException);
                 }
               if (a != nil)
                 {
-		  unsigned	i;
-		  BOOL		found = NO;
+		  unsigned		i = [a count];
+		  BOOL			found = NO;
 
+		  while (i-- > 0)
+		    {
+		      EcClientI		*c = [a objectAtIndex: i];
+		      LaunchInfo	*l = [LaunchInfo existing: [c name]];
+
+		      if ([l isActive])
+			{
+			  [a replaceObjectAtIndex: i withObject: l];
+			}
+		      else
+			{
+			  [a removeObjectAtIndex: i];
+			}
+		    }
 		  for (i = 0; i < [a count]; i++)
 		    {
-		      EcClientI	*c = [a objectAtIndex: i];
+		      LaunchInfo	*l = [a objectAtIndex: i];
 
 		      NS_DURING
 			{
-			  LaunchInfo	*l;
+			  NSString  *when = @"shortly";
 
-			  l = [LaunchInfo existing: [c name]];
-                          if ([l isActive])
-                            {
-                              NSString  *when = @"shortly";
-
-                              if ([l hungDate] > 0.0)
-                                {
-                                  when = [NSString stringWithFormat:
-                                    @"in about %d seconds", (int)quitTime];
-                                }
-                              m = [m stringByAppendingFormat: 
-                                @"  The process '%@' should restart %@.\n",
-                                [l name], when];
-                              if ([l hungDate] > 0.0 && NO == [l isStopping])
-                                {
-                                  [self hungRestart: l];
-                                }
-                              else
-                                {
-                                  [l restart: reason];
-                                }
-                              found = YES;
-                            }
+			  if ([l hungDate] > 0.0)
+			    {
+			      when = [NSString stringWithFormat:
+				@"in about %d seconds", (int)quitTime];
+			    }
+			  m = [m stringByAppendingFormat: 
+			    @"  The process '%@' should restart %@.\n",
+			    [l name], when];
+			  if ([l hungDate] > 0.0 && NO == [l isStopping])
+			    {
+			      [self hungRestart: l];
+			    }
+			  else
+			    {
+			      [l restart: reason];
+			    }
+			  found = YES;
 			}
 		      NS_HANDLER
 			{
@@ -5717,8 +5728,8 @@ NSLog(@"Problem %@", localException);
   return environment;
 }
 
-- (NSArray*) findAll: (NSArray*)a
-      byAbbreviation: (NSString*)s
+- (NSMutableArray*) findAll: (NSArray*)a
+	     byAbbreviation: (NSString*)s
 {
   NSMutableArray	*r = [NSMutableArray arrayWithCapacity: 4];
   int			i;
