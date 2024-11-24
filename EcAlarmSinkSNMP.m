@@ -1225,13 +1225,13 @@ objectsTable_handler(netsnmp_mib_handler *handler,
 
       /* Get archived current alarms and add them to the active SNMP table.
        */
-      archive = [[d objectForKey: @"AlarmsActive"] mutableCopy];
+      archive = [d objectForKey: @"AlarmsActive"];
       if (nil != archive)
 	{
           NS_DURING
             {
-              _alarmsActive
-                = [[NSUnarchiver unarchiveObjectWithData: archive] retain];
+              ASSIGN(_alarmsActive,
+                [NSUnarchiver unarchiveObjectWithData: archive]);
               if (NO == [_alarmsActive isKindOfClass: [NSMutableSet class]])
                 {
                   NSLog(@"AlarmsActive loaded as bad class: %@",
