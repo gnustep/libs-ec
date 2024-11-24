@@ -508,9 +508,8 @@ static NSString	*originalUserName = nil;
 	    {
 	      NSString	*reject;
 
-	      [rnam release];
-	      rnam = [NSString stringWithFormat: @"%@:%@", user, local];
-	      [rnam retain];
+	      ASSIGN(rnam,
+	        ([NSString stringWithFormat: @"%@:%@", user, local]));
 
 	      [server retain];
 	      [server setProtocolForProxy: @protocol(Control)];
@@ -813,7 +812,7 @@ static NSString	*originalUserName = nil;
           pass = [[env objectForKey: @"ConsolePass"] retain];
         }
 
-      rnam = [[NSString stringWithFormat: @"%@:%@", user, local] retain];
+      ASSIGN(rnam, ([NSString stringWithFormat: @"%@:%@", user, local]));
 
       if (user && pass)
         {
@@ -1060,15 +1059,19 @@ static EcConsole *rlConsole = nil;
 static void
 readlineReadALine(char *_line)
 {
-  NSString *s = _line ? [[NSString alloc] initWithCString: _line] : nil;
-  
-  [rlConsole doLine: s];
-  
-  if (_line != NULL && strlen(_line) > 0)
+  NSString *s = nil;
+
+  if (_line)
     {
-      add_history(_line);
+      s = [[NSString alloc] initWithCString: _line];
+      if (strlen(_line) > 0)
+        {
+          add_history(_line);
+        }
+      free(_line);
     }
-  
+
+  [rlConsole doLine: s];
   DESTROY(s);
 }
 
@@ -1219,8 +1222,8 @@ consoleCompleter(const char *text, int start, int end)
       
       self->user = [u retain];
       self->pass = [p retain];
-      self->rnam = 
-	[[NSString alloc] initWithFormat: @"%@:%@", self->user, self->local];
+      ASSIGN(self->rnam,
+	([NSString stringWithFormat: @"%@:%@", self->user, self->local]));
       
       reject = [self->server registerConsole: self 
 				        name: self->rnam
