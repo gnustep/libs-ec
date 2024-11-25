@@ -725,7 +725,16 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
 - (oneway void) cmdQuit: (NSInteger)status
 {
+  [sink setMonitor: nil];
+  if (alerter)
+    {
+      [alerter shutdown];
+      NSLog(@"Uninstalled alerter: %@",
+	NSStringFromClass([alerter class]));
+      DESTROY(alerter);
+    }
   [sink shutdown];
+  DESTROY(sink);
   exit (status);
 }
 
@@ -1512,15 +1521,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 	  wd = cmdWord(cmd, 1);
 	  if ([wd length] > 0 && comp(wd, @"self") == 0)
 	    {
-	      [sink setMonitor: nil];
-              if (alerter)
-                {
-                  [alerter shutdown];
-                  NSLog(@"Uninstalled alerter: %@",
-                    NSStringFromClass([alerter class]));
-                  DESTROY(alerter);
-                }
-	      exit(0);
+	      [self cmdQuit: 0];
 	    }
 	}
       else if (matchCmd(wd, @"restart", allow))
@@ -1534,7 +1535,7 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
                                type: LT_CONSOLE
                                  to: nil
                                from: nil];
-                  exit(-1);          // Watcher should restart us
+		  [self cmdQuit: -1];	// Watcher should restart us
                 }
               else
                 {
@@ -2182,6 +2183,14 @@ static NSString*	cmdWord(NSArray* a, unsigned int pos)
 
   result = [super ecRun];
 
+  [sink setMonitor: nil];
+  if (alerter)
+    {
+      [alerter shutdown];
+      NSLog(@"Uninstalled alerter: %@",
+	NSStringFromClass([alerter class]));
+      DESTROY(alerter);
+    }
   [sink shutdown];
   DESTROY(sink);
 
