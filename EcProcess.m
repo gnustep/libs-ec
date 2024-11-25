@@ -3052,7 +3052,8 @@ static BOOL     ecDidAwakenCompletely = NO;
     {
       NSLog(@"-[%@ ecQuit: %@ for: %ld]", NSStringFromClass([self class]),
         reason, (long)status);
-      ASSIGN(ecQuitReason, reason);
+      RELEASE(ecQuitReason);
+      ecQuitReason = [reason copy];
       ecQuitStatus = status;
     }
   [ecLock unlock];
@@ -5682,7 +5683,7 @@ With two parameters ('maximum' and a number),\n\
     {
       NSLog(@"-[%@ cmdQuit: %ld]", NSStringFromClass([self class]),
         (long)status);
-      ASSIGN(ecQuitReason, nil);
+      DESTROY(ecQuitReason);
       ecQuitStatus = status;
     }
   [ecLock unlock];
@@ -6525,8 +6526,8 @@ With two parameters ('maximum' and a number),\n\
 	      if (NO == memRestart)
 		{
 		  memRestart = YES;
-		  NSLog(@"MemoryMaximum exceeded by %ll bytes"
-		    @" ... initiating restart", (long long)excess);
+		  NSLog(@"MemoryMaximum exceeded by %"PRId64" bytes"
+		    @" ... initiating restart", excess);
 		  [self ecRestart: @"memory usage limit reached"];
 		}
 	      return;
