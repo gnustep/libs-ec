@@ -30,6 +30,15 @@
 
 #import <GNUstepBase/GSObjCRuntime.h>
 #import <GNUstepBase/NSObject+GNUstepBase.h>
+
+#if     !defined(GNUSTEP_WITH_ASAN)
+#define	GNUSTEP_WITH_ASAN 0
+#endif
+#if     GNUSTEP_WITH_ASAN
+#import	<sanitizer/lsan_interface.h>
+#endif
+
+
 #if     GS_USE_GNUTLS
 #import <GNUstepBase/GSTLS.h>
 
@@ -5214,7 +5223,13 @@ With the single parameter 'yes',\n\
 With the single parameter 'no',\n\
   the memory command is used to turn off gathering of memory usage statistics.\n\
 With the single parameter 'default',\n\
-  the gathering of memory usage statistics reverts to the default setting.\n\
+  the gathering of memory usage statistics reverts to the default setting.\n"];
+#if     GNUSTEP_WITH_ASAN
+	  [self cmdPrintf: @"\
+With the single parameter 'leakcheck',\n\
+  performs a leak check usign LeakAnalyzer pritning the results to the log.\n"];
+#endif
+	  [self cmdPrintf: @"\
 With two parameters ('class' and a class name),\n\
   new instances of the class are recorded/traced.\n\
 With two parameters ('list' and a class),\n\
@@ -5353,6 +5368,19 @@ With two parameters ('maximum' and a number),\n\
                 }
               [self cmdPrintf: @"MemoryMaximum setting is %@.\n", s];
             }
+#if     GNUSTEP_WITH_ASAN
+	  else if ([word isEqual: @"leakscheck"] || [word isEqual: @"leak"])
+            {
+	      if (__lsan_do_recoverable_leak_check())
+		{
+		  [self cmdPrintf: @"Memory leaks found and logged!\n"];
+		}
+	      else
+		{
+		  [self cmdPrintf: @"No memory leaks found.\n"];
+		}
+            }
+#endif
           else
             {
 	      if ([cmdDefs boolForKey: @"Memory"])
