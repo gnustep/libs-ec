@@ -1292,9 +1292,10 @@ valgrindLog(NSString *name)
     {
       NSString  *nxt = [path stringByAppendingPathExtension: @"99"];
       NSString  *old;
+      int	i;
  
       [mgr removeFileAtPath: nxt handler: nil];
-      for (int i = 99; i > 0; i--)
+      for (i = 99; i > 0; i--)
         {
           old = nxt;
           nxt = [path stringByAppendingPathExtension:

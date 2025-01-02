@@ -749,6 +749,8 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (BOOL) ecIsQuitting;
 
+- (NSString*) ecLogEnd: (NSString*)name to: (NSDate*)when;
+
 /** Returns the interval since the process started quitting, or zero
  * if it is not quitting (as determined by calling -ecIsQuitting).
  */

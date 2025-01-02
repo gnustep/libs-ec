@@ -5234,13 +5234,9 @@ With the single parameter 'default',\n\
 #if     GNUSTEP_WITH_ASAN
 	  [self cmdPrintf: @"\
 With the single parameter 'leakcheck',\n\
-  performs a leak check usign LeakAnalyzer pritning the results to the log.\n"];
-#endif
+  performs a leak check using LeakAnalyzer pritning the results to the log.\n"];
+#else
 	  [self cmdPrintf: @"\
-With two parameters ('class' and a class name),\n\
-  new instances of the class are recorded/traced.\n\
-With two parameters ('list' and a class),\n\
-  recorded instances of the class are reported.\n\
 With two parameters ('alarm' and a severity name),\n\
   the threshold for severity of alarms (warning, minor, major, critical).\n\
   Set to 'default' to revert to the default.\n\
@@ -5254,6 +5250,12 @@ With two parameters ('maximum' and a number),\n\
   the maximum process size (in MB) is set.  On reaching the limit, the\n\
   process restarts unless the limit is zero (meaning no maximum).\n\
   Set to 'default' to revert to the default."];
+#endif
+	  [self cmdPrintf: @"\
+With two parameters ('class' and a class name),\n\
+  new instances of the class are recorded/traced.\n\
+With two parameters ('list' and a class),\n\
+  recorded instances of the class are reported.\n"];
 	  [self cmdPrintf: @"\n"];
 	  return;
 	}
@@ -5339,7 +5341,7 @@ With two parameters ('maximum' and a number),\n\
 	      [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: @"Memory"]];
 	    }
 #if     GNUSTEP_WITH_ASAN
-	  else if ([word isEqual: @"leakscheck"] || [word isEqual: @"leak"])
+	  else if ([word isEqual: @"leakcheck"] || [word isEqual: @"leak"])
             {
 	      if (__lsan_do_recoverable_leak_check())
 		{
