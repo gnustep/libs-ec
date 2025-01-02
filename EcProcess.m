@@ -5623,7 +5623,7 @@ With two parameters ('maximum' and a number),\n\
 	}
 
 #if     GNUSTEP_WITH_ASAN
-      [self cmdPrintf: @"Unknown memory usage: built with asan/lsan.\n"];
+      [self cmdPrintf: @"Unknown memory usage:  built with asan/lsan.\n"];
 #else
       if (memTime <= 0.0)
         {
