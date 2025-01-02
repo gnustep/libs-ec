@@ -914,6 +914,8 @@ ecFullName()
   return [name autorelease];
 }
 
+#if     GNUSTEP_WITH_ASAN
+#else
 static EcAlarmSeverity memAlarm = EcAlarmSeverityMajor;
 static NSString	*memType = nil;
 static NSString	*memUnit = @"KB";
@@ -1015,6 +1017,7 @@ setMemBase()
       memWarn = memMinr = memMajr = memCrit = 0;
     }
 }
+#endif
 
 /* Returns the found command, or nil if none is found, or an empty string
  * if there was a match but it was in the array of commands to be blockd.
@@ -2410,6 +2413,9 @@ static NSString	*noFiles = @"No log files to archive";
   descriptorsMaximum = [cmdDefs integerForKey: @"DescriptorsMaximum"];
 #endif
 
+#if     GNUSTEP_WITH_ASAN
+  // No use trying to look at process memory size
+#else
   setMemAlarm([cmdDefs stringForKey: @"MemoryAlarm"]);
 
   memAllowed = (uint64_t)[cmdDefs integerForKey: @"MemoryAllowed"];
@@ -2431,6 +2437,7 @@ static NSString	*noFiles = @"No log files to archive";
       memMaximum = 0;	                // Disabled
     }
 #endif
+#endif	/* GNUSTEP_WITH_ASAN	*/
 
   str = [cmdDefs stringForKey: @"CoreSize"];
   if (nil == str)
@@ -5331,6 +5338,20 @@ With two parameters ('maximum' and a number),\n\
 	      [self cmdPrintf: @"Memory statistics are turned off NOW.\n"];
 	      [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: @"Memory"]];
 	    }
+#if     GNUSTEP_WITH_ASAN
+	  else if ([word isEqual: @"leakscheck"] || [word isEqual: @"leak"])
+            {
+	      if (__lsan_do_recoverable_leak_check())
+		{
+		  s = @"Memory leaks found and logged!";
+		}
+	      else
+		{
+		  s = @"No memory leaks found.";
+		}
+	      [self cmdPrintf: @"%@\n", s];
+            }
+#else
 	  else if ([word isEqual: @"alarm"])
             {
               if (nil == (s = [cmdDefs stringForKey: @"MemoryAlarm"]))
@@ -5368,18 +5389,6 @@ With two parameters ('maximum' and a number),\n\
                 }
               [self cmdPrintf: @"MemoryMaximum setting is %@.\n", s];
             }
-#if     GNUSTEP_WITH_ASAN
-	  else if ([word isEqual: @"leakscheck"] || [word isEqual: @"leak"])
-            {
-	      if (__lsan_do_recoverable_leak_check())
-		{
-		  [self cmdPrintf: @"Memory leaks found and logged!\n"];
-		}
-	      else
-		{
-		  [self cmdPrintf: @"No memory leaks found.\n"];
-		}
-            }
 #endif
           else
             {
@@ -5399,8 +5408,18 @@ With two parameters ('maximum' and a number),\n\
         {
 	  NSString	*op = [[msg objectAtIndex: 1] lowercaseString];
           NSString      *arg = [msg objectAtIndex: 2];
-          NSInteger     val = [arg integerValue];
        
+#if     GNUSTEP_WITH_ASAN
+          if ([op isEqual: @"alarm"]
+	    || [op isEqual: @"allowed"]
+            || [op isEqual: @"idle"]
+            || [op isEqual: @"maximum"] || [op isEqual: @"max"])
+	    {
+	      [self cmdPrintf: @"Command meaningless: built with asan/lsan.\n"];
+	    }
+#else
+          NSInteger     val = [arg integerValue];
+
           if ([op isEqual: @"alarm"])
             {
 	      arg = [arg stringByTrimmingSpaces];
@@ -5489,6 +5508,7 @@ With two parameters ('maximum' and a number),\n\
                 }
               [self _memCheck];
             }
+#endif	/* GNUSTEP_WITH_ASAN	*/
           else
             {
               Class         c = NSClassFromString(arg);
@@ -5602,6 +5622,9 @@ With two parameters ('maximum' and a number),\n\
 	    }
 	}
 
+#if     GNUSTEP_WITH_ASAN
+      [self cmdPrintf: @"Unknown memory usage: built with asan/lsan.\n"];
+#else
       if (memTime <= 0.0)
         {
           s = @"";
@@ -5667,6 +5690,7 @@ With two parameters ('maximum' and a number),\n\
 	  [self cmdPrintf: @"Alarms are raised when memory usage"
 	    @" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
         }
+#endif	/* GNUSTEP_WITH_ASAN	*/
     }
 }
 
@@ -6331,6 +6355,9 @@ With two parameters ('maximum' and a number),\n\
 
 - (void) _memCheck
 {
+#if     GNUSTEP_WITH_ASAN
+  return;		// Memory information is meaningless under san/lsan
+#else
   static EcAlarm	*alarm = nil;
   static char		buf[64] = {0};
   EcAlarmSeverity	severity = EcAlarmSeverityCleared;
@@ -6670,6 +6697,7 @@ With two parameters ('maximum' and a number),\n\
 	       msg: @"%@ memory usage %"PRIu64"%@ (reserved: %"PRIu64"%@)",
         memType, memLast/memSize, memUnit, excLast/memSize, memUnit];
     }
+#endif
 }
 
 - (NSString*) _moveLog: (NSString*)name to: (NSDate*)when
