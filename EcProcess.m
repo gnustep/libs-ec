@@ -31,14 +31,6 @@
 #import <GNUstepBase/GSObjCRuntime.h>
 #import <GNUstepBase/NSObject+GNUstepBase.h>
 
-#if     !defined(GNUSTEP_WITH_ASAN)
-#define	GNUSTEP_WITH_ASAN 0
-#endif
-#if     GNUSTEP_WITH_ASAN
-#import	<sanitizer/lsan_interface.h>
-#endif
-
-
 #if     GS_USE_GNUTLS
 #import <GNUstepBase/GSTLS.h>
 
@@ -881,6 +873,27 @@ static NSMutableDictionary *servers = nil;
 
 static int              coreSize = -2;  // Not yet set
 
+static BOOL __hasLSAN = NO;
+static BOOL __setLSAN = NO;
+
+int	__lsan_do_recoverable_leak_check(void) __attribute__((weak));
+
+static int (*ecLeakCheck)(void) = __lsan_do_recoverable_leak_check;
+
+static BOOL
+hasLSAN()
+{
+  if (NO == __setLSAN)
+    {
+      if (ecLeakCheck)
+	{
+	  __hasLSAN = YES;
+        }
+      __setLSAN = YES;
+    }
+  return __hasLSAN;
+}
+
 static NSString		*hostName = nil;
 static NSString	*
 ecHostName()
@@ -914,8 +927,6 @@ ecFullName()
   return [name autorelease];
 }
 
-#if     GNUSTEP_WITH_ASAN
-#else
 static EcAlarmSeverity memAlarm = EcAlarmSeverityMajor;
 static NSString	*memType = nil;
 static NSString	*memUnit = @"KB";
@@ -1017,7 +1028,6 @@ setMemBase()
       memWarn = memMinr = memMajr = memCrit = 0;
     }
 }
-#endif
 
 /* Returns the found command, or nil if none is found, or an empty string
  * if there was a match but it was in the array of commands to be blockd.
@@ -2413,31 +2423,32 @@ static NSString	*noFiles = @"No log files to archive";
   descriptorsMaximum = [cmdDefs integerForKey: @"DescriptorsMaximum"];
 #endif
 
-#if     GNUSTEP_WITH_ASAN
-  // No use trying to look at process memory size
-#else
-  setMemAlarm([cmdDefs stringForKey: @"MemoryAlarm"]);
-
-  memAllowed = (uint64_t)[cmdDefs integerForKey: @"MemoryAllowed"];
-#if     SIZEOF_VOIDP == 4
-  if (memAllowed >= 4*1024)
+  if (NO == hasLSAN())
     {
-      [self cmdError: @"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memAllowed];
-      memAllowed = 0;
-    }
+      setMemAlarm([cmdDefs stringForKey: @"MemoryAlarm"]);
+
+      memAllowed = (uint64_t)[cmdDefs integerForKey: @"MemoryAllowed"];
+#if     SIZEOF_VOIDP == 4
+      if (memAllowed >= 4*1024)
+	{
+	  [self cmdError:
+	    @"MemoryAllowed (%"PRIu64" too large for 32bit machine..."
+	    @" using 0", memAllowed];
+	  memAllowed = 0;
+	}
 #endif
 
-  memMaximum = (uint64_t)[cmdDefs integerForKey: @"MemoryMaximum"];
+      memMaximum = (uint64_t)[cmdDefs integerForKey: @"MemoryMaximum"];
 #if     SIZEOF_VOIDP == 4
-  if (memMaximum >= 4*1024)
-    {
-      [self cmdError: @"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
-        @" using 0", memMaximum];
-      memMaximum = 0;	                // Disabled
-    }
+      if (memMaximum >= 4*1024)
+	{
+	  [self cmdError:
+	    @"MemoryMaximum (%"PRIu64" too large for 32bit machine..."
+	    @" using 0", memMaximum];
+	  memMaximum = 0;	                // Disabled
+	}
 #endif
-#endif	/* GNUSTEP_WITH_ASAN	*/
+    }
 
   str = [cmdDefs stringForKey: @"CoreSize"];
   if (nil == str)
@@ -5231,12 +5242,15 @@ With the single parameter 'no',\n\
   the memory command is used to turn off gathering of memory usage statistics.\n\
 With the single parameter 'default',\n\
   the gathering of memory usage statistics reverts to the default setting.\n"];
-#if     GNUSTEP_WITH_ASAN
-	  [self cmdPrintf: @"\
+          if (hasLSAN())
+	    {
+	      [self cmdPrintf: @"\
 With the single parameter 'leakcheck',\n\
   performs a leak check using LeakAnalyzer pritning the results to the log.\n"];
-#else
-	  [self cmdPrintf: @"\
+	    }
+	  else
+	    {
+	      [self cmdPrintf: @"\
 With two parameters ('alarm' and a severity name),\n\
   the threshold for severity of alarms (warning, minor, major, critical).\n\
   Set to 'default' to revert to the default.\n\
@@ -5250,7 +5264,7 @@ With two parameters ('maximum' and a number),\n\
   the maximum process size (in MB) is set.  On reaching the limit, the\n\
   process restarts unless the limit is zero (meaning no maximum).\n\
   Set to 'default' to revert to the default."];
-#endif
+	    }
 	  [self cmdPrintf: @"\
 With two parameters ('class' and a class name),\n\
   new instances of the class are recorded/traced.\n\
@@ -5340,10 +5354,10 @@ With two parameters ('list' and a class),\n\
 	      [self cmdPrintf: @"Memory statistics are turned off NOW.\n"];
 	      [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: @"Memory"]];
 	    }
-#if     GNUSTEP_WITH_ASAN
-	  else if ([word isEqual: @"leakcheck"] || [word isEqual: @"leak"])
+	  else if (hasLSAN()
+	    && ([word isEqual: @"leakcheck"] || [word isEqual: @"leak"]))
             {
-	      if (__lsan_do_recoverable_leak_check())
+	      if (ecLeakCheck && ecLeakCheck())
 		{
 		  s = @"Memory leaks found and logged!";
 		}
@@ -5353,8 +5367,7 @@ With two parameters ('list' and a class),\n\
 		}
 	      [self cmdPrintf: @"%@\n", s];
             }
-#else
-	  else if ([word isEqual: @"alarm"])
+	  else if (NO == hasLSAN() && [word isEqual: @"alarm"])
             {
               if (nil == (s = [cmdDefs stringForKey: @"MemoryAlarm"]))
                 {
@@ -5367,7 +5380,7 @@ With two parameters ('list' and a class),\n\
                 }
               [self cmdPrintf: @"MemoryAlarm is %@.\n", s];
             }
-	  else if ([word isEqual: @"allowed"])
+	  else if (NO == hasLSAN() && [word isEqual: @"allowed"])
             {
               if (nil == (s = [cmdDefs stringForKey: @"MemoryAllowed"]))
                 {
@@ -5375,7 +5388,7 @@ With two parameters ('list' and a class),\n\
                 }
               [self cmdPrintf: @"MemoryAllowed setting is %@.\n", s];
             }
-	  else if ([word isEqual: @"idle"])
+	  else if (NO == hasLSAN() && [word isEqual: @"idle"])
             {
               if (nil == (s = [cmdDefs stringForKey: @"MemoryIdle"]))
                 {
@@ -5383,7 +5396,8 @@ With two parameters ('list' and a class),\n\
                 }
               [self cmdPrintf: @"MemoryIdle setting is %@.\n", s];
             }
-	  else if ([word isEqual: @"maximum"] || [word isEqual: @"max"])
+	  else if (NO == hasLSAN()
+	    && ([word isEqual: @"maximum"] || [word isEqual: @"max"]))
             {
               if (nil == (s = [cmdDefs stringForKey: @"MemoryMaximum"]))
                 {
@@ -5391,7 +5405,6 @@ With two parameters ('list' and a class),\n\
                 }
               [self cmdPrintf: @"MemoryMaximum setting is %@.\n", s];
             }
-#endif
           else
             {
 	      if ([cmdDefs boolForKey: @"Memory"])
@@ -5410,146 +5423,158 @@ With two parameters ('list' and a class),\n\
         {
 	  NSString	*op = [[msg objectAtIndex: 1] lowercaseString];
           NSString      *arg = [msg objectAtIndex: 2];
+          NSInteger	val = [arg integerValue];
+          Class         c;
        
-#if     GNUSTEP_WITH_ASAN
-          if ([op isEqual: @"alarm"]
-	    || [op isEqual: @"allowed"]
-            || [op isEqual: @"idle"]
-            || [op isEqual: @"maximum"] || [op isEqual: @"max"])
+	  if (hasLSAN())
 	    {
-	      [self cmdPrintf: @"Command meaningless: built with asan/lsan.\n"];
-	    }
-#else
-          NSInteger     val = [arg integerValue];
-
-          if ([op isEqual: @"alarm"])
-            {
-	      arg = [arg stringByTrimmingSpaces];
-	      if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
+	      if ([op isEqual: @"alarm"]
+		|| [op isEqual: @"allowed"]
+		|| [op isEqual: @"idle"]
+		|| [op isEqual: @"maximum"] || [op isEqual: @"max"])
 		{
-                  [cmdDefs setCommand: nil
-			       forKey: [cmdDefs key: @"MemoryAlarm"]];
-		  [self cmdPrintf: @"MemoryAlarm using default value.\n"];
+		  [self cmdPrintf:
+		    @"Command meaningless: linked with asan/lsan.\n"];
+		  return;
+		}
+	    }
+	  else
+	    {
+	      if ([op isEqual: @"alarm"])
+		{
+		  arg = [arg stringByTrimmingSpaces];
+		  if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
+		    {
+		      [cmdDefs setCommand: nil
+				   forKey: [cmdDefs key: @"MemoryAlarm"]];
+		      [self cmdPrintf: @"MemoryAlarm using default value.\n"];
+		    }
+		  else
+		    {
+		      arg = setMemAlarm(arg);
+		      [cmdDefs setCommand: arg
+				   forKey: [cmdDefs key: @"MemoryAlarm"]];
+		      [self cmdPrintf: @"MemoryAlarm set to %@.\n", arg];
+		    }
+		  return;
+		}
+	      else if ([op isEqual: @"allowed"])
+		{
+		  if (val <= 0)
+		    {
+		      [cmdDefs setCommand: nil
+				   forKey: [cmdDefs key: @"MemoryAllowed"]];
+		      if (0 == memAllowed)
+			{
+			  /* The threshold was set back to zero ... to be
+			   * calculated from a ten minute baseline.
+			   */
+			  memSlot = 0;
+			}
+		      [self cmdPrintf: @"MemoryAllowed using default value.\n"];
+		    }
+		  else
+		    {
+		      arg = [NSString stringWithFormat:
+			@"%"PRIu64, (uint64_t)val];
+		      [cmdDefs setCommand: arg
+				   forKey: [cmdDefs key: @"MemoryAllowed"]];
+		      [self cmdPrintf: @"MemoryAllowed set to %@MB.\n", arg];
+		    }
+		  [self _memCheck];
+		  return;
+		}
+	      else if ([op isEqual: @"idle"])
+		{
+		  if (!isdigit([arg characterAtIndex: 0]))
+		    {
+		      val = -1;
+		    }
+		  if (val >= 0 && val < 24)
+		    {
+		      arg = [NSString stringWithFormat: @"%d", (int)val];
+		      [cmdDefs setCommand: arg
+				   forKey: [cmdDefs key: @"MemoryIdle"]];
+		      [self cmdPrintf: @"MemoryIdle set to %@.\n", arg];
+		    }
+		  else
+		    {
+		      [cmdDefs setCommand: nil
+				   forKey: [cmdDefs key: @"MemoryIdle"]];
+		      [self cmdPrintf: @"MemoryIdle using default value.\n"];
+		    }
+		  [self _memCheck];
+		  return;
+		}
+	      else if ([op isEqual: @"maximum"] || [op isEqual: @"max"])
+		{
+		  if (val <= 0)
+		    {
+		      if ([arg caseInsensitiveCompare: @"default"]
+			== NSOrderedSame)
+			{
+			  [cmdDefs setCommand: nil
+				   forKey: [cmdDefs key: @"MemoryMaximum"]];
+			  [self cmdPrintf:
+			    @"MemoryMaximum using default value.\n"];
+			}
+		      else
+			{
+			  [cmdDefs setCommand: @"0"
+				   forKey: [cmdDefs key: @"MemoryMaximum"]];
+			  [self cmdPrintf:
+			    @"MemoryMaximum restart turned off.\n"];
+			}
+		    }
+		  else
+		    {
+		      arg = [NSString stringWithFormat:
+			@"%"PRIu64, (uint64_t)val];
+		      [cmdDefs setCommand: arg
+				   forKey: [cmdDefs key: @"MemoryMaximum"]];
+		      [self cmdPrintf: @"MemoryMaximum set to %@MB.\n", arg];
+		    }
+		  [self _memCheck];
+		  return;
+		}
+	    }
+
+	  /* Not a recognised command ... assume it's the namer of a class.
+	   */
+	  c = NSClassFromString(arg);
+	  if (Nil == c)
+	    {
+	      [self cmdPrintf: @"Unable to find class '%@'.\n", arg];
+	    }
+	  else
+	    {
+	      if ([op caseInsensitiveCompare: @"class"] == NSOrderedSame)
+		{
+		  GSDebugAllocationRecordAndTrace(c,
+		    YES, (NSObject*(*)(id))1);
+		  [self cmdPrintf: @"Tracking instances of '%@'.\n", arg];
+		}
+	      else if ([op caseInsensitiveCompare: @"list"] == NSOrderedSame)
+		{
+		  NSMapTable	*map;
+		  NSEnumerator	*e;
+		  NSObject	*k;
+
+		  map = GSDebugAllocationTaggedObjects(c);
+		  [self cmdPrintf: @"Tracked instances of '%@':\n", arg];
+		  e = [map keyEnumerator];
+		  while ((k = [e nextObject]) != nil)
+		    {
+		      NSObject	*v = [map objectForKey: k];
+
+		      [self cmdPrintf: @"%@ allocated at %@\n", k, v];
+		    }
 		}
 	      else
 		{
-		  arg = setMemAlarm(arg);
-                  [cmdDefs setCommand: arg
-			       forKey: [cmdDefs key: @"MemoryAlarm"]];
-		  [self cmdPrintf: @"MemoryAlarm set to %@.\n", arg];
+		  [self cmdPrintf: @"Unknown memory command '%@'.\n", op];
 		}
 	    }
-          else if ([op isEqual: @"allowed"])
-            {
-              if (val <= 0)
-                {
-                  [cmdDefs setCommand: nil
-			       forKey: [cmdDefs key: @"MemoryAllowed"]];
-                  if (0 == memAllowed)
-                    {
-                      /* The threshold was set back to zero ... to be
-                       * calculated from a ten minute baseline.
-                       */
-                      memSlot = 0;
-                    }
-		  [self cmdPrintf: @"MemoryAllowed using default value.\n"];
-                }
-              else
-                {
-                  arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg
-			       forKey: [cmdDefs key: @"MemoryAllowed"]];
-		  [self cmdPrintf: @"MemoryAllowed set to %@MB.\n", arg];
-                }
-              [self _memCheck];
-            }
-          else if ([op isEqual: @"idle"])
-            {
-	      if (!isdigit([arg characterAtIndex: 0]))
-		{
-		  val = -1;
-		}
-              if (val >= 0 && val < 24)
-                {
-                  arg = [NSString stringWithFormat: @"%d", (int)val];
-                  [cmdDefs setCommand: arg
-			       forKey: [cmdDefs key: @"MemoryIdle"]];
-		  [self cmdPrintf: @"MemoryIdle set to %@.\n", arg];
-                }
-              else
-                {
-                  [cmdDefs setCommand: nil
-			       forKey: [cmdDefs key: @"MemoryIdle"]];
-		  [self cmdPrintf: @"MemoryIdle using default value.\n"];
-                }
-              [self _memCheck];
-            }
-          else if ([op isEqual: @"maximum"] || [op isEqual: @"max"])
-            {
-              if (val <= 0)
-                {
-                  if ([arg caseInsensitiveCompare: @"default"] == NSOrderedSame)
-                    {
-                      [cmdDefs setCommand: nil
-			       forKey: [cmdDefs key: @"MemoryMaximum"]];
-                      [self cmdPrintf: @"MemoryMaximum using default value.\n"];
-                    }
-                  else
-                    {
-                      [cmdDefs setCommand: @"0"
-			       forKey: [cmdDefs key: @"MemoryMaximum"]];
-                      [self cmdPrintf: @"MemoryMaximum restart turned off.\n"];
-                    }
-                }
-              else
-                {
-                  arg = [NSString stringWithFormat: @"%"PRIu64, (uint64_t)val];
-                  [cmdDefs setCommand: arg
-			       forKey: [cmdDefs key: @"MemoryMaximum"]];
-		  [self cmdPrintf: @"MemoryMaximum set to %@MB.\n", arg];
-                }
-              [self _memCheck];
-            }
-#endif	/* GNUSTEP_WITH_ASAN	*/
-          else
-            {
-              Class         c = NSClassFromString(arg);
-
-              if (Nil == c)
-                {
-                  [self cmdPrintf: @"Unable to find class '%@'.\n", arg];
-                }
-              else
-                {
-                  if ([op caseInsensitiveCompare: @"class"] == NSOrderedSame)
-                    {
-                      GSDebugAllocationRecordAndTrace(c,
-			YES, (NSObject*(*)(id))1);
-                      [self cmdPrintf: @"Tracking instances of '%@'.\n", arg];
-                    }
-                  else if ([op caseInsensitiveCompare: @"list"]
-		    == NSOrderedSame)
-                    {
-                      NSMapTable	*map;
-		      NSEnumerator	*e;
-		      NSObject		*k;
-
-                      map = GSDebugAllocationTaggedObjects(c);
-                      [self cmdPrintf: @"Tracked instances of '%@':\n", arg];
-		      e = [map keyEnumerator];
-                      while ((k = [e nextObject]) != nil)
-                        {
-			  NSObject	*v = [map objectForKey: k];
-
-                          [self cmdPrintf: @"%@ allocated at %@\n", k, v];
-                        }
-                    }
-                  else
-                    {
-                      [self cmdPrintf: @"Unknown memory command '%@'.\n", op];
-                    }
-                }
-            }
         }
       else
 	{
@@ -5624,75 +5649,80 @@ With two parameters ('list' and a class),\n\
 	    }
 	}
 
-#if     GNUSTEP_WITH_ASAN
-      [self cmdPrintf: @"Unknown memory usage:  built with asan/lsan.\n"];
-#else
-      if (memTime <= 0.0)
-        {
-          s = @"";
-        }
-      else
-        {
-          s = [NSString stringWithFormat: @" (last checked at %@)",
-            [NSDate dateWithTimeIntervalSinceReferenceDate: memTime]];
-        } 
-      [self cmdPrintf: @"%@ memory usage%@:\n"
-        @"  %"PRIu64"%@ (current), %"PRIu64"%@ (peak)\n",
-        memType, s, memLast/memSize, memUnit, memPeak/memSize, memUnit];
-      [self cmdPrintf: @"  %"PRIu64"%@ (average),"
-        @" %"PRIu64"%@ (start)\n",
-        memAvge/memSize, memUnit, memStrt/memSize, memUnit];
-
-      setMemBase();
-      if (memSlot < MEMCOUNT)
-        {
-          [self cmdPrintf: @"Waiting (for %d min"
-            @" of baseline stats collection).\n",
-	    (int)(MEMCOUNT - memSlot)];
-        }
-
-      if (memAllowed > 0)
+      if (hasLSAN())
 	{
-          [self cmdPrintf: @"MemoryAllowed: %"PRIu64
-	    @"%@\n  the process is expected to use up to this much memory.\n",
-            memAllowed * 1024 * 1024 / memSize, memUnit];
+	  [self cmdPrintf: @"Unknown memory usage:  built with asan/lsan.\n"];
 	}
-      if (memMaximum > 0)
-        {
-	  NSString	*idle;
-	  int		hour;
-	  uint64_t	limit;
+      else
+	  {
+	    if (memTime <= 0.0)
+	      {
+		s = @"";
+	      }
+	    else
+	      {
+		s = [NSString stringWithFormat: @" (last checked at %@)",
+		  [NSDate dateWithTimeIntervalSinceReferenceDate: memTime]];
+	      } 
+	    [self cmdPrintf: @"%@ memory usage%@:\n"
+	      @"  %"PRIu64"%@ (current), %"PRIu64"%@ (peak)\n",
+	      memType, s, memLast/memSize, memUnit, memPeak/memSize, memUnit];
+	    [self cmdPrintf: @"  %"PRIu64"%@ (average),"
+	      @" %"PRIu64"%@ (start)\n",
+	      memAvge/memSize, memUnit, memStrt/memSize, memUnit];
 
-	  if (0 == memAllowed)
-	    {
-	      [self cmdPrintf: @"Estimated base: %"PRIu64
-		@"%@\n  the process is expected to use up to"
-		@" this much memory.\n",
-		memAllowed * 1024 * 1024 / memSize, memUnit];
-	    }
-          [self cmdPrintf: @"MemoryMaximum: %"PRIu64
-	    @"%@\n  the process is restarted when peak memory usage"
-	    @" is above this limit.\n",
-            memMaximum * 1024 * 1024 / memSize, memUnit];
-	  idle = [cmdDefs stringForKey: @"MemoryIdle"];
-	  if ([idle length] > 0 && (hour = [idle intValue]) >= 0 && hour < 24)
-	    {
-	      [self cmdPrintf: @"  The process is also restarted if memory"
-		@" is above %"PRIu64"%@\n  during the hour from %02d:00.\n",
-		memCrit/memSize, memUnit, hour];
-	    }
-	  limit = memWarn;
-	  switch (memAlarm)
-	    {
-	      case EcAlarmSeverityCritical:	limit = memCrit; break;
-	      case EcAlarmSeverityMajor:	limit = memMajr; break;
-	      case EcAlarmSeverityMinor:	limit = memMinr; break;
-	      default:				limit = memWarn; break;
-	    }
-	  [self cmdPrintf: @"Alarms are raised when memory usage"
-	    @" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
-        }
-#endif	/* GNUSTEP_WITH_ASAN	*/
+	    setMemBase();
+	    if (memSlot < MEMCOUNT)
+	      {
+		[self cmdPrintf: @"Waiting (for %d min"
+		  @" of baseline stats collection).\n",
+		  (int)(MEMCOUNT - memSlot)];
+	      }
+
+	    if (memAllowed > 0)
+	      {
+		[self cmdPrintf: @"MemoryAllowed: %"PRIu64 @"%@\n  the process"
+		  @" is expected to use up to this much memory.\n",
+		  memAllowed * 1024 * 1024 / memSize, memUnit];
+	      }
+	    if (memMaximum > 0)
+	      {
+		NSString	*idle;
+		int		hour;
+		uint64_t	limit;
+
+		if (0 == memAllowed)
+		  {
+		    [self cmdPrintf: @"Estimated base: %"PRIu64
+		      @"%@\n  the process is expected to use up to"
+		      @" this much memory.\n",
+		      memAllowed * 1024 * 1024 / memSize, memUnit];
+		  }
+		[self cmdPrintf: @"MemoryMaximum: %"PRIu64
+		  @"%@\n  the process is restarted when peak memory usage"
+		  @" is above this limit.\n",
+		  memMaximum * 1024 * 1024 / memSize, memUnit];
+		idle = [cmdDefs stringForKey: @"MemoryIdle"];
+		if ([idle length] > 0
+		  && (hour = [idle intValue]) >= 0 && hour < 24)
+		  {
+		    [self cmdPrintf: @"  The process is also restarted if"
+		      @" memory is above %"PRIu64"%@\n  during the hour"
+		      @" from %02d:00.\n",
+		      memCrit/memSize, memUnit, hour];
+		  }
+		limit = memWarn;
+		switch (memAlarm)
+		  {
+		    case EcAlarmSeverityCritical:	limit = memCrit; break;
+		    case EcAlarmSeverityMajor:		limit = memMajr; break;
+		    case EcAlarmSeverityMinor:		limit = memMinr; break;
+		    default:				limit = memWarn; break;
+		  }
+		[self cmdPrintf: @"Alarms are raised when memory usage"
+		  @" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
+	      }
+	  }
     }
 }
 
@@ -6357,349 +6387,349 @@ With two parameters ('list' and a class),\n\
 
 - (void) _memCheck
 {
-#if     GNUSTEP_WITH_ASAN
-  return;		// Memory information is meaningless under san/lsan
-#else
-  static EcAlarm	*alarm = nil;
-  static char		buf[64] = {0};
-  EcAlarmSeverity	severity = EcAlarmSeverityCleared;
-  uint64_t  		mTotal, mResident, mShared, mText, mLib, mData, mDirty;
-  BOOL                  memDebug = [cmdDefs boolForKey: @"Memory"];
-  int			pageSize = 4096;
-  FILE          	*fptr;
-  NSString		*str;
-  int	        	i;
+  if (NO == hasLSAN())
+    {
+      static EcAlarm	*alarm = nil;
+      static char	buf[64] = {0};
+      EcAlarmSeverity	severity = EcAlarmSeverityCleared;
+      uint64_t  	mTotal, mResident, mShared, mText, mLib, mData, mDirty;
+      BOOL              memDebug = [cmdDefs boolForKey: @"Memory"];
+      int		pageSize = 4096;
+      FILE          	*fptr;
+      NSString		*str;
+      int	       	i;
 
-  memTime = [NSDate timeIntervalSinceReferenceDate];
-  if (nil == (str = [cmdDefs stringForKey: @"MemoryUnit"]))
-    {
-      memSize = 1024;
-      memUnit = @"KB";
-    }
-  else if ([str caseInsensitiveCompare: @"MB"] == NSOrderedSame)
-    {
-      memSize = 1024 * 1024;
-      memUnit = @"MB";
-    }
-  else if ([str caseInsensitiveCompare: @"Page"] == NSOrderedSame)
-    {
-      memSize = pageSize;
-      memUnit = @"Pg";
-    }
-  else
-    {
-      memSize = 1024;
-      memUnit = @"KB";
-    }
-  if (nil == (str = [cmdDefs stringForKey: @"MemoryType"]))
-    {
-      str = @"Total";
-    }
-  else if ([str caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
-    {
-      str = @"Resident";
-    }
-  else if ([str caseInsensitiveCompare: @"Data"] == NSOrderedSame)
-    {
-      str = @"Data";
-    }
-  else
-    {
-      str = @"Total";
-    }
-  if (NO == [memType isEqual: str])
-    {
-      ASSIGNCOPY(memType, str);
-      memSlot = 0;
-    }
-
-  /* /proc/pid/statm reports the process memory size in 4KB pages
-   */
-  if ('\0' == *buf)
-    {
-      sprintf(buf, "/proc/%d/statm",
-	[[NSProcessInfo processInfo] processIdentifier]);
-    }
-  fptr = fopen(buf, "r");
-  memLast = 1;
-  mTotal = mResident = mShared = mText = mLib = mData = mDirty = 0;
-  if (NULL != fptr)
-    {
-      if (fscanf(fptr, "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64
-        " %"PRIu64" %"PRIu64,
-        &mTotal, &mResident, &mShared, &mText, &mLib, &mData, &mDirty) != 7)
-        {
-	  memLast = 1;
+      memTime = [NSDate timeIntervalSinceReferenceDate];
+      if (nil == (str = [cmdDefs stringForKey: @"MemoryUnit"]))
+	{
+	  memSize = 1024;
+	  memUnit = @"KB";
+	}
+      else if ([str caseInsensitiveCompare: @"MB"] == NSOrderedSame)
+	{
+	  memSize = 1024 * 1024;
+	  memUnit = @"MB";
+	}
+      else if ([str caseInsensitiveCompare: @"Page"] == NSOrderedSame)
+	{
+	  memSize = pageSize;
+	  memUnit = @"Pg";
 	}
       else
 	{
-	  if ([memType isEqualToString: @"Resident"])
+	  memSize = 1024;
+	  memUnit = @"KB";
+	}
+      if (nil == (str = [cmdDefs stringForKey: @"MemoryType"]))
+	{
+	  str = @"Total";
+	}
+      else if ([str caseInsensitiveCompare: @"Resident"] == NSOrderedSame)
+	{
+	  str = @"Resident";
+	}
+      else if ([str caseInsensitiveCompare: @"Data"] == NSOrderedSame)
+	{
+	  str = @"Data";
+	}
+      else
+	{
+	  str = @"Total";
+	}
+      if (NO == [memType isEqual: str])
+	{
+	  ASSIGNCOPY(memType, str);
+	  memSlot = 0;
+	}
+
+      /* /proc/pid/statm reports the process memory size in 4KB pages
+       */
+      if ('\0' == *buf)
+	{
+	  sprintf(buf, "/proc/%d/statm",
+	    [[NSProcessInfo processInfo] processIdentifier]);
+	}
+      fptr = fopen(buf, "r");
+      memLast = 1;
+      mTotal = mResident = mShared = mText = mLib = mData = mDirty = 0;
+      if (NULL != fptr)
+	{
+	  if (fscanf(fptr, "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64
+	    " %"PRIu64" %"PRIu64,
+	    &mTotal, &mResident, &mShared, &mText, &mLib, &mData, &mDirty) != 7)
 	    {
-	      memLast = mResident;
-	    }
-	  else if ([memType isEqualToString: @"Data"])
-	    {
-	      memLast = mData;
+	      memLast = 1;
 	    }
 	  else
 	    {
-	      memLast = mTotal;
+	      if ([memType isEqualToString: @"Resident"])
+		{
+		  memLast = mResident;
+		}
+	      else if ([memType isEqualToString: @"Data"])
+		{
+		  memLast = mData;
+		}
+	      else
+		{
+		  memLast = mTotal;
+		}
+	      memLast *= pageSize;
+	      if (memLast <= 0) memLast = 1;
 	    }
-          memLast *= pageSize;
-          if (memLast <= 0) memLast = 1;
-        }
-      fclose(fptr);
-    }
-  excLast = (uint64_t)[self ecNotLeaked];
+	  fclose(fptr);
+	}
+      excLast = (uint64_t)[self ecNotLeaked];
 
-  [self _ensureMemLogger];
-  if (nil != cmdMemoryLogger)
-    {
-      NS_DURING
-        {
-          [cmdMemoryLogger process: self
-                      didUseMemory: mTotal * pageSize
-                         notLeaked: excLast
-			  resident: mResident * pageSize
-			      data: mData * pageSize];
-        }
-      NS_HANDLER
-        {
-          [self cmdWarn:
-            @"Exception logging memory usage to bundle: %@",
-           localException];
-        }
-      NS_ENDHANDLER
-    }
+      [self _ensureMemLogger];
+      if (nil != cmdMemoryLogger)
+	{
+	  NS_DURING
+	    {
+	      [cmdMemoryLogger process: self
+			  didUseMemory: mTotal * pageSize
+			     notLeaked: excLast
+			      resident: mResident * pageSize
+				  data: mData * pageSize];
+	    }
+	  NS_HANDLER
+	    {
+	      [self cmdWarn:
+		@"Exception logging memory usage to bundle: %@",
+	       localException];
+	    }
+	  NS_ENDHANDLER
+	}
 
-  /* Do initial population so we can work immediately.
-   */
-  if (0 == memSlot)
-    {
-      for (i = 1; i < MEMCOUNT; i++)
-        {
-          excRoll[i] = excLast;
-          memRoll[i] = memLast;
-        }
-      memPrev = memStrt = memLast;
-      excPrev = excStrt = excLast;
-    }
-  excRoll[memSlot % MEMCOUNT] = excLast;
-  memRoll[memSlot % MEMCOUNT] = memLast;
-  memSlot++;
+      /* Do initial population so we can work immediately.
+       */
+      if (0 == memSlot)
+	{
+	  for (i = 1; i < MEMCOUNT; i++)
+	    {
+	      excRoll[i] = excLast;
+	      memRoll[i] = memLast;
+	    }
+	  memPrev = memStrt = memLast;
+	  excPrev = excStrt = excLast;
+	}
+      excRoll[memSlot % MEMCOUNT] = excLast;
+      memRoll[memSlot % MEMCOUNT] = memLast;
+      memSlot++;
 
-  /* Find the average usage over the last set of samples.
-   * Round up to a block size.
-   */
-  excAvge = 0;
-  memAvge = 0;
-  for (i = 0; i < MEMCOUNT; i++)
-    {
-      excAvge += excRoll[i];
-      memAvge += memRoll[i];
-    }
-  excAvge /= MEMCOUNT;
-  memAvge /= MEMCOUNT;
+      /* Find the average usage over the last set of samples.
+       * Round up to a block size.
+       */
+      excAvge = 0;
+      memAvge = 0;
+      for (i = 0; i < MEMCOUNT; i++)
+	{
+	  excAvge += excRoll[i];
+	  memAvge += memRoll[i];
+	}
+      excAvge /= MEMCOUNT;
+      memAvge /= MEMCOUNT;
 
-  /* Convert to 1KB blocks.
-   */
-  if (memAvge % 1024)
-    {
-      memAvge = ((memAvge / 1024) + 1) * 1024;
-    }
-  if (excAvge % 1024)
-    {
-      excAvge = ((excAvge / 1024) + 1) * 1024;
-    }
+      /* Convert to 1KB blocks.
+       */
+      if (memAvge % 1024)
+	{
+	  memAvge = ((memAvge / 1024) + 1) * 1024;
+	}
+      if (excAvge % 1024)
+	{
+	  excAvge = ((excAvge / 1024) + 1) * 1024;
+	}
 
-  /* Update peak memory usage if necessary.
-   */
-  if (memLast > memPeak)
-    {
-      memPeak = memLast;
-    }
-  if (excLast > excPeak)
-    {
-      excPeak = excLast;
-    }
-  if (0 == memInitial)
-    {
-      memInitial = memPeak;
-    }
+      /* Update peak memory usage if necessary.
+       */
+      if (memLast > memPeak)
+	{
+	  memPeak = memLast;
+	}
+      if (excLast > excPeak)
+	{
+	  excPeak = excLast;
+	}
+      if (0 == memInitial)
+	{
+	  memInitial = memPeak;
+	}
 
-  /* If we have a defined maximum memory usage for the process,
-   * we should perform a restart once that limit is passed.
-   */
-  if (memMaximum > 0)
-    {
-      static EcAlarm    *raised = nil;
-      uint64_t          minMax = (memInitial * 12) / 10;
-
-      if (minMax > (memMaximum * 1024 * 1024))
-        {
-          unsigned long oldMaximum = (unsigned long)memMaximum;
-
-          memMaximum = 0;
-          if (nil == raised)
-            {
-              EcAlarm   *a;
-              NSString  *repair;
-              NSString  *additional;
-
-              repair = [NSString stringWithFormat:
-                @"Reconfigure MemoryMaximum to good value (at least %luMB)",
-                (unsigned long)(minMax / (1024 * 1024))];
-              additional = [NSString stringWithFormat:
-                @"configured value (%luMB) ignored", oldMaximum];
-
-              a = [EcAlarm alarmForManagedObject: nil
-                at: nil
-                withEventType: EcAlarmEventTypeProcessingError
-                probableCause: EcAlarmConfigurationOrCustomizationError
-                specificProblem: @"MemoryMaximum too low"
-                perceivedSeverity: EcAlarmSeverityMajor
-                proposedRepairAction: repair
-                additionalText: additional];
-              ASSIGN(raised, a);
-              [self alarm: raised];
-            }
-        }
-      else
-        {
-          if (raised)
-            {
-              EcAlarm   *a = [raised clear];
-
-              DESTROY(raised);
-              [self alarm: a];
-            }
-        }
+      /* If we have a defined maximum memory usage for the process,
+       * we should perform a restart once that limit is passed.
+       */
       if (memMaximum > 0)
 	{
-          int64_t	excess = memPeak - (memMaximum * 1024 * 1024);
+	  static EcAlarm    *raised = nil;
+	  uint64_t          minMax = (memInitial * 12) / 10;
 
-	  if (excess > 0)
+	  if (minMax > (memMaximum * 1024 * 1024))
 	    {
-	      if (NO == memRestart)
+	      unsigned long oldMaximum = (unsigned long)memMaximum;
+
+	      memMaximum = 0;
+	      if (nil == raised)
 		{
-		  memRestart = YES;
-		  NSLog(@"MemoryMaximum exceeded by %"PRId64" bytes"
-		    @" ... initiating restart", excess);
-		  [self ecRestart: @"memory usage limit reached"];
+		  EcAlarm   *a;
+		  NSString  *repair;
+		  NSString  *additional;
+
+		  repair = [NSString stringWithFormat:
+		    @"Reconfigure MemoryMaximum to good value (at least %luMB)",
+		    (unsigned long)(minMax / (1024 * 1024))];
+		  additional = [NSString stringWithFormat:
+		    @"configured value (%luMB) ignored", oldMaximum];
+
+		  a = [EcAlarm alarmForManagedObject: nil
+		    at: nil
+		    withEventType: EcAlarmEventTypeProcessingError
+		    probableCause: EcAlarmConfigurationOrCustomizationError
+		    specificProblem: @"MemoryMaximum too low"
+		    perceivedSeverity: EcAlarmSeverityMajor
+		    proposedRepairAction: repair
+		    additionalText: additional];
+		  ASSIGN(raised, a);
+		  [self alarm: raised];
 		}
-	      return;
 	    }
-	}
-    }
-
-  setMemBase();
-  if (memWarn > 0 && memAvge > memWarn)
-    {
-      if (memAvge > memCrit)
-	{
-	  severity = EcAlarmSeverityCritical;
-	}
-      else if (memAvge > memMajr)
-	{
-	  if (memAlarm != EcAlarmSeverityCritical)
+	  else
 	    {
-	      severity = EcAlarmSeverityMajor;
+	      if (raised)
+		{
+		  EcAlarm   *a = [raised clear];
+
+		  DESTROY(raised);
+		  [self alarm: a];
+		}
 	    }
-	}
-      else if (memAvge > memMinr)
-	{
-	  if (memAlarm != EcAlarmSeverityCritical
-	    && memAlarm != EcAlarmSeverityMajor)
+	  if (memMaximum > 0)
 	    {
-	      severity = EcAlarmSeverityMinor;
-	    }
-	}
-      else
-	{
-	  if (memAlarm != EcAlarmSeverityCritical
-	    && memAlarm != EcAlarmSeverityMajor
-	    && memAlarm != EcAlarmSeverityMinor)
-	    {
-	      severity = EcAlarmSeverityWarning;
-	    }
-	}
-    }
+	      int64_t	excess = memPeak - (memMaximum * 1024 * 1024);
 
-  if (EcAlarmSeverityCleared == severity)
-    {
-      if (nil != alarm)
-	{
-	  EcAlarm	*clear = [alarm clear];
-
-	  DESTROY(alarm);
-	  [self alarm: clear];
-	}
-    }
-  else
-    {
-      NSString	*additional;
-
-      additional = [NSString stringWithFormat:
-	@"Average %@ memory usage %lu%@ (base %lu%@, max %lu%@)",
-	memType,
-	(unsigned long)memAvge/memSize, memUnit,
-	(unsigned long)memBase/memSize, memUnit,
-	(unsigned long)memMaximum*1024*1024/memSize, memUnit];
-
-      NSLog(@"%@", additional);
-
-      /* When we are critically close to reaching our memory limit
-       * AND it's the time of day when the process is idle, we need
-       * to restart.
-       */
-      if (EcAlarmSeverityCritical == severity)
-	{
-	  NSString	*idle;
-	  int		hour;
-
-	  /* Idle period is hour of the day and number of hours from 1 to 10
-	   */
-	  idle = [cmdDefs stringForKey: @"MemoryIdle"];
-	  if ([idle length] > 0 && (hour = [idle intValue]) >= 0 && hour < 24)
-	    {
-	      if ([[NSCalendarDate date] hourOfDay] == hour)
+	      if (excess > 0)
 		{
 		  if (NO == memRestart)
 		    {
 		      memRestart = YES;
-		      NSLog(@"MemoryMaximum near in idle time; restart");
-		      [self ecRestart: @"memory usage limit when idle"];
+		      NSLog(@"MemoryMaximum exceeded by %"PRId64" bytes"
+			@" ... initiating restart", excess);
+		      [self ecRestart: @"memory usage limit reached"];
 		    }
 		  return;
 		}
 	    }
 	}
 
-      if ([alarm perceivedSeverity] != severity)
+      setMemBase();
+      if (memWarn > 0 && memAvge > memWarn)
 	{
-	  EcAlarm	*a;
+	  if (memAvge > memCrit)
+	    {
+	      severity = EcAlarmSeverityCritical;
+	    }
+	  else if (memAvge > memMajr)
+	    {
+	      if (memAlarm != EcAlarmSeverityCritical)
+		{
+		  severity = EcAlarmSeverityMajor;
+		}
+	    }
+	  else if (memAvge > memMinr)
+	    {
+	      if (memAlarm != EcAlarmSeverityCritical
+		&& memAlarm != EcAlarmSeverityMajor)
+		{
+		  severity = EcAlarmSeverityMinor;
+		}
+	    }
+	  else
+	    {
+	      if (memAlarm != EcAlarmSeverityCritical
+		&& memAlarm != EcAlarmSeverityMajor
+		&& memAlarm != EcAlarmSeverityMinor)
+		{
+		  severity = EcAlarmSeverityWarning;
+		}
+	    }
+	}
 
-	  a = [EcAlarm alarmForManagedObject: nil
-	    at: nil
-	    withEventType: EcAlarmEventTypeProcessingError
-	    probableCause: EcAlarmOutOfMemory
-	    specificProblem: @"MemoryAllowed exceeded"
-	    perceivedSeverity: severity
-	    proposedRepairAction: @"Investigate possible leak, monitor usage,"
-	      @" restart process when necessary."
-	    additionalText: additional];
-	  ASSIGN(alarm, a);
-	  [self alarm: alarm];
+      if (EcAlarmSeverityCleared == severity)
+	{
+	  if (nil != alarm)
+	    {
+	      EcAlarm	*clear = [alarm clear];
+
+	      DESTROY(alarm);
+	      [self alarm: clear];
+	    }
+	}
+      else
+	{
+	  NSString	*additional;
+
+	  additional = [NSString stringWithFormat:
+	    @"Average %@ memory usage %lu%@ (base %lu%@, max %lu%@)",
+	    memType,
+	    (unsigned long)memAvge/memSize, memUnit,
+	    (unsigned long)memBase/memSize, memUnit,
+	    (unsigned long)memMaximum*1024*1024/memSize, memUnit];
+
+	  NSLog(@"%@", additional);
+
+	  /* When we are critically close to reaching our memory limit
+	   * AND it's the time of day when the process is idle, we need
+	   * to restart.
+	   */
+	  if (EcAlarmSeverityCritical == severity)
+	    {
+	      NSString	*idle;
+	      int		hour;
+
+	      /* Idle period is hour of the day and number of hours from 1 to 10
+	       */
+	      idle = [cmdDefs stringForKey: @"MemoryIdle"];
+	      if ([idle length] > 0
+		&& (hour = [idle intValue]) >= 0 && hour < 24)
+		{
+		  if ([[NSCalendarDate date] hourOfDay] == hour)
+		    {
+		      if (NO == memRestart)
+			{
+			  memRestart = YES;
+			  NSLog(@"MemoryMaximum near in idle time; restart");
+			  [self ecRestart: @"memory usage limit when idle"];
+			}
+		      return;
+		    }
+		}
+	    }
+
+	  if ([alarm perceivedSeverity] != severity)
+	    {
+	      EcAlarm	*a;
+
+	      a = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmOutOfMemory
+		specificProblem: @"MemoryAllowed exceeded"
+		perceivedSeverity: severity
+		proposedRepairAction: @"Investigate possible leak,"
+		  @" monitor usage, restart process when necessary."
+		additionalText: additional];
+	      ASSIGN(alarm, a);
+	      [self alarm: alarm];
+	    }
+	}
+
+      if (YES == memDebug)
+	{
+	  [self cmdDbg: cmdDetailDbg
+		   msg: @"%@ memory usage %"PRIu64"%@ (reserved: %"PRIu64"%@)",
+	    memType, memLast/memSize, memUnit, excLast/memSize, memUnit];
 	}
     }
-
-  if (YES == memDebug)
-    {
-      [self cmdDbg: cmdDetailDbg
-	       msg: @"%@ memory usage %"PRIu64"%@ (reserved: %"PRIu64"%@)",
-        memType, memLast/memSize, memUnit, excLast/memSize, memUnit];
-    }
-#endif
 }
 
 - (NSString*) _moveLog: (NSString*)name to: (NSDate*)when
