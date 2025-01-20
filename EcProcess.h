@@ -97,7 +97,7 @@
   [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
   (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
   [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
-  [NSString stringWithFormat: (format), ##args]], EcEcause(cause)); else \
+  [NSString stringWithFormat: (format), ##args]], EcECause(cause)); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
