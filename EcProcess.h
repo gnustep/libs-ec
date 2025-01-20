@@ -35,6 +35,9 @@
 #import	"EcAlarm.h"
 #import	"EcAlarmDestination.h"
 
+#define EcECause(cause) \
+  ((nil == cause) ? @"" : [NSString stringWithFormat: @" %@", cause])
+
 /** Convenience macros to raise unique alarms (which do not clear automatically)
  * for exceptions or unexpected code/data errors.  The unique specificProblem
  * for each alarm is derived from the file and line at which it is raised.
@@ -43,11 +46,11 @@
  * alarm.
  */
 #define EcExceptionCritical(cause, format, args...) \
-({ if (nil == EcProc) NSLog(@"%@",\
+({ if (nil == EcProc) NSLog(@"%@%@",\
   [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
   (nil == (cause) ? "Code/Data Error (critical)" : "Exception"), \
   [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
-  [NSString stringWithFormat: (format), ##args]]); else \
+  [NSString stringWithFormat: (format), ##args]], EcECause(cause)); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error (critical)" : "Exception"), \
@@ -57,11 +60,11 @@
 })
 
 #define EcExceptionMajor(cause, format, args...) \
-({ if (nil == EcProc) NSLog(@"%@",\
+({ if (nil == EcProc) NSLog(@"%@%@",\
   [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
   (nil == (cause) ? "Code/Data Error" : "Exception"), \
   [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
-  [NSString stringWithFormat: (format), ##args]]); else \
+  [NSString stringWithFormat: (format), ##args]], EcECause(cause)); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error" : "Exception"), \
@@ -71,11 +74,11 @@
 })
 
 #define EcExceptionMinor(cause, format, args...) \
-({ if (nil == EcProc) NSLog(@"%@",\
+({ if (nil == EcProc) NSLog(@"%@%@",\
   [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
   (nil == (cause) ? "Code/Data Error (minor)" : "Exception"), \
   [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
-  [NSString stringWithFormat: (format), ##args]]); else \
+  [NSString stringWithFormat: (format), ##args]], EcECause(cause)); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Error (minor)" : "Exception"), \
@@ -90,11 +93,11 @@
  * generate an alarm.
  */
 #define EcExceptionDebug(cause, format, args...) \
-({ if (nil == EcProc) NSLog(@"%@",\
+({ if (nil == EcProc) NSLog(@"%@%@",\
   [NSString stringWithFormat: @"%s at %@ line %d ... %@", \
   (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
   [[NSString stringWithUTF8String: __FILE__] lastPathComponent], __LINE__, \
-  [NSString stringWithFormat: (format), ##args]]); else \
+  [NSString stringWithFormat: (format), ##args]], EcEcause(cause)); else \
   [EcProc ecException: (cause) \
       specificProblem: [NSString stringWithFormat: @"%s at %@ line %d", \
     (nil == (cause) ? "Code/Data Diagnostics" : "Harmless Exception"), \
