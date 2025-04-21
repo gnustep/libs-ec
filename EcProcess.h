@@ -551,8 +551,8 @@ extern NSString*	cmdVersion(NSString *ver);
  *     Console program.
  *   </desc>
  *   <term>EcWellKnownHostNames</term>
- *   <desc>A dictionary mapping host names/address values to well known
- *     names (the canonical values used by Command and Control).
+ *   <desc>A dictionary mapping host aliases to well known names (the
+ *   canonical values used by Command and Control) and/or real host names.
  *   </desc>
  * </deflist>
  * Alarm mechanism

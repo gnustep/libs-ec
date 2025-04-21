@@ -79,21 +79,26 @@
  */
 + (NSHost*) hostWithWellKnownName: (NSString*)aName;
 
-/** Establishes mappings from a variety of host names (the dictionary keys)
- * to well known names (the dictionary values).<br />
- * The keys and values may be (and often are) identical in the case where
- * the well known name for a host is the same as one of its normal names
- * (eg its fully qualified domain name).<br />
- * It is possible to set a well known name for a host which does not yet
- * exist ... in which case the mapping will be established and will take
- * effect later, when the host is set up.
+/** Establishes mappings from a variety of names (the dictionary keys)
+ * to well-known/host names (the dictionary values), effectively creating
+ * aliases for host names.<br />
+ * If the key and its corresponding value are the same, any existing
+ * mapping of that key is removed.<br />
+ * If the key is the same as an existing well-known name, that mapping
+ * cannot be set up (and the key/vaue pair is ignored).<br />
+ * When trying to look up a host, the aliases in the well known name map
+ * are used to determine the actual host to be looked up.<br />
+ * If the value in a key/value pair is an empty string, lookup of a host
+ * using that key as its name will fail (it maps the key to a non-existent
+ * host).
  */
 + (void) setWellKnownNames: (NSDictionary*)map;
 
 /** Sets the well known name for the receiver.<br />
  * This replaces any previous well known name for the receiver and, if the
  * name is already in use, removes any associations of that well known name
- * with other hosts.
+ * with other hosts.  It also removes any alias of the same name from the
+ * name map.
  */
 - (void) setWellKnownName: (NSString*)aName;
 

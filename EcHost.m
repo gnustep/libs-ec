@@ -40,6 +40,7 @@
 #import	"EcHost.h"
 
 static NSRecursiveLock		*lock = nil;
+static NSMutableDictionary	*aliases = nil;
 static NSMutableDictionary	*fromWellKnown = nil;
 static NSMutableDictionary	*toWellKnown = nil;
 static NSString			*controlName = nil;
@@ -50,8 +51,9 @@ typedef NSHost	*(*hwnType)(Class c, SEL s, NSString *n);
 static IMP	hwnImp;		// Original +hostWithName: implementation
 
 /* This method is used to replace +[NSHost hostWithName:]
- * First it checks to see if the supplied name is a well known name aliasing
- * another. Then it performs the host lookup using the original method.
+ * First it checks to see if the supplied name is an alias (replacing it if
+ * necessary).  Then it checks to see if it has a well known name for
+ * a host. Then it performs the host lookup using the original method.
  */
 + (NSHost*) _hostWithName: (NSString*)aName
 {
@@ -62,12 +64,19 @@ static IMP	hwnImp;		// Original +hostWithName: implementation
       NSString	*rep;
 
       [lock lock];
+      if (nil != (rep = [aliases objectForKey: aName]))
+	{
+	  aName = [[rep retain] autorelease];
+	}
       if (nil != (rep = [fromWellKnown objectForKey: aName]))
 	{
 	  aName = [[rep retain] autorelease];
 	}
       [lock unlock];
-      found = ((hwnType)hwnImp)(self, @selector(hostWithName:), aName); 
+      if ([aName length] > 0)
+	{
+          found = ((hwnType)hwnImp)(self, @selector(hostWithName:), aName); 
+	}
     }
   return found;
 }
@@ -90,8 +99,9 @@ static IMP	hwnImp;		// Original +hostWithName: implementation
 	  l = [NSRecursiveLock new];
 	  [l lock];
 	  lock = l;
-	  fromWellKnown = [NSMutableDictionary alloc];
-	  toWellKnown = [NSMutableDictionary alloc];
+	  aliases = [NSMutableDictionary new];
+	  fromWellKnown = [NSMutableDictionary new];
+	  toWellKnown = [NSMutableDictionary new];
 
 	  /* We need to override the class method of NSHost so that it
 	   * knows about well known host names.
@@ -210,49 +220,32 @@ static IMP	hwnImp;		// Original +hostWithName: implementation
 	  if ([k isKindOfClass: [NSString class]]
 	    && [v isKindOfClass: [NSString class]])
 	    {
-	      NSHost	*h;
-
-	      h = ((hwnType)hwnImp)(self, @selector(hostWithName:), k); 
-	      if (nil == h)
+	      [lock lock];
+	      if ([k isEqual: v])
 		{
-		  NSEnumerator	*e;
-		  NSString	*name;
-
-		  /* No such host ... set up name mapping in case
-		   * the host becomes available later.
-		   */
-
-		  [lock lock];
-		  /* Remove any existing names which map to this new
-		   * well known name.
-		   */
-		  e = [[toWellKnown allKeys] objectEnumerator];
-		  while (nil != (name = [e nextObject]))
-		    {
-		      NSString	*wellKnown;
-
-		      wellKnown = [toWellKnown objectForKey: name];
-		      if ([wellKnown isEqualToString: v])
-			{
-			  [toWellKnown removeObjectForKey: name];
-			}
-		    }
-		  /* Set up the specified mappings to and from the new
-		   * well known name and its normal host name.
-		   */
-		  [toWellKnown setObject: v forKey: k];
-		  [fromWellKnown setObject: k forKey: v];
-		  [lock unlock];
+		  [aliases removeObjectForKey: k];
+		}
+	      else if ([toWellKnown objectForKey: k] != nil)
+		{
+		  NSLog(@"+setWellKnownNames: cannot create alias"
+		    @" for existing well known name '%@'", k);
 		}
 	      else
 		{
-		  /* We have found a host with the specified names ...
-		   * so set the well known name for it.
-		   */
-		  [h setWellKnownName: v];
+		  [aliases setObject: v forKey: k];
 		}
+	      [lock unlock];
+	    }
+	  else
+	    {
+	      NSLog(@"+setWellKnownNames: bad key/value pair:"
+		@" '%@' / '%@'", k, v);
 	    }
 	}
+    }
+  else
+    {
+      NSLog(@"+setWellKnownNames: bad key/value map: '%@'", map);
     }
 }
 
@@ -265,6 +258,8 @@ static IMP	hwnImp;		// Original +hostWithName: implementation
       NSString		*name;
 
       [lock lock];
+
+      [aliases removeObjectForKey: aName];
 
       /* Set a mapping to this host from the well known name.
        */

@@ -1,3 +1,13 @@
+2025-04-21 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcHost.h:
+	* EcHost.m: Simplify and clarify the behavior of the WellKnownHostNames
+	mapping so that it maps aliases (dictionary keys) to well known host
+	names (and/or normal host names) at the point when a host lookup is
+	attempted.  Mapping to an empty string ensures that a host lookup
+	using the mapped key will fail immediately (useful for testing a
+	loopup of a non-existent host).
+
 2024-04-29 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: Record the name and host of the Control server so that,
