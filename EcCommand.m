@@ -133,6 +133,7 @@ cmdWord(NSArray* a, unsigned int pos)
 }
 
 static BOOL                     debug = YES;
+static NSTimeInterval           dumpTime = 30.0;
 static NSTimeInterval           quitTime = 120.0;
 
 /* When this control process needs to shut down *all* clients,
@@ -292,6 +293,16 @@ desiredName(Desired state)
    */
   BOOL			startingAlarm;
 
+  /* Set if we have tried to core dump this process. ie the timeout at which
+   * a core dump should be attempted has been passed and (if core dumps are
+   * supported) the core dump has been initiated.
+   */
+  BOOL			triedDump;
+
+  /* Set once the core dump completed (or failed to complete).
+   */
+  BOOL                  dumpDone;
+
   /** A timestamp set if an alarm has been raised because the process is not
    * responding to pings.  This is cleared if/when the process re-registers.
    */
@@ -368,6 +379,11 @@ desiredName(Desired state)
    */
   NSTimeInterval	launchDate;	        // When we launched process
 
+  /** The timestamp at which we will core dump a process (if it fails to shut
+   * down as quickly as we need it to).
+   */
+  NSTimeInterval	dumpDate;	        // When we core dump process
+
   /** The timestamp at which we will aborting a process (if it fails to shut
    * down as quickly as we need it to).
    */
@@ -438,6 +454,7 @@ desiredName(Desired state)
 - (BOOL) disabled;
 - (NSTimeInterval) hungDate;
 - (BOOL) isActive;
+- (BOOL) isDumped;
 - (BOOL) isStarting;
 - (BOOL) isStopping;
 - (BOOL) launch;
@@ -452,7 +469,8 @@ desiredName(Desired state)
 - (void) setClient: (EcClientI*)c;
 - (void) setConfiguration: (NSDictionary*)c;
 - (void) setDesired: (Desired)state;
-- (void) setHung;
+- (void) setDumped: (BOOL)dumped;
+- (BOOL) setHung: (BOOL)dumped;
 - (void) setManual: (BOOL)f;
 - (void) setPing;
 - (void) setProcessIdentifier: (int)p;
@@ -616,6 +634,7 @@ desiredName(Desired state)
 - (NSString*) host;
 - (void) housekeeping: (NSTimer*)t;
 - (void) _housekeeping: (NSTimer*)t;
+- (void) hungDump: (LaunchInfo*)l;
 - (void) hungRestart: (LaunchInfo*)l;
 - (void) information: (NSString*)inf
 		from: (NSString*)s
@@ -873,12 +892,18 @@ desiredName(Desired state)
     }
 }
 
-- (NSTimeInterval) abortDateFromStoppingDate: (NSTimeInterval)stopping
+- (void) newStoppingDate: (NSTimeInterval)stopping
 {
-  NSTimeInterval        when = stopping;
   NSTimeInterval	ti = 0.0;
   NSString		*s;
 
+  /* The stopping date is supplied as a parameter.
+   */
+  stoppingDate = stopping;
+
+  /* The abort date is a certain number of seconds after the stopping date,
+   * unless constrained by the terminateBy setting.
+   */
   s = [[self configuration] objectForKey: @"QuitTime"];
   if ([s respondsToSelector: @selector(intValue)])
     {
@@ -888,16 +913,31 @@ desiredName(Desired state)
     {
       ti = quitTime;
     }
-  when += ti;
+  abortDate = stoppingDate += ti;
+
   if (terminateBy)
     {
       ti = [terminateBy timeIntervalSinceReferenceDate];
-      if (ti < when)
+      if (ti < abortDate)
         {
-          when = ti;
+          abortDate = ti;
         }
     }
-  return when;
+
+  /* The time allowed for a dump is always extended to allow for the dump
+   * of a hung process.
+   */
+  s = [[self configuration] objectForKey: @"DumpTime"];
+  if ([s respondsToSelector: @selector(intValue)])
+    {
+      ti = (NSTimeInterval)[s intValue];
+    }
+  if (ti <= 0.0)
+    {
+      ti = dumpTime;
+    }
+  dumpDate = abortDate;
+  abortDate += ti;
 }
 
 - (void) alarm: (EcAlarm*)alarm
@@ -1240,6 +1280,11 @@ desiredName(Desired state)
 - (BOOL) isActive
 {
   return (client != nil && NO == [self isStopping]) ? YES : NO;
+}
+
+- (BOOL) isDumped
+{
+  return dumpDone;
 }
 
 - (BOOL) isStarting
@@ -2408,8 +2453,21 @@ valgrindLog(NSString *name)
     }
 }
 
-- (void) setHung
+- (void) setDumped: (BOOL)dumped
 {
+  dumpDone = (dumped ? YES : NO);
+}
+
+- (BOOL) setHung: (BOOL)dumped
+{
+  if (triedDump)
+    {
+      return YES;	// Have already tried to dump
+    }
+  if (dumped)
+    {
+      triedDump = YES;
+    }
   if (hungDate <= 0.0)
     {
       hungDate = [NSDate timeIntervalSinceReferenceDate];
@@ -2419,6 +2477,7 @@ valgrindLog(NSString *name)
       [self setStable: NO];
       nextStableDate = 0.0;
     }
+  return NO;	// Have not tried to dump yet.
 }
 
 - (void) setManual: (BOOL)f
@@ -2842,8 +2901,7 @@ valgrindLog(NSString *name)
   else
     {
       [self resetDelay];
-      stoppingDate = [NSDate timeIntervalSinceReferenceDate];
-      abortDate = [self abortDateFromStoppingDate: stoppingDate];
+      [self newStoppingDate: [NSDate timeIntervalSinceReferenceDate]];
       if ([self hungDate] > 0.0 && identifier > 0)
         {
           /* The process is hung and we assume it can't shut down gracefully.
@@ -2937,6 +2995,9 @@ valgrindLog(NSString *name)
   awakenedDate = 0.0;
   stableDate = 0.0;
   abortDate = 0.0;
+  dumpDate = 0.0;
+  dumpDone = NO;
+  triedDump = NO;
   [self clearHung];
 
   if (clientLostDate > 0.0 || clientQuitDate > 0.0)
@@ -3178,15 +3239,16 @@ valgrindLog(NSString *name)
   now = [NSDate timeIntervalSinceReferenceDate];
   if (stoppingDate <= 0.0)
     {
-      stoppingDate = now;
+      [self newStoppingDate: now];
     }
-  if (abortDate <= 0.0)
+  if (dumpDate <= now && abortDate > now)
     {
-      abortDate = [self abortDateFromStoppingDate: stoppingDate];
+      [(EcCommand*)EcProc hungDump: self];
     }
-  if (abortDate <= now)
+  if (abortDate <= now || dumpDone)
     {
-      /* Maximum time for clean shutdown has passed.
+      /* Maximum time for clean shutdown has passed and/or the core dump
+       * has completed.
        */
       [[NSNotificationCenter defaultCenter]
         removeObserver: self
@@ -3218,7 +3280,11 @@ valgrindLog(NSString *name)
     }
   else
     {
-      ti = abortDate - now;
+      ti = dumpDate - now;
+      if (ti <= 0.0)
+	{
+          ti = abortDate - now;
+	}
       if (ti < 0.001)
         {
           ti = 0.001;
@@ -3920,6 +3986,21 @@ NSLog(@"Problem %@", localException);
           else
             {
               pingTime = 120.0;
+            }
+
+          /* The time allowed for a process to core dump defaults to 30 seconds
+           * but may be configured in the range from 10 to 60
+           */
+          ti = [[d objectForKey: @"CommandDumpTime"] doubleValue];
+          if (ti == ti && ti > 0.0)
+            {
+              if (ti < 10.0) ti = 10.0;
+              if (ti > 60.0) ti = 60.0;
+              dumpTime = ti;
+            }
+          else
+            {
+              dumpTime = 30.0;
             }
 
           /* The time allowed for a process to shut down cleanly defaults
@@ -6732,7 +6813,7 @@ NSLog(@"Problem %@", localException);
 		{
 		  NSString	*m;
 
-		  [l setHung];
+		  [l setHung: NO];
 		  m = [NSString stringWithFormat:
 		    @"failed to respond for over %d seconds", (int)delay];
 		  [self alarmCode: ACProcessHung
@@ -6994,16 +7075,22 @@ NSLog(@"Problem %@", localException);
     }
 }
 
-/** Initiate a restart of a hung process
- */
-- (void) hungRestart: (LaunchInfo*)l
+static NSMapTable	*dumpTasks = nil;
+
+- (void) hungDump: (LaunchInfo*)l
 {
   NSString              *prog;
   NSArray               *args;
   NSString              *base;
   NSString              *home;
   NSString              *pid;
+  NSString  		*msg;
   NSTask              	*task;
+
+  if ([l setHung: YES])
+    {
+      return;	// Already done.
+    }
 
   base = [[self ecUserDirectory] stringByAppendingPathComponent: @"DebugLogs"];
 
@@ -7053,7 +7140,7 @@ NSLog(@"Problem %@", localException);
     }
   else
     {
-      /* Run gcode to get a coredump
+      /* Run gcore to get a coredump
        */
       prog = @"gcore";
       args = [NSArray arrayWithObjects: pid, nil];
@@ -7070,14 +7157,17 @@ NSLog(@"Problem %@", localException);
     {
       if ([prog length] > 0)
 	{
-	  NSLog(@"Failed to find gcore to get info for hung process %@", pid);
+	  msg = [NSString stringWithFormat:
+	    @"Failed to find tool to get core dump for hung process %@", pid];
+	  NSLog(@"%@", msg);
+	  [self information: msg
+		       from: nil
+			 to: nil
+		       type: LT_CONSOLE];
 	}
-      RELEASE(task);
     }
   else
     {
-      NSString  *msg;
-
       [task setStandardInput: [NSFileHandle fileHandleWithNullDevice]];
 
       [[NSNotificationCenter defaultCenter]
@@ -7092,38 +7182,70 @@ NSLog(@"Problem %@", localException);
 		   from: nil
 		     to: nil
 		   type: LT_CONSOLE];
+      [self ecDoLock];
+      if (nil == dumpTasks)
+        {
+          ASSIGN(dumpTasks, [NSMapTable strongToStrongObjectsMapTable]);
+        }
+      [dumpTasks setObject: l forKey: task];
+      [self ecUnLock];
       [task launch];
     }
+  RELEASE(task);
+}
 
+/** Initiate a restart of a hung process
+ */
+- (void) hungRestart: (LaunchInfo*)l
+{
   /* Here we need to run a subprocess to get a core dump of the hung process
    */
+  [self hungDump: l];
+
   [l restart: @"Process appears to be hung"];
 }
 
 - (void) hungToolTerminated: (NSNotification*)n
 {
-  NSTask	*task = (NSTask*)[n object];
-  NSString      *msg;
+  NSTask	*task = (NSTask*)AUTORELEASE(RETAIN([n object]));
+  LaunchInfo    *l;
+  NSString      *msg = @"";
 
+  [self ecDoLock];
+  l = AUTORELEASE(RETAIN([dumpTasks objectForKey: task]));
+  if (l)
+    {
+      /* The task was found ... remove it.
+       */
+      [dumpTasks removeObjectForKey: task];
+      msg = [NSString stringWithFormat: @" for '%@' (%d)",
+        [l name], [l processIdentifier]];
+    }
   if (NSTaskTerminationReasonUncaughtSignal == [task terminationReason])
     {
       msg = [NSString stringWithFormat:
-        @"Gathering hung process info using task %p"
-        @" exited with signal %d.", task, [task terminationStatus]];
+        @"Gathering hung process info%@ using task %p"
+        @" exited with signal %d.", msg, task, [task terminationStatus]];
     }
   else
     {
       msg = [NSString stringWithFormat:
-        @"Gathering hung process info using task %p"
-        @" returned status %d", task, [task terminationStatus]];
+        @"Gathering hung process info%@ using task %p"
+        @" returned status %d", msg, task, [task terminationStatus]];
     }
+  [self ecUnLock];
   [self information: msg
                from: nil
                  to: nil
                type: LT_CONSOLE];
-  /* The task was left retained by -hungRestart: so we must destroy it.
-   */
-  RELEASE(task);
+  if (l)
+    {
+      /* Record that the dump completed and simulate a timeout for
+       * the process to be aborted.
+       */
+      [l setDumped: YES];
+      [l stopping: nil];
+    }
 }
 
 - (NSMutableArray*) unconfiguredClients

@@ -75,6 +75,13 @@
 	 *			after HungTime in order to gather information
 	 *			about the hung process.  It's arguments will
 	 *			be the process name and the process ID.
+	 * DumpTime = (integer)	If greater than zero this the interval allowed
+	 *			to take a core dump of a process before it is
+	 *			forcibly killed if it is stopping or restarting
+	 *			too slowly.  The default (used if this is not
+	 *			specified and greater than zero)
+	 *			is 30 seconds (or as specified by the
+	 *			CommandDumpTime default).
 	 * QuitTime = (integer)	If greater than zero this the interval before
 	 *			a process is forcibly killed if it is stopping
 	 *			or restarting too slowly.  The default (used
