@@ -1230,7 +1230,8 @@ extern NSString*	cmdVersion(NSString *ver);
  * It adds the defaults specified to the defaults system.<br />
  * It sets the process name to be that specified in the
  * 'ProgramName' default with an '-id' affix if Instance is used
- * to provide an instance id.<br />
+ * to provide an instance id.  It is an error to specify a ProgramName
+ * which already contains an instance id suffix<br />
  * Moves to the directory (relative to the current user's home directory)
  * given in 'HomeDirectory'.<br />
  * If 'HomeDirectory' is not present in the defaults system (or is

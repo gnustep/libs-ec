@@ -1465,7 +1465,7 @@ valgrindLog(NSString *name)
               NSString          *key = nil;
 
               /* From the supplied arguments, key/value pairs of the form
-               * representing  usr defaults settings are placed in a dictionary
+               * representing user defaults settings are placed in a dictionary
                * to be passed as hidden information, and the remainder of 
                * the values are added to the list passed as process arguments.
                */
@@ -4097,6 +4097,65 @@ NSLog(@"Problem %@", localException);
 		      NSLog(@"bad 'Launch' Args for %@", k);
 		      continue;
 		    }
+		  else if (o)
+		    {
+		      NSArray           *a = (NSArray*)o;
+		      NSUInteger        count = [a count];
+		      NSUInteger        index;
+		      NSString          *key = nil;
+		      BOOL		bad = NO;
+
+		      for (index = 0; index < count; index++)
+			{
+			  id    val = [a objectAtIndex: index];
+
+			  if (key)
+			    {
+			      if ([key hasSuffix: @"ProgramName"])
+				{
+				  NSUInteger	l = [val length];
+				  NSUInteger	p;
+				  NSRange	r;
+
+				  r = [val rangeOfString: @"-"
+						 options: NSBackwardsSearch];
+				  if (r.length > 0 && (p = NSMaxRange(r)) < l)
+				    {
+				      unichar	c;
+
+				      while (p < l)
+					{
+					  c = [val characterAtIndex: p];
+
+					  if (c > 127 || !isdigit(c))
+					    {
+					      break;
+					    }
+					  p++;
+					}
+				      if (p == l)
+					{
+					  NSLog(@"bad 'Launch' Args (ProgramName appears to contain Instance number) for %@", k);
+					  bad = YES;
+					  break;
+					}
+				    }
+				}
+			      key = nil;
+			    }
+			  else if ([val length] > 1
+			    && [val hasPrefix: @"-"]
+			    && ![val hasPrefix: @"--"])
+			    {
+			      key = [val substringFromIndex: 1];
+			    }
+			}
+		      if (bad)
+			{
+			  continue;
+			}
+		    }
+
 		  o = [d objectForKey: @"Home"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
