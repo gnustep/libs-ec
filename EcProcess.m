@@ -7392,3 +7392,390 @@ static NSMutableDictionary      *regDefs = nil;
 
 @end
 
+
+#ifdef USE_STEPTALK
+# ifndef REMOTE_SCRIPTING
+#  define REMOTE_SCRIPTING 1
+# endif
+# import <Foundation/NSFileManager.h>
+# import <StepTalk/StepTalk.h>
+
+@interface EcProcess(StepTalk)
+- (STConversation*) cmdConversation;
+- (void) cmdMesgtalk: (NSArray*)mesg;
+- (void) cmdMesgscript: (NSArray*)mesg;
+# if REMOTE_SCRIPTING
+- (void) cmdMesgscripting: (NSArray*)mesg;
+# endif
+@end
+
+# if REMOTE_SCRIPTING
+@interface STEnvironmentProcess : NSObject<STEnvironmentProcess>
+{
+  NSString	*envName;
+  NSConnection	*localConnection, *remoteConnection;
+}
++ (id) sharedEnvironmentProcess;
+- (NSString*) envName;
+- (NSString*) envProcName;
+- (BOOL) isRunning;
+- (void) startWithName: (NSString*)name;
+- (void) stop;
+- (NSConnection*) connectionWithPort: (NSPort*)port
+		     usingNameServer: (NSPortNameServer*)nameServer;
+@end
+# endif
+
+@interface CmdTranscript : NSObject
++ (CmdTranscript*) sharedTranscript;
+- (void) show: (id)anObject;
+- (void) showLine: (id)anObject;
+- (void) cr;
+@end
+
+@implementation EcProcess(StepTalk)
+
+- (STConversation*) cmdConversation
+{
+  static STConversation *stConversation;
+
+  if (stConversation == nil)
+    {
+      STEnvironment *stEnv =
+	[STEnvironment environmentWithDefaultDescription];
+      stConversation =
+	[[STConversation alloc] initWithContext: stEnv language: @"Smalltalk"];
+      [stEnv setCreatesUnknownObjects: YES];
+      [stEnv setFullScriptingEnabled: YES];
+      [stEnv setObject: EcProc forName: @"EcProc"];
+      [stEnv setObject: [CmdTranscript sharedTranscript]
+	       forName: @"Transcript"];
+      [stEnv setObject: stEnv forName: @"Environment"];
+    }
+  return stConversation;
+}
+
+- (void) cmdMesgtalk: (NSArray*)mesg
+{
+  if ([mesg count] == 0)
+    {
+      [self cmdPrintf:
+	@"interprets the rest of the command line as a StepTalk script"];
+      return;
+    }
+  if ([mesg count] > 0 && [[mesg objectAtIndex: 0] isEqualToString: @"help"])
+    {
+      [self cmdPrintf:
+	@"interpret the rest of the command line as a StepTalk script\n"];
+      return;
+    }
+
+  if ([mesg count] > 1)
+    {
+      NSAutoreleasePool *pool = [NSAutoreleasePool new];
+      NSString *script = [mesg componentsJoinedByString: @" "];
+      script =
+	[script substringFromIndex: [[mesg objectAtIndex: 0] length] + 1];
+      NS_DURING
+	{
+	  STConversation *stConversation = [self cmdConversation];
+	  [[stConversation context] removeObjectWithName: @"Args"];
+	  [stConversation interpretScript: script];
+	  id result = [stConversation result];
+	  if (result != nil && result != STNil)
+	    {
+	      [self cmdPrintf: @"%@", result];
+	    }
+	}
+      NS_HANDLER
+	{
+	  [self cmdPrintf: @"***Exception: %@", localException];
+	}
+      NS_ENDHANDLER
+      [pool release];
+    }
+}
+
+- (void) cmdMesgscript: (NSArray*)mesg
+{
+  if ([mesg count] == 0)
+    {
+      [self cmdPrintf: @"loads and interprets a StepTalk script file"];
+      return;
+    }
+  if ([mesg count] > 0 && [[mesg objectAtIndex: 0] isEqualToString: @"help"])
+    {
+      [self cmdPrintf:
+	@"loads and interprets a StepTalk script file\n"
+	@"The first argument is the name of the script file.\n"
+	@"The remaining arguments are passed to the script in the global\n"
+	@"variable Args."];
+      return;
+    }
+
+  if ([mesg count] > 1)
+    {
+      BOOL isDir;
+      NSAutoreleasePool *pool = [NSAutoreleasePool new];
+      NSFileManager *fm = [NSFileManager defaultManager];
+      NSString *script = [mesg objectAtIndex: 1];
+
+      if ([script length] == 0)
+	{
+	  [pool release];
+	  return;
+	}
+      if (![script isAbsolutePath])
+	{
+	  script =
+	    [[fm currentDirectoryPath] stringByAppendingPathComponent: script];
+	}
+      if (![fm fileExistsAtPath: script isDirectory: &isDir] || isDir)
+	{
+	  [self cmdPrintf: @"script file %@ not found",
+	    [mesg objectAtIndex: 1]];
+	  [pool release];
+	  return;
+	}
+      if (![fm isReadableFileAtPath: script])
+	{
+	  [self cmdPrintf: @"script file %@ not readable",
+	    [mesg objectAtIndex: 1]];
+	  [pool release];
+	  return;
+	}
+
+      script =
+	[[NSString alloc] initWithData: [NSData dataWithContentsOfFile: script]
+			      encoding: NSUTF8StringEncoding];
+      if ([script length] == 0)
+	{
+	  [self cmdPrintf: @"script file %@ is empty",
+	    [mesg objectAtIndex: 1]];
+	  [script release];
+	  [pool release];
+	  return;
+	}
+
+      NS_DURING
+	{
+	  STConversation *stConversation = [self cmdConversation];
+	  NSArray *args =
+	    [mesg subarrayWithRange: NSMakeRange(2, [mesg count] - 2)];
+	  [[stConversation context] setObject: args forName: @"Args"];
+	  [stConversation interpretScript: script];
+	  id result = [stConversation result];
+	  if (result != nil)
+	    {
+	      [self cmdPrintf: @"%@", result];
+	    }
+	}
+      NS_HANDLER
+	{
+	  [self cmdPrintf: @"***Exception: %@", localException];
+	}
+      NS_ENDHANDLER
+      [script release];
+      [pool release];
+    }
+}
+
+# if REMOTE_SCRIPTING
+- (void) cmdMesgscripting: (NSArray*)mesg
+{
+  NSString		*subcommand;
+  STEnvironmentProcess 	*ep;
+
+  if ([mesg count] == 0)
+    {
+      [self cmdPrintf: @"manages the remote scripting server"];
+      return;
+    }
+  if (([mesg count] > 0 && [[mesg objectAtIndex: 0] isEqualToString: @"help"])
+    || [mesg count] < 2)
+    {
+      [self cmdPrintf:
+        @"manages the remote scripting server\n"
+	@"  scripting status     - shows status of the server.\n"
+	@"  scripting start      - starts the server.\n"
+	@"  scripting start name - starts the server with environment name.\n"
+        @"  scripting stop       - stops the server."];
+      return;
+    }
+
+  subcommand = [mesg objectAtIndex: 1];
+  ep = [STEnvironmentProcess sharedEnvironmentProcess];
+  if ([subcommand caseInsensitiveCompare: @"status"] == NSOrderedSame)
+    {
+      if ([ep isRunning])
+	{
+	  [self cmdPrintf: @"Remote scripting server is running.\n"
+	    @"  Environment: %@\n  DO Server:   %@",
+	    [ep envName], [ep envProcName]];
+	}
+      else
+	{
+	  [self cmdPrintf: @"Remote scripting server is not running."];
+	}
+    }
+  else if ([subcommand caseInsensitiveCompare: @"start"] == NSOrderedSame)
+    {
+      if ([ep isRunning])
+	{
+	  [self cmdPrintf: @"Remote scripting server already is running.\n"
+            @"  Environment: %@", [ep envName]];
+	}
+      else
+	{
+	  NSString *envName = [mesg count] > 2 ? [mesg objectAtIndex: 2] : nil;
+	  [ep startWithName: envName];
+	  [self cmdPrintf: @"Remote scripting server started.\n"
+            @"  Environment: %@", [ep envName]];
+	}
+    }
+  else if ([subcommand caseInsensitiveCompare: @"stop"] == NSOrderedSame)
+    {
+      if ([ep isRunning])
+	{
+	  [ep stop];
+	  [self cmdPrintf: @"Remote scripting server stopped."];
+	}
+      else
+	{
+	  [self cmdPrintf: @"Remote scripting server is not running."];
+	}
+    }
+  else
+    {
+      [self cmdPrintf: @"Unknown scripting sub-command: %@",
+        [mesg objectAtIndex: 1]];
+    }
+}
+# endif
+
+@end
+
+# if REMOTE_SCRIPTING
+@implementation STEnvironmentProcess
+
+static STEnvironmentProcess *sharedEnvironmentProcess;
+
++ (id) sharedEnvironmentProcess
+{
+  if (sharedEnvironmentProcess == nil)
+    {
+      sharedEnvironmentProcess = [self new];
+    }
+  return sharedEnvironmentProcess;
+}
+
+- (void) dealloc
+{
+  [remoteConnection release];
+  [localConnection release];
+  [envName release];
+  [super dealloc];
+}
+
+- (NSString*) envName
+{
+  return envName;
+}
+
+- (NSString*) envProcName
+{
+  return [@"STEnvironment:" stringByAppendingString: [self envName]];
+
+}
+
+- (BOOL) isRunning
+{
+  return localConnection != nil || remoteConnection != nil;
+}
+
+- (void) startWithName: (NSString *)name
+{
+  ASSIGN(envName, name);
+
+  localConnection =
+    [self connectionWithPort: [NSMessagePort port]
+	     usingNameServer: [NSMessagePortNameServer sharedInstance]];
+  [localConnection retain];
+
+  remoteConnection =
+    [self connectionWithPort: [NSSocketPort port]
+	     usingNameServer: [NSSocketPortNameServer sharedInstance]];
+  [remoteConnection retain];
+}
+
+- (void) stop
+{
+  [remoteConnection release];
+  remoteConnection = nil;
+
+  [localConnection release];
+  localConnection = nil;
+
+  DESTROY(envName);
+}
+
+- (NSConnection*) connectionWithPort: (NSPort*)port
+		     usingNameServer: (NSPortNameServer*)nameServer
+{
+  NSConnection *connection =
+    [NSConnection connectionWithReceivePort: port  sendPort: nil];
+  if (envName == nil)
+    {
+      envName = [[EcProc cmdName] copy];
+    }
+  if ([connection registerName: [self envProcName] withNameServer: nameServer])
+    {
+      [connection setRootObject: self];
+    }
+  else
+    {
+      connection = nil;
+    }
+  return connection;
+}
+
+- (STConversation*) createConversation
+{
+  return [EcProc cmdConversation];
+}
+
+@end
+# endif
+
+@implementation CmdTranscript
+
+static CmdTranscript *sharedTranscript;
+
++ (CmdTranscript*) sharedTranscript
+{
+  if (sharedTranscript == nil)
+    {
+      sharedTranscript = [self new];
+    }
+  return sharedTranscript;
+}
+
+- (void) show: (id)anObject
+{
+  [EcProc cmdPrintf: @"%@", anObject];
+}
+
+- (void) showLine: (id)anObject
+{
+  [EcProc cmdPrintf: @"%@\n", anObject];
+}
+
+- (void) cr
+{
+  [EcProc cmdPrintf: @"\n"];
+}
+
+@end
+
+#endif
+
