@@ -187,6 +187,10 @@ extern char *crypt(const char *key, const char *salt);
 #  include <sys/types.h>
 #endif
 
+#ifndef __MINGW__
+#include <dirent.h>
+#endif
+
 #include <stdio.h>
 
 NSString * const EcDidQuitNotification = @"EcDidQuitNotification";
@@ -220,6 +224,9 @@ EcLock_error_handler(id obj, SEL _cmd, BOOL stop, NSString *msg)
 #ifndef __MINGW__
 static int              reservedPipe[2] = { 0, 0 };
 static NSInteger        descriptorsMaximum = 0;
+static unsigned		fdCur = 0;
+static unsigned		fdLim = 0;
+static unsigned		fdMax = 0;
 #endif
 
 /* Flag to say whether a restart was caused by the mememory maximum
@@ -1524,6 +1531,7 @@ findMode(NSDictionary* d, NSString* s)
 @interface	EcProcess (Private)
 - (void) cmdMesgrelease: (NSArray*)msg;
 - (void) cmdMesgtesting: (NSArray*)msg;
+- (void) _fdCheck;
 - (void) _memCheck;
 - (NSString*) _moveLog: (NSString*)name to: (NSDate*)when;
 - (void) _timedOut: (NSTimer*)timer;
@@ -2568,6 +2576,16 @@ static NSString	*noFiles = @"No log files to archive";
       return nil;
     }
   return [dateClass dateWithTimeIntervalSinceReferenceDate: lastOP];
+}
+
+- (void) ecFileDescriptors: (unsigned*)curPtr
+		      soft: (unsigned*)limPtr
+		      hard: (unsigned*)maxPtr
+{
+  [self _fdCheck];
+  if (curPtr) *curPtr = fdCur;
+  if (limPtr) *limPtr = fdLim;
+  if (maxPtr) *maxPtr = fdMax;
 }
 
 - (NSString*) ecLogEnd: (NSString*)name to: (NSDate*)when
@@ -3905,34 +3923,22 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 #ifndef __MINGW__
   if (NO == ecIsQuitting())
     {
-      NSString          *shutdown = nil;
-      int	        p[2];
+      NSString	*shutdown = nil;
 
-      if (pipe(p) == 0)
-        {
-          if (0 == reservedPipe[1])
-            {
-              reservedPipe[0] = p[0];
-              reservedPipe[1] = p[1];
+      [self _fdCheck];
+
+      if (0 == fdCur || ((fdCur * 5) / 4) + 10 > fdMax
+	|| (descriptorsMaximum > 0 && fdCur > descriptorsMaximum))
+	{
+	  if (fdCur > 0)
+	    {
+	      shutdown = [NSString stringWithFormat:
+		@"Open file descriptor count (%u) hit limit", fdCur];
             }
-          else
-            {
-              close(p[0]);
-              close(p[1]);
-            }
-          if (descriptorsMaximum > 0)
-            {
-              if (p[0] > descriptorsMaximum || p[1] > descriptorsMaximum)
-                {
-                  shutdown = [NSString stringWithFormat:
-                    @"Open file descriptor limit (%lu) exceeded",
-                    (unsigned long) descriptorsMaximum];
-                }
-            }
-        }
-      else
-        {
-          shutdown = @"Process ran out of file descriptors";
+	  else
+	    {
+	      shutdown = @"Process hit limit of file descriptors";
+	    }
         }
       if (nil != shutdown)
         {
@@ -5654,75 +5660,82 @@ With two parameters ('list' and a class),\n\
 	  [self cmdPrintf: @"Unknown memory usage:  built with asan/lsan.\n"];
 	}
       else
-	  {
-	    if (memTime <= 0.0)
-	      {
-		s = @"";
-	      }
-	    else
-	      {
-		s = [NSString stringWithFormat: @" (last checked at %@)",
-		  [NSDate dateWithTimeIntervalSinceReferenceDate: memTime]];
-	      } 
-	    [self cmdPrintf: @"%@ memory usage%@:\n"
-	      @"  %"PRIu64"%@ (current), %"PRIu64"%@ (peak)\n",
-	      memType, s, memLast/memSize, memUnit, memPeak/memSize, memUnit];
-	    [self cmdPrintf: @"  %"PRIu64"%@ (average),"
-	      @" %"PRIu64"%@ (start)\n",
-	      memAvge/memSize, memUnit, memStrt/memSize, memUnit];
+	{
+	  if (memTime <= 0.0)
+	    {
+	      s = @"";
+	    }
+	  else
+	    {
+	      s = [NSString stringWithFormat: @" (last checked at %@)",
+		[NSDate dateWithTimeIntervalSinceReferenceDate: memTime]];
+	    } 
+	  [self cmdPrintf: @"%@ memory usage%@:\n"
+	    @"  %"PRIu64"%@ (current), %"PRIu64"%@ (peak)\n",
+	    memType, s, memLast/memSize, memUnit, memPeak/memSize, memUnit];
+	  [self cmdPrintf: @"  %"PRIu64"%@ (average),"
+	    @" %"PRIu64"%@ (start)\n",
+	    memAvge/memSize, memUnit, memStrt/memSize, memUnit];
 
-	    setMemBase();
-	    if (memSlot < MEMCOUNT)
-	      {
-		[self cmdPrintf: @"Waiting (for %d min"
-		  @" of baseline stats collection).\n",
-		  (int)(MEMCOUNT - memSlot)];
-	      }
+	  setMemBase();
+	  if (memSlot < MEMCOUNT)
+	    {
+	      [self cmdPrintf: @"Waiting (for %d min"
+		@" of baseline stats collection).\n",
+		(int)(MEMCOUNT - memSlot)];
+	    }
 
-	    if (memAllowed > 0)
-	      {
-		[self cmdPrintf: @"MemoryAllowed: %"PRIu64 @"%@\n  the process"
-		  @" is expected to use up to this much memory.\n",
-		  memAllowed * 1024 * 1024 / memSize, memUnit];
-	      }
-	    if (memMaximum > 0)
-	      {
-		NSString	*idle;
-		int		hour;
-		uint64_t	limit;
+	  if (memAllowed > 0)
+	    {
+	      [self cmdPrintf: @"MemoryAllowed: %"PRIu64 @"%@\n  the process"
+		@" is expected to use up to this much memory.\n",
+		memAllowed * 1024 * 1024 / memSize, memUnit];
+	    }
+	  if (memMaximum > 0)
+	    {
+	      NSString	*idle;
+	      int		hour;
+	      uint64_t	limit;
 
-		if (0 == memAllowed)
-		  {
-		    [self cmdPrintf: @"Estimated base: %"PRIu64
-		      @"%@\n  the process is expected to use up to"
-		      @" this much memory.\n",
-		      memAllowed * 1024 * 1024 / memSize, memUnit];
-		  }
-		[self cmdPrintf: @"MemoryMaximum: %"PRIu64
-		  @"%@\n  the process is restarted when peak memory usage"
-		  @" is above this limit.\n",
-		  memMaximum * 1024 * 1024 / memSize, memUnit];
-		idle = [cmdDefs stringForKey: @"MemoryIdle"];
-		if ([idle length] > 0
-		  && (hour = [idle intValue]) >= 0 && hour < 24)
-		  {
-		    [self cmdPrintf: @"  The process is also restarted if"
-		      @" memory is above %"PRIu64"%@\n  during the hour"
-		      @" from %02d:00.\n",
-		      memCrit/memSize, memUnit, hour];
-		  }
-		limit = memWarn;
-		switch (memAlarm)
-		  {
-		    case EcAlarmSeverityCritical:	limit = memCrit; break;
-		    case EcAlarmSeverityMajor:		limit = memMajr; break;
-		    case EcAlarmSeverityMinor:		limit = memMinr; break;
-		    default:				limit = memWarn; break;
-		  }
-		[self cmdPrintf: @"Alarms are raised when memory usage"
-		  @" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
-	      }
-	  }
+	      if (0 == memAllowed)
+		{
+		  [self cmdPrintf: @"Estimated base: %"PRIu64
+		    @"%@\n  the process is expected to use up to"
+		    @" this much memory.\n",
+		    memAllowed * 1024 * 1024 / memSize, memUnit];
+		}
+	      [self cmdPrintf: @"MemoryMaximum: %"PRIu64
+		@"%@\n  the process is restarted when peak memory usage"
+		@" is above this limit.\n",
+		memMaximum * 1024 * 1024 / memSize, memUnit];
+	      idle = [cmdDefs stringForKey: @"MemoryIdle"];
+	      if ([idle length] > 0
+		&& (hour = [idle intValue]) >= 0 && hour < 24)
+		{
+		  [self cmdPrintf: @"  The process is also restarted if"
+		    @" memory is above %"PRIu64"%@\n  during the hour"
+		    @" from %02d:00.\n",
+		    memCrit/memSize, memUnit, hour];
+		}
+	      limit = memWarn;
+	      switch (memAlarm)
+		{
+		  case EcAlarmSeverityCritical:	limit = memCrit; break;
+		  case EcAlarmSeverityMajor:		limit = memMajr; break;
+		  case EcAlarmSeverityMinor:		limit = memMinr; break;
+		  default:				limit = memWarn; break;
+		}
+	      [self cmdPrintf: @"Alarms are raised when memory usage"
+		@" is above: %"PRIu64"%@.\n", limit / memSize, memUnit];
+	    }
+	}
+      if (0 == fdMax)
+	{
+	  [self _fdCheck];
+	}
+      [self cmdPrintf: @"File descriptors:      %u (current usage)\n", fdCur];
+      [self cmdPrintf: @"                       %u (soft limit),"
+        @" %u (hard limit).\n", fdLim, fdMax];
     }
 }
 
@@ -6383,6 +6396,94 @@ With two parameters ('list' and a class),\n\
         }
       NS_ENDHANDLER
     }
+}
+
+- (void) _fdCheck
+{
+  unsigned 	cur = 0;
+  unsigned 	lim = 0;
+  unsigned 	max = 0;
+#ifndef __MINGW__
+  char 		path[256];
+  DIR 		*dir;
+  struct rlimit	rlim;
+
+  sprintf(path, "/proc/%d/fd", getpid());
+  dir = opendir(path);
+  if (NULL == dir)
+    {
+      perror("opendir() failed to read /proc/pid/fd");
+    }
+  else
+    {
+      struct dirent *entry;
+
+      while ((entry = readdir(dir)) != NULL)
+	{
+	  if (strcmp(entry->d_name, ".") == 0
+	    || strcmp(entry->d_name, "..") == 0)
+	    {
+	      continue;
+	    }
+	  cur++;
+	}
+      closedir(dir);
+    }
+
+  if (getrlimit(RLIMIT_NOFILE, &rlim) < 0)
+    {
+      NSLog(@"Unable to get file descriptor limit: %d", errno);
+    }
+  else
+    {
+      rlim_t	want;
+
+      lim = (unsigned)rlim.rlim_cur;
+      max = (unsigned)rlim.rlim_max;
+      if (0 == cur)
+	{
+	  want = (rlim_t)max;
+	}
+      else
+	{
+	  /* Allow space to grow number of decriptors.
+	   */
+	  want = (rlim_t)(((cur * 3) / 2) + 100); 
+	}
+      if (lim < want)
+	{
+          rlim.rlim_cur = want;
+          if (setrlimit(RLIMIT_NOFILE, &rlim) < 0)
+            {
+	      EcAlarm   *a;
+	      NSString  *repair;
+	      NSString	*additional;
+
+	      repair =
+		@"Reconfigure to allow more file descriptors or use fewer";
+	      additional = [NSString stringWithFormat:
+	        @"Unable to set file descriptor limit to %u"
+		@", errno: %d", (unsigned)want, errno];
+	      a = [EcAlarm alarmForManagedObject: nil
+		at: nil
+		withEventType: EcAlarmEventTypeProcessingError
+		probableCause: EcAlarmConfigurationOrCustomizationError
+		specificProblem: @"Not enough file descriptors"
+		perceivedSeverity: EcAlarmSeverityMajor
+		proposedRepairAction: repair
+		additionalText: additional];
+	      [self alarm: a];
+	    }
+	  else
+	    {
+	      lim = want;
+	    }
+	}
+    }
+#endif  
+  fdCur = cur;
+  fdLim = lim;
+  fdMax = max;
 }
 
 - (void) _memCheck

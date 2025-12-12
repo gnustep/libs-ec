@@ -733,6 +733,13 @@ extern NSString*	cmdVersion(NSString *ver);
  */
 - (oneway void) ecDidQuit;
 
+/** Returns the current file descriptor usage and the limits for the process.
+ * If the current usage cannot be determined, returns zero.
+ */
+- (void) ecFileDescriptors: (unsigned*)curPtr
+                      soft: (unsigned*)limPtr
+                      hard: (unsigned*)maxPtr;
+
 /** Called by -ecQuitFor:with: or -cmdQuit: (after the -ecWillQuit and
  * before the -ecDidQuit methods) as a method for subclasses to use to
  * implement their own behaviors.<br />

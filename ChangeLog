@@ -1,3 +1,12 @@
+2025-12-12 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.h:
+	* EcProcess.m:
+	Add method to get file descriptor usage and limits.
+	Report file descriptor usage and limits in process status.
+	Raise alarm if we are unable to grow soft limit to give headroom.
+	Restart process if approaching limit too closely.
+
 2025-08-26 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcCommand.m: If a process fails to shut down promptly, try to core
