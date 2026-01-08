@@ -145,11 +145,11 @@ static unsigned	throttleAt = 12;
 	{
 	  if (i%6 == 0)
 	    {
-	      strcat(buf, "\n");
+	      sprintf(buf + strlen(buf), "\n");
 	    }
 	  else
 	    {
-	      strcat(buf, ", ");
+	      sprintf(buf + strlen(buf), ", ");
 	    }
 	}
       sprintf(buf + strlen(buf), "%u", (unsigned)mins[i]);

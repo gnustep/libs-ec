@@ -6289,7 +6289,6 @@ NSLog(@"Problem %@", localException);
   LaunchInfo	        *l = [LaunchInfo existing: n];
   NSMutableDictionary	*dict;
   EcClientI		*obj;
-  EcClientI		*old;
 
   [(NSDistantObject*)c setProtocolForProxy: @protocol(CmdClient)];
 
@@ -6322,7 +6321,7 @@ NSLog(@"Problem %@", localException);
    */
   obj = [[EcClientI alloc] initFor: c name: n with: self];
 
-  if ((old = [self findIn: clients byName: n]) == nil)
+  if (nil == [self findIn: clients byName: n])
     {
       NSData		*d;
 

@@ -1119,7 +1119,8 @@ consoleCompleter(const char *text, int start, int end)
       NSString	*u;
       NSString	*p;
       NSString	*reject;
-      char 	buf[128], *line = buf;
+      char 	buf[128];
+      char	*line;
 
 #if     !defined(EC_LOGIN_NAME)
 #define EC_LOGIN_NAME   0

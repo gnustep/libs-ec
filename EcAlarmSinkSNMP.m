@@ -38,6 +38,7 @@
 #import "EcLogger.h"
 
 static EcAlarmSinkSNMP	*alarmSink = nil;	// The singleton
+static int32_t		*pollHeartBeat_cache = NULL;
 static NSLock		*classLock = nil;
 
 #if	defined(WITH_NET_SNMP)
@@ -418,15 +419,15 @@ setAlarmTableEntry(netsnmp_tdata_row *row, EcAlarm *alarm)
   e->perceivedSeverity = [alarm perceivedSeverity];
 
   s = stringFromDate([alarm firstEventDate]);
-  strcpy(e->firstEventDate, s);
+  strncpy(e->firstEventDate, s, sizeof(e->firstEventDate));
   e->firstEventDate_len = strlen(s);
 
   s = stringFromDate([alarm eventDate]);
-  strcpy(e->eventDate, s);
+  strncpy(e->eventDate, s, sizeof(e->eventDate));
   e->eventDate_len = strlen(s);
 
   s = [[alarm managedObject] UTF8String];
-  strcpy(e->managedObject, s);
+  strncpy(e->managedObject, s, sizeof(e->managedObject));
   e->managedObject_len = strlen(s);
 
   e->eventTypeID = [alarm eventType];
@@ -434,15 +435,15 @@ setAlarmTableEntry(netsnmp_tdata_row *row, EcAlarm *alarm)
   e->probableCauseID = [alarm probableCause];
 
   s = [[alarm specificProblem] UTF8String];
-  strcpy(e->specificProblem, s);
+  strncpy(e->specificProblem, s, sizeof(e->managedObject));
   e->specificProblem_len = strlen(s);
 
   s = [[alarm proposedRepairAction] UTF8String];
-  strcpy(e->proposedRepairAction, s);
+  strncpy(e->proposedRepairAction, s, sizeof(e->proposedRepairAction));
   e->proposedRepairAction_len = strlen(s);
 
   s = [[alarm additionalText] UTF8String];
-  strcpy(e->additionalText, s);
+  strncpy(e->additionalText, s, sizeof(e->additionalText));
   e->additionalText_len = strlen(s);
 
   e->trendIndicator[0] = [alarm trendIndicator];
@@ -485,8 +486,9 @@ housekeeping(unsigned int clientreg, void *clientarg)
 static void
 init_EcAlarmSink(void)
 {
+  static netsnmp_table_registration_info	*atinfo;
+  static netsnmp_table_registration_info	*otinfo;
   netsnmp_handler_registration		*reg;
-  netsnmp_table_registration_info	*tinfo;
   netsnmp_watcher_info			*winfo;
   NSString				*oidString;
   NSUserDefaults			*defaults;
@@ -633,13 +635,13 @@ init_EcAlarmSink(void)
   if (NULL == objectsTable)
     snmp_perror("create objectsTable"); 
 
-  tinfo = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
-  netsnmp_table_helper_add_indexes(tinfo,
+  otinfo = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+  netsnmp_table_helper_add_indexes(otinfo,
     ASN_OCTET_STR, /* index: objectID */
     0);
-  tinfo->min_column = COLUMN_OBJECTID;
-  tinfo->max_column = COLUMN_OBJECTID;
-  if (netsnmp_tdata_register(reg, objectsTable, tinfo) != SNMPERR_SUCCESS)
+  otinfo->min_column = COLUMN_OBJECTID;
+  otinfo->max_column = COLUMN_OBJECTID;
+  if (netsnmp_tdata_register(reg, objectsTable, otinfo) != SNMPERR_SUCCESS)
     snmp_perror("register objectsTable tdata"); 
 
   /* Create the alarms table as a read-only item for SNMP.
@@ -657,13 +659,13 @@ init_EcAlarmSink(void)
   if (NULL == alarmsTable)
     snmp_perror("create alarmsTable"); 
 
-  tinfo = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
-  netsnmp_table_helper_add_indexes(tinfo,
+  atinfo = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+  netsnmp_table_helper_add_indexes(atinfo,
     ASN_INTEGER,   /* index: notificationID */
     0);
-  tinfo->min_column = COLUMN_NOTIFICATIONID;
-  tinfo->max_column = COLUMN_TRENDINDICATOR;
-  if (netsnmp_tdata_register(reg, alarmsTable, tinfo) != SNMPERR_SUCCESS)
+  atinfo->min_column = COLUMN_NOTIFICATIONID;
+  atinfo->max_column = COLUMN_TRENDINDICATOR;
+  if (netsnmp_tdata_register(reg, alarmsTable, atinfo) != SNMPERR_SUCCESS)
     snmp_perror("register alarmsTable tdata"); 
 
   /* Register scalar watchers for each of the MIB objects.
@@ -755,8 +757,7 @@ pollHeartBeat_handler(netsnmp_mib_handler *handler,
   netsnmp_agent_request_info *reqinfo,
   netsnmp_request_info *requests)
 {
-  int32_t	*pollHeartBeat_cache = NULL;
-  int32_t	tmp;
+  int32_t		tmp;
 
   DEBUGMSGTL(("EcAlarmSink", "Got pollHeartBeat_handler request:\n"));
 
@@ -776,7 +777,10 @@ pollHeartBeat_handler(netsnmp_mib_handler *handler,
 	/*
 	 * store old info for undo later 
 	 */
-        pollHeartBeat_cache = malloc(sizeof(pollHeartBeat));
+	if (NULL == pollHeartBeat_cache)
+	  {
+            pollHeartBeat_cache = malloc(sizeof(pollHeartBeat));
+	  }
 	if (pollHeartBeat_cache == NULL)
 	  {
 	    netsnmp_set_request_error(reqinfo, requests,
@@ -1020,7 +1024,7 @@ objectsTable_createEntry(NSString *objectID)
   row->data = entry;
   str = [objectID UTF8String];
   entry->objectID_len = strlen(str);
-  strcpy(entry->objectID, str);
+  strncpy(entry->objectID, str, sizeof(entry->objectID));
   netsnmp_tdata_row_add_index(row, ASN_OCTET_STR,
     entry->objectID, entry->objectID_len);
   if (netsnmp_tdata_add_row(objectsTable, row) != SNMPERR_SUCCESS)

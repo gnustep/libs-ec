@@ -1697,8 +1697,8 @@ findMode(NSDictionary* d, NSString* s)
                    * we assume entry was correct and set two to be the
                    * same as one so we will not prompt for a confirmation.
                    */
-                  two = malloc(len + 1);
-                  strcpy(two, one);
+                  two = malloc(olen + 1);
+                  memcpy(two, one, olen + 1);
                   tlen = olen;
                 }
               DESTROY(pool);
@@ -1801,7 +1801,7 @@ findMode(NSDictionary* d, NSString* s)
        * of property list data.  The count is a four byte value in network
        * byte order.
        */
-      if (nil != (str = [cmdDefs stringForKey: @"LaunchedAs"]))
+      if (nil != [cmdDefs stringForKey: @"LaunchedAs"])
         {
           NSFileHandle  *fh = [NSFileHandle fileHandleWithStandardInput];
           NSData        *d = [fh readDataOfLength: 4];
@@ -2185,12 +2185,15 @@ findMode(NSDictionary* d, NSString* s)
 
 + (void) ecSetup
 {
+  [ecLock lock];
   if (nil != EcProc)
     {
+      [ecLock unlock];
       [NSException raise: NSGenericException
                   format: @"+ecSetup called when EcProcess is already set up"];
     }
-  (void)[[self alloc] init];
+  EcProc = [[self alloc] init];
+  [ecLock unlock];
 }
 
 - (void) _commandRemove
@@ -5375,7 +5378,7 @@ With two parameters ('list' and a class),\n\
             }
 	  else if (NO == hasLSAN() && [word isEqual: @"alarm"])
             {
-              if (nil == (s = [cmdDefs stringForKey: @"MemoryAlarm"]))
+              if (nil == [cmdDefs stringForKey: @"MemoryAlarm"])
                 {
                   s = [[EcAlarm stringFromSeverity: memAlarm]
                     stringByAppendingString: @" (default)"];
@@ -5717,7 +5720,6 @@ With two parameters ('list' and a class),\n\
 		    @" from %02d:00.\n",
 		    memCrit/memSize, memUnit, hour];
 		}
-	      limit = memWarn;
 	      switch (memAlarm)
 		{
 		  case EcAlarmSeverityCritical:	limit = memCrit; break;
