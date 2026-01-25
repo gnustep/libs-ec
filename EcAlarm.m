@@ -611,6 +611,41 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
   return nil;
 }
 
+- (NSString*) truncate: (NSString*)text
+		  name: (NSString*)name
+		    at: (unsigned)limit
+		   err: (NSString**)eptr
+{
+  const uint8_t	*ptr = (const uint8_t*)[text UTF8String];
+  unsigned	len = strlen((const char*)ptr);
+  
+  if (len > limit)
+    {
+      len = limit;
+      while (len > 0 && ptr[len-1] > 0x7f)
+	{
+	  len--;
+	}
+      if (eptr)
+	{
+	  NSString	*e = *eptr;
+
+	  if (nil == e)
+	    {
+	      e = @"";	
+	    }
+	  e = [e stringByAppendingFormat:
+	    @"%@ too long (greater than %u bytes), truncated from '%@'\n",
+	    name, limit, text];
+	  *eptr = e;
+	}
+      text = AUTORELEASE([[NSString alloc] initWithBytes: ptr
+	length: len
+	encoding: NSUTF8StringEncoding]);
+    }
+  return text;
+}
+
 - (id) initForManagedObject: (NSString*)managedObject
 			 at: (NSDate*)eventDate
 	      withEventType: (EcAlarmEventType)eventType
@@ -620,7 +655,8 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
        proposedRepairAction: (NSString*)proposedRepairAction
 	     additionalText: (NSString*)additionalText
 {
-  Class	c = [self class];
+  Class		c = [self class];
+  NSString	*e = nil;
 
   if (nil == managedObject)
     {
@@ -632,26 +668,20 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
       [NSException raise: NSInvalidArgumentException
 		  format: @"bad managed object (%@)", managedObject];
     }
-  if (127 < strlen([managedObject UTF8String]))
-    {
-      [self release];
-      [NSException raise: NSInvalidArgumentException
-	format: @"managed object too long (over 127 bytes): (%@)",
-	managedObject];
-    }
+  managedObject = [self truncate: managedObject
+			    name: @"managedObject"
+			      at: 127
+			     err: &e];
   if (0 == [specificProblem length])
     {
       [self release];
       [NSException raise: NSInvalidArgumentException
 		  format: @"empty specific problem"];
     }
-  if (255 < strlen([specificProblem UTF8String]))
-    {
-      [self release];
-      [NSException raise: NSInvalidArgumentException
-	format: @"specific problem too long (over 255 bytes): (%@)",
-	specificProblem];
-    }
+  specificProblem = [self truncate: specificProblem
+			      name: @"specificProblem"
+				at: 255
+			       err: &e];
   if (0 == [proposedRepairAction length])
     {
       if (EcAlarmSeverityCleared == perceivedSeverity)
@@ -667,13 +697,10 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
 		      format: @"empty proposed repair action"];
 	}
     }
-  if (255 < strlen([proposedRepairAction UTF8String]))
-    {
-      [self release];
-      [NSException raise: NSInvalidArgumentException
-	format: @"proposed repair action too long (over 255 bytes): (%@)",
-	proposedRepairAction];
-    }
+  proposedRepairAction = [self truncate: proposedRepairAction
+				   name: @"proposedRepairAction"
+				     at: 255
+				    err: &e];
   if (nil == eventDate)
     {
       eventDate = [NSDate date];
@@ -682,13 +709,10 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
     {
       additionalText = @"";
     }
-  if (255 < strlen([additionalText UTF8String]))
-    {
-      [self release];
-      [NSException raise: NSInvalidArgumentException
-	format: @"additional text too long (over 255 bytes): (%@)",
-	additionalText];
-    }
+  additionalText = [self truncate: additionalText
+			     name: @"additionalText"
+			       at: 255
+			      err: &e];
   if (nil == [c stringFromEventType: eventType])
     {
       [self release];
@@ -733,6 +757,10 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component)
       ASSIGNCOPY(_specificProblem, specificProblem);
       ASSIGNCOPY(_proposedRepairAction, proposedRepairAction);
       ASSIGNCOPY(_additionalText, additionalText);
+    }
+  if (e)
+    {
+      NSLog(@"ERROR:\n%@ creating %@", e, self);
     }
   return self;
 }

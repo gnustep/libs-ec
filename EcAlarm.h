@@ -501,7 +501,10 @@ EcMakeManagedObject(NSString *host, NSString *process, NSString *component);
  * value of EcAlarmSeverityCleared indicating that the problem is over.<br />
  * A proposedRepairAction is mandatory (unless the severity is cleared)
  * to provide the human operator with some sort of hint about how they
- * should resolve the issue.
+ * should resolve the issue.<br />
+ * String arguments which are excessively long will be truncated (and a
+ * log written to STDERR), while other initialisation errors will cause
+ * an exception to be raised.
  */
 - (id) initForManagedObject: (NSString*)managedObject
 			 at: (NSDate*)eventDate
