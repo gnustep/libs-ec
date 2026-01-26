@@ -111,6 +111,11 @@
          * GSTLSCAFile GSTLSCertificateFile GSTLSCertificateKeyFile
          * GSTLSCertificateKeyPassword GSTLSDebug GSTLSPriority
          * GSTLSRemoteHosts GSTLSRevokeFile GSTLSServerName GSTLSVerify
+	 *
+	 * As a special case, ECCL allows the GSTLSCertificateFile and
+	 * GSTLSCertificateKeyFile values to be data (file contents),
+	 * but generally the value corresponding to an xxxFile key is a
+	 * string giving the filesystem location of the data to be used.
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
