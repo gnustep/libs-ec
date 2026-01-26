@@ -1430,10 +1430,10 @@ valgrindLog(NSString *name)
       NS_DURING
 	{
           NSMutableArray        *args;
-          NSMutableDictionary   *defs;
+          NSMutableDictionary   *hide;
 
           args = [NSMutableArray array];
-          defs = [NSMutableDictionary dictionary];
+          hide = [NSMutableDictionary dictionary];
 
           /* Insert valgrind stuff if necessary.
            */
@@ -1475,7 +1475,7 @@ valgrindLog(NSString *name)
 
                   if (key)
                     {
-                      [defs setObject: val forKey: key];
+                      [hide setObject: val forKey: key];
                       key = nil;
                     }
                   else
@@ -1620,7 +1620,7 @@ valgrindLog(NSString *name)
                */
               if ([home length] > 0)
                 {
-                  [defs setObject: home forKey: @"HomeDirectory"];
+                  [hide setObject: home forKey: @"HomeDirectory"];
                 }
 
               /* If we do not want the process to core-dump, we need to add
@@ -1628,7 +1628,7 @@ valgrindLog(NSString *name)
                */
               if ([self mayCoreDump] == NO)
                 {
-                  [defs setObject: @"0" forKey: @"CoreSize"];
+                  [hide setObject: @"0" forKey: @"CoreSize"];
                 }
 
 #if     GS_USE_GNUTLS
@@ -1733,16 +1733,15 @@ valgrindLog(NSString *name)
 		   */
                   if (g)
                     {
-		      [defs setObject: g forKey: @"OptionsForTLS"];
+		      [hide setObject: g forKey: @"OptionsForTLS"];
                     }
                   else if (c && s)
                     {
-                      [defs setObject: c forKey: @"ClientOptionsForTLS"];
-                      [defs setObject: s forKey: @"ServerOptionsForTLS"];
+                      [hide setObject: c forKey: @"ClientOptionsForTLS"];
+                      [hide setObject: s forKey: @"ServerOptionsForTLS"];
                     }
 		  else
 		    {
-		      NSUserDefaults		*defs = [command cmdDefaults];
 		      NSMutableDictionary	*opts;
 		      id                  	opt;
 
@@ -1813,7 +1812,7 @@ valgrindLog(NSString *name)
 			  [opts setObject: opt forKey: GSTLSVerify];
 			}
 
-		      [defs setObject: opts forKey: @"OptionsForTLS"];
+		      [hide setObject: opts forKey: @"OptionsForTLS"];
 		    }
 		}
 #endif
@@ -1821,7 +1820,7 @@ valgrindLog(NSString *name)
               /* Now we need to make the key/value pairs into a serialised
                * form to be passed to the subprocess using a pipe.
                */
-              d = [NSPropertyListSerialization dataFromPropertyList: defs
+              d = [NSPropertyListSerialization dataFromPropertyList: hide
                 format: NSPropertyListBinaryFormat_v1_0
                 errorDescription: NULL];
               l = [d length];
@@ -1886,7 +1885,7 @@ valgrindLog(NSString *name)
 	      identifier =  [task processIdentifier];
 	      [[command logFile] printf:
 		@"%@ launched %@ with %@ and hidden values for %@\n",
-		[NSDate date], prog, args, [defs allKeys]];
+		[NSDate date], prog, args, [hide allKeys]];
 	    }
 	}
       NS_HANDLER
