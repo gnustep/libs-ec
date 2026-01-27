@@ -104,18 +104,27 @@
          * ServerOptionsForTLS = {dictionary};
          * to specify the options used when another process connects to the
          * child process.
+	 *
          * If the child is supposed to use the same options in both cases,
          * a single OptionsForTLS dictionary may be used instead.
 	 *
+	 * It is an error to supply both an OptionsForTLS (without a prefix)
+         * and an OptionsForTLS with a Client (and/or Server) prefix.
+	 *
 	 * Default values for these dictionaries may be set within the
  	 * Command server configuration rather than within the launch
-	 * configuration of the individual process.
+	 * configuration of the individual process.  The Command server
+	 * level configuration is used *only* if there is no configuration
+	 * within the Launch entry of the process.
 	 *
          * The contents of the dictionary are TLS configuration keys and
          * values as per the gnustep-base documentation:
          * GSTLSCAFile GSTLSCertificateFile GSTLSCertificateKeyFile
          * GSTLSCertificateKeyPassword GSTLSDebug GSTLSPriority
          * GSTLSRemoteHosts GSTLSRevokeFile GSTLSServerName GSTLSVerify
+	 *
+	 * If an OptionsFirTLS dictionary is configured, it must at least
+	 * contain GSTLSCertificateFile and GSTLSCertificateKeyFile entries.
 	 *
 	 * As a special case, ECCL allows the GSTLSCertificateFile and
 	 * GSTLSCertificateKeyFile values to be data (file contents),
@@ -126,6 +135,10 @@
 	 * process or as a default, the Command server will pass an
 	 * OptionsForTLS dictionary containing the TLS configuration of
 	 * the Command server itself or using a self-signed certificate.
+	 *
+	 * NB. processes not launched by the Command server (eg the Control
+	 * server and the Command server itself) may be configured using
+	 * the user defaults database (or command line arguments).
          */
 	Foo = {
 	  Prog = "/usr/GNUstep/Local/Tools/Foo";	// Full path to binary
