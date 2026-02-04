@@ -1697,8 +1697,7 @@ findMode(NSDictionary* d, NSString* s)
                    * we assume entry was correct and set two to be the
                    * same as one so we will not prompt for a confirmation.
                    */
-                  two = malloc(olen + 1);
-                  memcpy(two, one, olen + 1);
+                  two = strdup(one);
                   tlen = olen;
                 }
               DESTROY(pool);
