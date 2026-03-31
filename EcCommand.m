@@ -3863,6 +3863,7 @@ NSLog(@"Problem %@", localException);
       NSDictionary		*d;
       NSArray			*a;
       unsigned			i;
+      NSString      		*err = nil;
 
       ASSIGN(config, newConfig);
       /* Get the specific Command server config
@@ -3905,7 +3906,6 @@ NSLog(@"Problem %@", localException);
           NSInteger             i;
           NSMutableArray        *newOrder;
 	  NSString              *k;
-          NSString              *err = nil;
           NSTimeInterval        ti;
 
           NS_DURING
@@ -3929,46 +3929,12 @@ NSLog(@"Problem %@", localException);
                 err = @"the -cmdUpdated method raised an exception";
               NS_ENDHANDLER
             }
-          if ([err length] > 0)
-            {
-              EcAlarm       *a;
 
-              /* Truncate additional text to fit if necessary.
-               */
-              err = [err stringByTrimmingSpaces];
-              if ([err length] > 255)
-                {
-                  err = [err substringToIndex: 255];
-                  while (255 < strlen([err UTF8String]))
-                    {
-                      err = [err substringToIndex: [err length] - 1];
-                    }
-                }
-              a = [EcAlarm alarmForManagedObject: nil
-                at: nil
-                withEventType: EcAlarmEventTypeProcessingError
-                probableCause: EcAlarmConfigurationOrCustomizationError
-                specificProblem: @"configuration error"
-                perceivedSeverity: EcAlarmSeverityMajor
-                proposedRepairAction:
-                _(@"Correct config or software (check log for details).")
-                additionalText: err];
-              [self alarm: a];
-            }
-          else
-            {
-              EcAlarm   *a;
-
-              a = [EcAlarm alarmForManagedObject: nil
-                at: nil
-                withEventType: EcAlarmEventTypeProcessingError
-                probableCause: EcAlarmConfigurationOrCustomizationError
-                specificProblem: @"configuration error"
-                perceivedSeverity: EcAlarmSeverityCleared
-                proposedRepairAction: nil
-                additionalText: nil];
-              [self alarm: a];
-            }
+#define EConf(format, args...) \
+({ NSString *e = [NSString stringWithFormat: (format), ##args];\
+  if (nil == err) err = e;\
+  NSLog(@"%@", e);\
+})
 
           debug = [[d objectForKey: @"CommandDebug"] boolValue];
 
@@ -4042,7 +4008,7 @@ NSLog(@"Problem %@", localException);
             {
               if (nil != o)
                 {
-                  NSLog(@"bad 'LaunchOrder' config (not an array) ignored");
+                  EConf(@"Bad 'LaunchOrder' config (not an array) ignored");
                 }
               newOrder = nil;
             }
@@ -4050,7 +4016,7 @@ NSLog(@"Problem %@", localException);
 	  conf = [d objectForKey: @"Launch"];
 	  if ([conf isKindOfClass: [NSDictionary class]] == NO)
 	    {
-	      NSLog(@"No 'Launch' information in latest config update");
+	      EConf(@"No 'Launch' information in latest config update");
               newOrder = nil;
 	    }
 	  else
@@ -4066,7 +4032,7 @@ NSLog(@"Problem %@", localException);
 
 		  if ([o isKindOfClass: [NSDictionary class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' information for %@", k);
+		      EConf(@"Bad 'Launch' information for %@", k);
 		      continue;
 		    }
                   d = AUTORELEASE([o mutableCopy]);
@@ -4074,26 +4040,26 @@ NSLog(@"Problem %@", localException);
 		  o = [d objectForKey: @"Auto"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' Auto for %@", k);
+		      EConf(@"Bad 'Launch' Auto for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"Time"];
 		  if (o != nil && ([o isKindOfClass: [NSString class]] == NO
                     || [o intValue] < 1 || [o intValue] > 600))
 		    {
-		      NSLog(@"bad 'Launch' Time for %@", k);
+		      EConf(@"Bad 'Launch' Time for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"Disabled"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' Disabled for %@", k);
+		      EConf(@"Bad 'Launch' Disabled for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"Args"];
 		  if (o != nil && [o isKindOfClass: [NSArray class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' Args for %@", k);
+		      EConf(@"Bad 'Launch' Args for %@", k);
 		      continue;
 		    }
 		  else if (o)
@@ -4134,7 +4100,7 @@ NSLog(@"Problem %@", localException);
 					}
 				      if (p == l)
 					{
-					  NSLog(@"bad 'Launch' Args (ProgramName appears to contain Instance number) for %@", k);
+					  EConf(@"Bad 'Launch' Args (ProgramName appears to contain Instance number) for %@", k);
 					  bad = YES;
 					  break;
 					}
@@ -4158,25 +4124,25 @@ NSLog(@"Problem %@", localException);
 		  o = [d objectForKey: @"Home"];
 		  if (o != nil && [o isKindOfClass: [NSString class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' Home for %@", k);
+		      EConf(@"Bad 'Launch' Home for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"Prog"];
 		  if (o == nil || [o isKindOfClass: [NSString class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' Prog for %@", k);
+		      EConf(@"Bad 'Launch' Prog for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"AddE"];
 		  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' AddE for %@", k);
+		      EConf(@"Bad 'Launch' AddE for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"SetE"];
 		  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 		    {
-		      NSLog(@"bad 'Launch' SetE for %@", k);
+		      EConf(@"Bad 'Launch' SetE for %@", k);
 		      continue;
 		    }
 		  o = [d objectForKey: @"Deps"];
@@ -4184,7 +4150,7 @@ NSLog(@"Problem %@", localException);
 		    {
                       if ([o isKindOfClass: [NSArray class]] == NO)
                         {
-                          NSLog(@"bad 'Launch' Deps for %@ (not an array)", k);
+                          EConf(@"Bad 'Launch' Deps for %@ (not an array)", k);
                           continue;
                         }
                       o = AUTORELEASE([o mutableCopy]);
@@ -4209,13 +4175,13 @@ NSLog(@"Problem %@", localException);
 
                           if ([name isEqual: k])
                             {       
-                              NSLog(@"bad 'Launch' Deps for %@"
+                              EConf(@"Bad 'Launch' Deps for %@"
                                 @" (depends on self)", k);
                               [md removeObjectForKey: k];
                             }
                           if (nil == [md objectForKey: name])
                             {       
-                              NSLog(@"bad 'Launch' Deps for %@"
+                              EConf(@"Bad 'Launch' Deps for %@"
                                 @" (depends on %@)", k, name);
                               [md removeObjectForKey: k];
                             }
@@ -4236,19 +4202,19 @@ NSLog(@"Problem %@", localException);
                       o = [newOrder objectAtIndex: c];
                       if (NO == [o isKindOfClass: [NSString class]])
                         {
-                          NSLog(@"bad 'LaunchOrder' item ('%@' at %u) ignored"
+                          EConf(@"Bad 'LaunchOrder' item ('%@' at %u) ignored"
                             @" (not a server name)", o, (unsigned)c);
                           [newOrder removeObjectAtIndex: c];
                         }
                       else if ([newOrder indexOfObject: o] != c)
                         {
-                          NSLog(@"bad 'LaunchOrder' item ('%@' at %u) ignored"
+                          EConf(@"Bad 'LaunchOrder' item ('%@' at %u) ignored"
                             @" (repeat of earlier item)", o, (unsigned)c);
                           [newOrder removeObjectAtIndex: c];
                         }
                       else if (nil == [conf objectForKey: o])
                         {
-                          NSLog(@"bad 'LaunchOrder' item ('%@' at %u) ignored"
+                          EConf(@"Bad 'LaunchOrder' item ('%@' at %u) ignored"
                             @" (not in 'Launch' dictionary)", o, (unsigned)c);
                           [newOrder removeObjectAtIndex: c];
                         }
@@ -4333,7 +4299,7 @@ NSLog(@"Problem %@", localException);
 	  o = [d objectForKey: @"SetE"];
           if (o != nil && NO == [o isKindOfClass: [NSDictionary class]])
             {
-	      NSLog(@"Bad global 'SetE' information in latest config update");
+	      EConf(@"Bad global 'SetE' information in latest config update");
 	      o = nil;
             }
           if (nil == o)
@@ -4345,7 +4311,7 @@ NSLog(@"Problem %@", localException);
 	  o = [d objectForKey: @"AddE"];
 	  if (o != nil && [o isKindOfClass: [NSDictionary class]] == NO)
 	    {
-	      NSLog(@"Bad global 'AddE' information in latest config update");
+	      EConf(@"Bad global 'AddE' information in latest config update");
 	      o = nil;
 	    }
           if (o)
@@ -4355,7 +4321,11 @@ NSLog(@"Problem %@", localException);
 	  ASSIGN(environment, env);
 
 	  k = [d objectForKey: @"NodesFree"];
-	  if (YES == [k isKindOfClass: [NSString class]])
+	  if (nil == k)
+	    {
+	      nodesFree = 0.1;
+	    }
+	  else if (YES == [k isKindOfClass: [NSString class]])
 	    {
 	      nodesFree = [k floatValue];
 	      nodesFree /= 100.0;
@@ -4366,11 +4336,15 @@ NSLog(@"Problem %@", localException);
 	    }
 	  if (nodesFree < 0.02 || nodesFree > 0.9)
 	    {
-	      NSLog(@"bad or missing minimum disk 'NodesFree' ... using 10%%");
+	      EConf(@"Bad minimum disk 'NodesFree' ... using 10%%");
 	      nodesFree = 0.1;
 	    }
 	  k = [d objectForKey: @"SpaceFree"];
-	  if (YES == [k isKindOfClass: [NSString class]])
+	  if (nil == k)
+	    {
+	      spaceFree = 0.1;
+	    }
+	  else if (YES == [k isKindOfClass: [NSString class]])
 	    {
 	      spaceFree = [k floatValue];
 	      spaceFree /= 100.0;
@@ -4381,14 +4355,14 @@ NSLog(@"Problem %@", localException);
 	    }
 	  if (spaceFree < 0.02 || spaceFree > 0.9)
 	    {
-	      NSLog(@"bad or missing minimum disk 'SpaceFree' ... using 10%%");
+	      EConf(@"Bad minimum disk 'SpaceFree' ... using 10%%");
 	      spaceFree = 0.1;
 	    }
 	}
       else
 	{
 	  // should be impossible
-	  NSLog(@"No '%@' information in latest config update", [self cmdName]);
+	  EConf(@"No '%@' information in latest config update", [self cmdName]);
 	}
 
       a = [NSArray arrayWithArray: clients];
@@ -4425,6 +4399,47 @@ NSLog(@"Problem %@", localException);
 	    format: NSPropertyListBinaryFormat_v1_0
 	    errorDescription: 0];
 	  [data writeToFile: diskCache atomically: YES];
+	}
+
+      if ([err length] > 0)
+	{
+	  EcAlarm       *a;
+
+	  /* Truncate additional text to fit if necessary.
+	   */
+	  err = [err stringByTrimmingSpaces];
+	  if ([err length] > 255)
+	    {
+	      err = [err substringToIndex: 255];
+	      while (255 < strlen([err UTF8String]))
+		{
+		  err = [err substringToIndex: [err length] - 1];
+		}
+	    }
+	  a = [EcAlarm alarmForManagedObject: nil
+	    at: nil
+	    withEventType: EcAlarmEventTypeProcessingError
+	    probableCause: EcAlarmConfigurationOrCustomizationError
+	    specificProblem: @"configuration error"
+	    perceivedSeverity: EcAlarmSeverityMajor
+	    proposedRepairAction:
+	    _(@"Correct config or software (check log for details).")
+	    additionalText: err];
+	  [self alarm: a];
+	}
+      else
+	{
+	  EcAlarm   *a;
+
+	  a = [EcAlarm alarmForManagedObject: nil
+	    at: nil
+	    withEventType: EcAlarmEventTypeProcessingError
+	    probableCause: EcAlarmConfigurationOrCustomizationError
+	    specificProblem: @"configuration error"
+	    perceivedSeverity: EcAlarmSeverityCleared
+	    proposedRepairAction: nil
+	    additionalText: nil];
+	  [self alarm: a];
 	}
     }
 }
