@@ -4477,6 +4477,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
   result = replyBuffer;
   replyBuffer = saved;
+  NSLog(@"%@ tells us '%@'\n%@", operator, msg, result);
   return result;
 }
 
