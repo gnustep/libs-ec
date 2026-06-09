@@ -1,3 +1,14 @@
+2026-06-09 Richard Frith-Macdonald <rfm@gnu.org>
+
+	* EcProcess.m:
+	* EcProcess.h:
+	* EcUserDefaults.h:
+	* EcUserDefaults.m:
+	* Operators.plist:
+	Add support for a ConfKeys dictionary in the Operators configuration
+	to control which things in the defaults system may be altered from
+	the Console using the 'defaults', 'debug' or 'nodebug' commands.
+
 2025-12-12 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.h:

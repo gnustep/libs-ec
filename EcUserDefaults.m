@@ -224,6 +224,15 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
   [defs purgeSettings];
 }
 
+- (NSString*) raw: (NSString*)aKey
+{
+  if (nil != prefix && [aKey hasPrefix: prefix])
+    {
+      aKey = [aKey substringFromIndex: [prefix length]];
+    }
+  return aKey;
+}
+
 - (void) removeObjectForKey: (NSString*)aKey
 {
   return [defs removeObjectForKey: [self _getKey: aKey]];
@@ -399,6 +408,17 @@ static NSTimeInterval		defaultDuration = (72.0 * 60.0 * 60.0);
       [[NSNotificationCenter defaultCenter] postNotificationName:
 	NSUserDefaultsDidChangeNotification object: self];
     }
+}
+
+- (NSString*) raw: (NSString*)aKey
+{
+  NSString	*prefix = [self defaultsPrefix];
+
+  if (nil != prefix && [aKey hasPrefix: prefix])
+    {
+      aKey = [aKey substringFromIndex: [prefix length]];
+    }
+  return aKey;
 }
 
 - (void) revertSettings

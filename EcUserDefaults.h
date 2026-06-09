@@ -87,6 +87,11 @@
  */
 - (void) purgeSettings;
 
+/** Convenience method to strip the prefix from the supplied aKey value
+ * if it is present.
+ */
+- (NSString*) raw: (NSString*)aKey;
+
 /** Removes all settings previously set up using the -setCommand:forKey:
  * method.
  */

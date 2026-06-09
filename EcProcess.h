@@ -1186,9 +1186,14 @@ extern NSString*	cmdVersion(NSString *ver);
 - (BOOL) cmdMatch: (NSString*)val toKey: (NSString*)key;
 
 /** Returns an array of commands that the named operator is permitted
- * to use.
+ * to use.  If all commands are available this is nil.
  */
 - (NSArray*) ecCommands: (NSString*)operator;
+
+/** Returns an array of configuration keys that the named operator is
+ * permitted to use.  If all configuration keys are available this is nil.
+ */
+- (NSArray*) ecConfKeys: (NSString*)operator;
 
 /** Sets the operator config.
  */

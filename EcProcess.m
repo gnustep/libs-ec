@@ -397,6 +397,10 @@ static NSDictionary     *ecOperators = nil;     // Operator configuration
 
 static NSTimeInterval   initAt = 0.0;
 
+/* Set by -ecMesg:from: for the duration of the method handling the message.
+ */
+static NSString         *ecOperator = nil;
+
 /* Internal value for use only by quitting mechanism.
  */
 static NSTimeInterval   beganQuitting = 0.0;    // Start of orderly shutdown
@@ -4438,6 +4442,91 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
   return allow;
 }
 
+- (NSArray*) ecConfKeys: (NSString*)operator
+{
+  static NSArray        *empty = nil;
+  NSArray               *allow = nil;
+  NSString	        *name;
+  id                    obj;
+
+  if (nil == operator)
+    {
+      name = @"";
+    }
+  else
+    {
+      NSRange   r = [operator rangeOfString: @":"];
+
+      if (r.length > 0)
+        {
+          name = [operator substringToIndex: r.location];
+        }
+      else
+        {
+          name = operator;
+        }
+    }
+
+  [ecLock lock];
+  if (nil == empty)
+    {
+      empty = [NSArray new];
+    }
+
+  obj = [ecOperators objectForKey: name];
+  if (NO == [obj isKindOfClass: [NSDictionary class]])
+    {
+      NSLog(@"Operator '%@' not found; no access to config keys", operator);
+      obj = empty;
+    }
+  else if (nil == [obj objectForKey: @"ConfKeys"] && [name length] > 0)
+    {
+      obj = [ecOperators objectForKey: @""];
+      if (NO == [obj isKindOfClass: [NSDictionary class]])
+        {
+          obj = nil;    // Non-dictionary default entry ignored.
+        }
+    }
+  if ([obj isKindOfClass: [NSDictionary class]])
+    {
+      obj = [obj objectForKey: @"ConfKeys"];
+      if ([obj isKindOfClass: [NSString class]])
+        {
+          /* A string is the name to get the ConfKeys of another agent.
+           */
+          name = (NSString*)obj;
+          obj = [ecOperators objectForKey: name];
+          if ([obj isKindOfClass: [NSDictionary class]])
+            {
+              obj = [obj objectForKey: @"ConfKeys"];
+              if (NO == [obj isKindOfClass: [NSArray class]])
+                {
+                  NSLog(@"Operator '%@' ConfKeys links to '%@' which does"
+                    @" not have ConfKeys; no access to config keys",
+                    operator, name);
+                  obj = empty;
+                }
+            }
+          else
+            {
+              NSLog(@"Operator '%@' ConfKeys links to '%@' not found;"
+                @" no access to config keys", operator, name);
+              obj = empty;
+            }
+        }
+      else if (obj != nil && NO == [obj isKindOfClass: [NSArray class]])
+        {
+          NSLog(@"Operator '%@' ConfKeys entry invalid;"
+            @" no access to config keys", operator);
+          obj = empty;
+        }
+    }
+  allow = (NSArray*)AUTORELEASE(RETAIN(obj));
+  [ecLock unlock];
+
+  return allow;
+}
+
 - (NSString*) ecMesg: (NSArray*)msg from: (NSString*)operator
 {
   NSMutableString	*saved;
@@ -4467,7 +4556,9 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 
   NS_DURING
     {
+      ecOperator = operator;
       [self performSelector: sel withObject: msg];
+      ecOperator = nil;
     }
   NS_HANDLER
     {
@@ -4705,6 +4796,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else if ([msg count] > 1)
 	{
+          NSArray       *allow = [self ecConfKeys: ecOperator];
 	  NSString	*mode = (NSString*)[msg objectAtIndex: 1];
 	  NSString	*key;
 
@@ -4722,34 +4814,47 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"all"] == NSOrderedSame)
 	    {
 	      NSEnumerator	*enumerator = [cmdDebugKnown keyEnumerator];
+              NSMutableArray    *a = [NSMutableArray array];
 
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: key]];
+		  key = [cmdDefs key: key];
+                  if (nil == allow
+                    || [allow containsObject: [cmdDefs raw: key]])
+                    {
+                      [cmdDefs setCommand: @"YES" forKey: key];
+                      [a addObject: mode];
+                    }
 		}
-	      [self cmdPrintf: @"All debugging is now active.\n"];
+	      [self cmdPrintf: @"Debugging is now active: %@.\n", a];
 	    }
           else
             {
-	      [self cmdPrintf: @"debug mode '"];
+	      [self cmdPrintf: @"debug mode '%@' ", mode];
 	      if ((mode = findMode(cmdDebugKnown, mode)) == nil)
 		{
-		  [self cmdPrintf: @"%@' is not known.\n", mode];
+		  [self cmdPrintf: @"is not known.\n"];
 		}
-	      else
-		{
-		  [self cmdPrintf: @"%@", mode];
-		  if ([cmdDebugModes member: mode] == nil)
-		    {
-		      [self cmdPrintf: @"' is now active."];
-		    }
-		  else
-		    {
-		      [self cmdPrintf: @"' is already active."];
-		    }
+	      else if ([cmdDebugModes member: mode])
+                {
+                  [self cmdPrintf: @"is already active.\n"];
+                }
+              else
+                {
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"YES" forKey: [cmdDefs key: key]];
+		  key = [cmdDefs key: key];
+                  if (nil == allow
+                    || [allow containsObject: [cmdDefs raw: key]])
+                    {
+		      [cmdDefs setCommand: @"YES" forKey: key];
+		      [self cmdPrintf: @"is now active.\n"];
+                    }
+                  else
+                    {
+		      [self cmdPrintf: @"change prohibited by"
+                        @" Operator setup.\n"];
+                    }
 		}
 	    }
 	}
@@ -4905,6 +5010,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"write"] == NSOrderedSame
             || [mode caseInsensitiveCompare: @"set"] == NSOrderedSame)
 	    {
+              NSArray   *allow = [self ecConfKeys: ecOperator];
+
               if ([key isEqualToString: ecControlKey])
                 {
                   [self cmdPrintf: @"%@ can only be set on startup.\n", key];
@@ -4913,6 +5020,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               else if ([key isEqualToString: @"KillDebugOutput"])
                 {
                   [self cmdPrintf: @"%@ can not be overridden.\n", key];
+                  return;
+                }
+              else if (allow
+                && NO == [allow containsObject: [cmdDefs raw: key]])
+                {
+                  [self cmdPrintf: @"%@ prohibited by Operator setup.\n", key];
                   return;
                 }
               else if ([msg count] == 4)
@@ -5148,6 +5261,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	}
       else if ([msg count] > 1)
 	{
+          NSArray       *allow = [self ecConfKeys: ecOperator];
 	  NSString	*mode = (NSString*)[msg objectAtIndex: 1];
 	  NSString	*key;
 
@@ -5158,28 +5272,41 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: nil forKey: [cmdDefs key: key]];
+		  key = [cmdDefs key: key];
+		  [cmdDefs setCommand: nil forKey: key];
 		}
 	      [self cmdPrintf: @"Now using debug settings from config.\n"];
             }
           else if ([mode caseInsensitiveCompare: @"all"] == NSOrderedSame)
 	    {
 	      NSEnumerator	*enumerator = [cmdDebugKnown keyEnumerator];
+              NSMutableArray    *a = [NSMutableArray array];
 
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: key]];
+		  key = [cmdDefs key: key];
+                  
+                  if (nil == allow
+                    || [allow containsObject: [cmdDefs raw: key]])
+                    {
+                      [cmdDefs setCommand: @"NO" forKey: key];
+                      [a addObject: mode];
+                    }
 		}
-	      [self cmdPrintf: @"All debugging is now inactive.\n"];
+	      [self cmdPrintf: @"Debugging is now inactive: %@.\n", a];
 	    }
 	  else
 	    {
-	      [self cmdPrintf: @"debug mode '"];
+	      [self cmdPrintf: @"debug mode '%@' ", mode];
 	      if ((mode = findMode(cmdDebugKnown, mode)) == nil)
 		{
-		  [self cmdPrintf: @"%@' is not known.\n", mode];
+		  [self cmdPrintf: @"is not known.\n"];
 		}
+              else if ([cmdDebugModes member: mode] == nil)
+                {
+                  [self cmdPrintf: @"already inactive.\n"];
+                }
 	      else
 		{
 		  [self cmdPrintf: @"%@' is ", mode];
@@ -5192,7 +5319,18 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		      [self cmdPrintf: @"now deactivated.\n"];
 		    }
 		  key = [@"Debug-" stringByAppendingString: mode];
-		  [cmdDefs setCommand: @"NO" forKey: [cmdDefs key: key]];
+		  key = [cmdDefs key: key];
+                  if (nil == allow
+                    || [allow containsObject: [cmdDefs raw: key]])
+                    {
+		      [cmdDefs setCommand: @"NO" forKey: key];
+		      [self cmdPrintf: @"is now inactive.\n"];
+                    }
+                  else
+                    {
+		      [self cmdPrintf: @"change prohibited by"
+                        @" Operator setup.\n"];
+                    }
 		}
 	    }
 	}

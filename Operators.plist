@@ -21,20 +21,34 @@
    * contains such a list of commands. The referenced operator entry defines
    * a 'role' capable of executing the defined set of commands.
    *
-   * When the password '-'  is used to prevent login, the Commands setting
-   * of the operator may still be referenced as a role by the entries of
-   * other operators.
+   * The (optional) ConfKeys value is either an array listing the configuration
+   * keys that the operator can use, or the name of another operator entry
+   * which contains such a list of keys. The referenced operator entry defines
+   * a 'role' capable of setting configuration values using the defined set of
+   * keys.
+   * NB. This modifies the behavior of the 'defaults', 'debug' and 'nodebug'
+   * commands.  For the latter two commands, debug configuration uses keys
+   * of the form Debug-xxx where xxx is the debug mode being set or cleared.
    *
-   * The omission of the Commands entry means that the commands array is
+   * When the password '-'  is used to prevent login, the Commands and ConfKeys
+   * setting of the operator may still be referenced as a role by the entries
+   * of other operators.
+   *
+   * The omission of the Commands or ConfKeys entry means that the array is
    * supplied from the default entry (if there is one).
-   * If there is no Commands entry for the operator, and no entry for the
-   * default operator (or no default operator), all commands are available,
-   * but otherwise any error in the config (a Commands entry which is neither
-   * a string nor an array, or a string which does not reference an operator
-   * entry with a Command array) means that no commands are available.
+   * If there is no Commands or ConfKeys entry for the operator, and no entry
+   * for the default operator (or no default operator), all commands (or
+   * configuration keys) are available, but otherwise any error in the config
+   * (a Commands or ConfKeys entry which is neither a string nor an array,
+   * or a string which does not reference an operator entry with a Command or
+   * ConfKeys array) means that no commands (or configuration keys) are
+   * available.
    * An entry of the form 'Commands = ();' for the default operator is
    * sufficient to disable all commands for all operators until/unless
    * commands are specifically enabled for them.
+   * Similarly, an entry of the form 'ConfKeys = ();' for the default operator
+   * disables all seting of configuration for all operators until/unless
+   * configuration keys are specifically enabled for them.
    *
    * It is possible to log in to the Console using an operator name which is
    * not explicitly configured.  In that case the default operator entry is
@@ -42,6 +56,8 @@
    * 1. The Passord from the default entry is used to permit/refuse the login.
    * 2. The Commands from the default entry is used to define the commands that
    * the operator may use, and if this is not present no commands may be used.
+   * 3. The ConfKeys from the default entry is used to define the keys that
+   * the operator may use, and if this is not present no keys may be used.
    *
    * NB. There are a few special cases for commands as follows:
    * The 'quit' command is always permitted for the Console itself, and
@@ -50,8 +66,9 @@
    * are not considered to be commands and therefore do not need to be
    * listed in Commands arrays.
    * The 'config' command needs to be listed for at least one operator in
-   * order to be able to change configuration.  Without it, configuration
-   * could only be changed by killing and restarting the Control server.
+   * order to be able to update configuration from Control.plist.  Without it,
+   * configuration could only be changed by killing and restarting the Control
+   * server.
    *
    * Just add a definition for yourself as below:
    */
@@ -72,11 +89,22 @@
   restricted = {
     Password = hashedPasswordOrUsernameOrEmptyString;
     Commands = (
+      debug,
+      defaults,
       launch,
       list,
+      nodebug,
       quit,
       restart,
       status
+    );
+    /* Supplying ConfKeys can ensure that the only Console override to
+     * configuration with the 'defauls', 'debug' or 'nodebug' commands
+     * is turning on (or off) basic and detail level debug.
+     */
+    ConfKeys = (
+      Debug-basic,
+      Debug-detail
     );
   };
 
