@@ -4814,20 +4814,44 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"all"] == NSOrderedSame)
 	    {
 	      NSEnumerator	*enumerator = [cmdDebugKnown keyEnumerator];
-              NSMutableArray    *a = [NSMutableArray array];
+              NSMutableArray    *already = [NSMutableArray array];
+              NSMutableArray    *changed = [NSMutableArray array];
+              NSMutableArray    *blocked = [NSMutableArray array];
 
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
 		  key = [cmdDefs key: key];
-                  if (nil == allow
+                  
+		  if ([cmdDebugModes member: mode])
+		    {
+                      [already addObject: mode];
+		    }
+                  else if (nil == allow
                     || [allow containsObject: [cmdDefs raw: key]])
                     {
                       [cmdDefs setCommand: @"YES" forKey: key];
-                      [a addObject: mode];
+                      [changed addObject: mode];
                     }
+		  else
+		    {
+                      [blocked addObject: mode];
+		    }
 		}
-	      [self cmdPrintf: @"Debugging is now active: %@.\n", a];
+	      if ([already count])
+		{
+		  [self cmdPrintf: @"Modes already active: %@.\n",
+		    already];
+		}
+	      if ([changed count])
+		{
+	          [self cmdPrintf: @"Modes set active: %@.\n", changed];
+		}
+	      if ([blocked count])
+		{
+	          [self cmdPrintf: @"Prohibited by operator setup: %@.\n",
+		    blocked];
+		}
 	    }
           else
             {
@@ -5280,21 +5304,44 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"all"] == NSOrderedSame)
 	    {
 	      NSEnumerator	*enumerator = [cmdDebugKnown keyEnumerator];
-              NSMutableArray    *a = [NSMutableArray array];
+              NSMutableArray    *already = [NSMutableArray array];
+              NSMutableArray    *changed = [NSMutableArray array];
+              NSMutableArray    *blocked = [NSMutableArray array];
 
 	      while (nil != (mode = [enumerator nextObject]))
 		{
 		  key = [@"Debug-" stringByAppendingString: mode];
 		  key = [cmdDefs key: key];
                   
-                  if (nil == allow
+		  if ([cmdDebugModes member: mode] == nil)
+		    {
+                      [already addObject: mode];
+		    }
+                  else if (nil == allow
                     || [allow containsObject: [cmdDefs raw: key]])
                     {
                       [cmdDefs setCommand: @"NO" forKey: key];
-                      [a addObject: mode];
+                      [changed addObject: mode];
                     }
+		  else
+		    {
+                      [blocked addObject: mode];
+		    }
 		}
-	      [self cmdPrintf: @"Debugging is now inactive: %@.\n", a];
+	      if ([already count])
+		{
+		  [self cmdPrintf: @"Modes already inactive: %@.\n",
+		    already];
+		}
+	      if ([changed count])
+		{
+	          [self cmdPrintf: @"Modes set inactive: %@.\n", changed];
+		}
+	      if ([blocked count])
+		{
+	          [self cmdPrintf: @"Prohibited by operator setup: %@.\n",
+		    blocked];
+		}
 	    }
 	  else
 	    {
@@ -5310,14 +5357,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	      else
 		{
 		  [self cmdPrintf: @"%@' is ", mode];
-		  if ([cmdDebugModes member: mode] == nil)
-		    {
-		      [self cmdPrintf: @"already inactive.\n"];
-		    }
-		  else
-		    {
-		      [self cmdPrintf: @"now deactivated.\n"];
-		    }
 		  key = [@"Debug-" stringByAppendingString: mode];
 		  key = [cmdDefs key: key];
                   if (nil == allow
