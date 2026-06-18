@@ -4840,12 +4840,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		}
 	      if ([already count])
 		{
-		  [self cmdPrintf: @"Modes already active: %@.\n",
+		  [self cmdPrintf: @"Already active: %@.\n",
 		    already];
 		}
 	      if ([changed count])
 		{
-	          [self cmdPrintf: @"Modes set active: %@.\n", changed];
+	          [self cmdPrintf: @"Newly set active: %@.\n", changed];
 		}
 	      if ([blocked count])
 		{
@@ -5330,12 +5330,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 		}
 	      if ([already count])
 		{
-		  [self cmdPrintf: @"Modes already inactive: %@.\n",
+		  [self cmdPrintf: @"Already inactive: %@.\n",
 		    already];
 		}
 	      if ([changed count])
 		{
-	          [self cmdPrintf: @"Modes set inactive: %@.\n", changed];
+	          [self cmdPrintf: @"Newly set inactive: %@.\n", changed];
 		}
 	      if ([blocked count])
 		{
@@ -5356,7 +5356,6 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                 }
 	      else
 		{
-		  [self cmdPrintf: @"%@' is ", mode];
 		  key = [@"Debug-" stringByAppendingString: mode];
 		  key = [cmdDefs key: key];
                   if (nil == allow
