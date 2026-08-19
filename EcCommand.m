@@ -5747,13 +5747,15 @@ NSLog(@"Problem %@", localException);
 		{
 		  NSLog(@"Connecting to %@ on %@", oldName, oldHost);
 		  control = (id<Control>)[NSConnection
-		      rootProxyForConnectionWithRegisteredName: ctlName
-							  host: ctlHost
+		      rootProxyForConnectionWithRegisteredName: oldName
+							  host: oldHost
 				               usingNameServer: ns];
 		  if (control)
 		    {
 		      NSLog(@"Configured name and host pair did not work."
 			@" Used %@ and %@ instead.", oldName, oldHost);
+		      ctlHost = oldHost;
+		      ctlName = oldName;
 		    }
 		}
             }

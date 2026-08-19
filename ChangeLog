@@ -1,3 +1,10 @@
+2026-08-19  Wolfgang Lux  <wolfgang.lux@gmail.com>
+
+	* EcCommand.m(contactControl):
+	When connecting to the Control server by the name configured in
+	the defaults fails really attempt connecting to the last known
+	server.
+
 2026-06-09 Richard Frith-Macdonald <rfm@gnu.org>
 
 	* EcProcess.m:
