@@ -4388,13 +4388,12 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
       empty = [NSArray new];
     }
 
+  /* Get the config containing 'Commands' from either the named operator
+   * or (if that has no 'Commands'), the default operator.
+   */
   obj = [ecOperators objectForKey: name];
-  if (NO == [obj isKindOfClass: [NSDictionary class]])
-    {
-      NSLog(@"Operator '%@' not found; no access to commands", operator);
-      obj = empty;
-    }
-  else if (nil == [obj objectForKey: @"Commands"] && [name length] > 0)
+  if (NO == [obj isKindOfClass: [NSDictionary class]]
+    || (nil == [obj objectForKey: @"Commands"] && [name length] > 0))
     {
       obj = [ecOperators objectForKey: @""];
       if (NO == [obj isKindOfClass: [NSDictionary class]])
@@ -4402,12 +4401,15 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           obj = nil;    // Non-dictionary default entry ignored.
         }
     }
+
   if ([obj isKindOfClass: [NSDictionary class]])
     {
+      /* Now examine the 'Commands' value in the config we found.
+       */
       obj = [obj objectForKey: @"Commands"];
       if ([obj isKindOfClass: [NSString class]])
         {
-          /* A string is the name to get the Commands of another agent.
+          /* A string is the name to get the Commands of another operator.
            */
           name = (NSString*)obj;
           obj = [ecOperators objectForKey: name];
@@ -4474,12 +4476,8 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
     }
 
   obj = [ecOperators objectForKey: name];
-  if (NO == [obj isKindOfClass: [NSDictionary class]])
-    {
-      NSLog(@"Operator '%@' not found; no access to config keys", operator);
-      obj = empty;
-    }
-  else if (nil == [obj objectForKey: @"ConfKeys"] && [name length] > 0)
+  if (NO == [obj isKindOfClass: [NSDictionary class]]
+    || (nil == [obj objectForKey: @"ConfKeys"] && [name length] > 0))
     {
       obj = [ecOperators objectForKey: @""];
       if (NO == [obj isKindOfClass: [NSDictionary class]])
@@ -5036,6 +5034,14 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
 	    {
               NSArray   *allow = [self ecConfKeys: ecOperator];
 
+	      if ([mode caseInsensitiveCompare: @"set"] == NSOrderedSame)
+		{
+		  key = [cmdDefs raw: key];
+		}
+	      else
+		{
+		  key = [cmdDefs key: key];
+		}
               if ([key isEqualToString: ecControlKey])
                 {
                   [self cmdPrintf: @"%@ can only be set on startup.\n", key];
@@ -5047,7 +5053,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
                   return;
                 }
               else if (allow
-                && NO == [allow containsObject: [cmdDefs raw: key]])
+                && NO == [allow containsObject: key])
                 {
                   [self cmdPrintf: @"%@ prohibited by Operator setup.\n", key];
                   return;
@@ -5055,7 +5061,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
               else if ([msg count] == 4)
                 {
                   val = [msg objectAtIndex: 3];
-                  [cmdDefs setCommand: val forKey: [cmdDefs key: key]];
+                  [cmdDefs setCommand: val forKey: key];
                   val = [cmdDefs objectForKey: key];
                 }
               else if ([msg count] == 3)
@@ -5074,6 +5080,7 @@ NSLog(@"Ignored attempt to set timer interval to %g ... using 10.0", interval);
           else if ([mode caseInsensitiveCompare: @"read"] == NSOrderedSame
             || [mode caseInsensitiveCompare: @"get"] == NSOrderedSame)
             {
+	      key = [cmdDefs raw: key];
               if ([key isEqualToString: ecControlKey])
                 {
                   [self cmdPrintf: @"%@ can not be displayed.\n", key];

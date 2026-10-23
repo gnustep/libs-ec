@@ -99,12 +99,14 @@
       status
     );
     /* Supplying ConfKeys can ensure that the only Console override to
-     * configuration with the 'defauls', 'debug' or 'nodebug' commands
+     * configuration with the 'defaults', 'debug' or 'nodebug' commands
      * is turning on (or off) basic and detail level debug.
+     * NB Any defaults prefix should be omitted from these keys; each
+     * entry permits both the prefixed and unprefixed version to be used.
      */
     ConfKeys = (
-      Debug-basic,
-      Debug-detail
+      Debug-basicMode,
+      Debug-detailMode
     );
   };
 
